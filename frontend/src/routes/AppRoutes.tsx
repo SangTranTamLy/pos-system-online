@@ -10,11 +10,9 @@ function AppRoutes() {
 
       <Route element={<ProtectedRoute />}>
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/categories" element={<CategoryPage />} />
       </Route>
-
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/categories" element={<CategoryPage />} />
-      <Route></Route>
     </Routes>
   );
 }

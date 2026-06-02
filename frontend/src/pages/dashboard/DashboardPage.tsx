@@ -1,13 +1,4 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-
-type MenuItem = {
-  label: string;
-  icon: string;
-  path: string;
-  active?: boolean;
-  group?: "main" | "system";
-};
+import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 
 type QuickAction = {
   label: string;
@@ -57,28 +48,6 @@ type StockAlert = {
   minimum: string;
   remainClassName: string;
 };
-
-type AuthUser = {
-  fullName?: string;
-  roleName?: string;
-  avatarUrl?: string;
-};
-
-const menuItems: MenuItem[] = [
-  { label: "Dashboard", icon: "dashboard", path: "/dashboard", active: true, group: "main" },
-  { label: "Bán hàng tại quầy", icon: "point_of_sale",path: "/#", group: "main" },
-  { label: "Đơn pickup", icon: "shopping_bag",path: "/#", group: "main" },
-  { label: "Sản phẩm", icon: "inventory_2", path: "/#",group: "main" },
-  { label: "Danh mục", icon: "category", path: "/categories",group: "main" },
-  { label: "Kho hàng", icon: "warehouse", path: "/#",group: "main" },
-  { label: "Khách hàng", icon: "group",path: "/#", group: "main" },
-  { label: "Hóa đơn", icon: "receipt_long",path: "/#", group: "main" },
-  { label: "Khuyến mãi", icon: "redeem", path: "/#",group: "main" },
-  { label: "Tài khoản", icon: "person", path: "/#",group: "system" },
-  { label: "Phân quyền", icon: "security", path: "/#",group: "system" },
-  { label: "Báo cáo", icon: "analytics", path: "/#",group: "system" },
-  { label: "Cấu hình hệ thống", icon: "settings", path: "/#",group: "system" },
-];
 
 const quickActions: QuickAction[] = [
   {
@@ -255,48 +224,6 @@ const stockAlerts: StockAlert[] = [
   },
 ];
 
-function Icon({
-  name,
-  filled = false,
-  className = "",
-}: {
-  name: string;
-  filled?: boolean;
-  className?: string;
-}) {
-  return (
-    <span
-      aria-hidden="true"
-      className={`material-symbols-outlined inline-flex shrink-0 align-middle ${className}`}
-      style={{
-        fontVariationSettings: `'FILL' ${filled ? 1 : 0}, 'wght' 400, 'GRAD' 0, 'opsz' 24`,
-      }}
-    >
-      {name}
-    </span>
-  );
-}
-
-function SidebarItem({ item }: { item: MenuItem }) {
-  const navigate = useNavigate();
-
-  return (
-    <button
-      type="button"
-      onClick={() => navigate(item.path)}
-      className={[
-        "flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left transition-all duration-200",
-        item.active
-          ? "bg-[#f97316] font-semibold text-white shadow-sm"
-          : "font-medium text-slate-600 hover:bg-orange-50 hover:text-[#f97316]",
-      ].join(" ")}
-    >
-      <Icon name={item.icon} className="text-[20px]" />
-      <span>{item.label}</span>
-    </button>
-  );
-}
-
 function QuickActionCard({ action }: { action: QuickAction }) {
   return (
     <button
@@ -326,7 +253,9 @@ function StatCard({ card }: { card: StatsCardData }) {
         <div className={`rounded-lg p-2 ${card.iconBg} ${card.iconText}`}>
           <Icon name={card.icon} className="scale-90" />
         </div>
-        <span className={`rounded px-2 py-0.5 text-[11px] font-bold ${card.badgeBg} ${card.badgeText}`}>
+        <span
+          className={`rounded px-2 py-0.5 text-[11px] font-bold ${card.badgeBg} ${card.badgeText}`}
+        >
           {card.badge}
         </span>
       </div>
@@ -405,307 +334,146 @@ function TopProductsCard({ products }: { products: TopProduct[] }) {
   );
 }
 
-function formatCurrentDateTime(date: Date) {
-  return new Intl.DateTimeFormat("vi-VN", {
-    weekday: "long",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
-function getInitials(fullName: string) {
-  const parts = fullName.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) {
-    return "AD";
-  }
-
-  const initials = parts.slice(-2).map((part) => part[0]?.toUpperCase() ?? "").join("");
-  return initials || "AD";
-}
-function getStoredAuthUser(): AuthUser {
-  const storedUser = localStorage.getItem("auth_user");
-
-  if (!storedUser) {
-    return {
-      fullName: "Admin Demo",
-      roleName: "admin",
-    };
-  }
-
-  try {
-    const parsedUser = JSON.parse(storedUser) as AuthUser;
-
-    return {
-      fullName: parsedUser.fullName?.trim() || "Admin Demo",
-      roleName: parsedUser.roleName?.trim() || "admin",
-      avatarUrl: parsedUser.avatarUrl?.trim() || undefined,
-    };
-  } catch {
-    return {
-      fullName: "Admin Demo",
-      roleName: "admin",
-    };
-  }
-}
 function DashboardPage() {
-  const navigate = useNavigate();
-  const [currentDateTime, setCurrentDateTime] = useState(() => formatCurrentDateTime(new Date()));
-  const [user] = useState<AuthUser>(() => getStoredAuthUser());
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setCurrentDateTime(formatCurrentDateTime(new Date()));
-    }, 1000);
-
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, []);
-
-  const handleLogout = () => {
-    localStorage.removeItem("auth_token");
-    localStorage.removeItem("auth_user");
-    navigate("/login");
-  };
-
-  const mainMenuItems = menuItems.filter((item) => item.group === "main");
-  const systemMenuItems = menuItems.filter((item) => item.group === "system");
-  const displayName = user.fullName?.trim() || "Admin Demo";
-  const displayRole = user.roleName?.trim() || "admin";
-
   return (
-    <div className="min-h-screen bg-[#f8f9ff] font-['Inter',sans-serif] text-[#0b1c30] lg:flex">
-      <aside className="hidden h-screen w-72 shrink-0 overflow-y-auto border-r border-slate-200 bg-white px-4 py-6 shadow-sm lg:fixed lg:inset-y-0 lg:left-0 lg:flex lg:flex-col">
-        <div className="mb-8 flex items-center gap-3 px-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#f97316] text-white shadow-md">
-            <Icon name="bolt" filled />
-          </div>
-          <h1 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-extrabold tracking-tight text-[#f97316]">
-            QuickServe POS
-          </h1>
+    <AdminLayout>
+      <section className="mb-8">
+        <h2 className="mb-4 font-['Plus_Jakarta_Sans',sans-serif] text-lg font-bold text-[#0b1c30]">
+          Thao tác nhanh
+        </h2>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+          {quickActions.map((action) => (
+            <QuickActionCard key={action.label} action={action} />
+          ))}
+        </div>
+      </section>
+
+      <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
+        {statsCards.map((card) => (
+          <StatCard key={card.label} card={card} />
+        ))}
+      </section>
+
+      <section className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-12">
+        <div className="xl:col-span-8">
+          <RevenueChartMock bars={revenueBars} />
         </div>
 
-        <nav className="flex-1 space-y-1">
-          {mainMenuItems.map((item) => (
-            <SidebarItem key={item.label} item={item} />
-          ))}
-
-          <div className="pb-2 pt-4">
-            <p className="px-4 text-[11px] font-bold uppercase tracking-widest text-slate-400">
-              Hệ thống
-            </p>
-          </div>
-
-          {systemMenuItems.map((item) => (
-            <SidebarItem key={item.label} item={item} />
-          ))}
-        </nav>
-      </aside>
-
-      <main className="flex min-h-screen flex-1 flex-col lg:ml-72">
-        <header className="sticky top-0 z-20 flex h-auto flex-col gap-4 border-b border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-6 lg:h-16 lg:flex-row lg:items-center lg:justify-between lg:px-8 lg:py-0">
-          <div className="flex items-center gap-4">
-            <button
-              type="button"
-              className="rounded-lg p-2 text-[#0b1c30] hover:bg-orange-50 lg:hidden"
-              aria-label="Menu"
-            >
-              <Icon name="menu" />
-            </button>
-            <div className="hidden sm:block">
-              <p className="text-sm font-medium capitalize text-slate-500">{currentDateTime}</p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-4 sm:gap-6">
-            <div className="flex items-center gap-3 border-slate-200 sm:border-l sm:pl-6">
-              <div className="text-right">
-                <p className="text-sm font-bold text-[#0b1c30]">{displayName}</p>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-[#f97316]">
-                  {displayRole}
-                </p>
-              </div>
-              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-100">
-                {user.avatarUrl ? (
-                  <img
-                    src={user.avatarUrl}
-                    alt={displayName}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <span className="text-sm font-bold text-[#9d4300]">{getInitials(displayName)}</span>
-                )}
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="flex items-center gap-2 rounded-lg px-3 py-2 text-slate-600 transition-colors hover:bg-red-50 hover:text-red-600"
-            >
-              <Icon name="logout" />
-              <span className="text-sm font-semibold">Đăng xuất</span>
-            </button>
-          </div>
-        </header>
-
-        <div className="border-b border-slate-200 bg-white px-4 py-3 lg:hidden">
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {menuItems.map((item) => (
-              <button
-                key={item.label}
-                type="button"
-                className={[
-                  "whitespace-nowrap rounded-full border px-4 py-2 text-sm font-semibold transition-colors",
-                  item.active
-                    ? "border-[#f97316] bg-[#f97316] text-white"
-                    : "border-slate-200 bg-white text-[#584237] hover:border-orange-200 hover:bg-orange-50",
-                ].join(" ")}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-          <p className="mt-3 text-sm font-medium capitalize text-slate-500 sm:hidden">{currentDateTime}</p>
-        </div>
-
-        <div className="max-w-full p-4 sm:p-6 lg:p-8">
-          <section className="mb-8">
-            <h2 className="mb-4 font-['Plus_Jakarta_Sans',sans-serif] text-lg font-bold text-[#0b1c30]">
-              Thao tác nhanh
-            </h2>
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
-              {quickActions.map((action) => (
-                <QuickActionCard key={action.label} action={action} />
-              ))}
-            </div>
-          </section>
-
-          <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
-            {statsCards.map((card) => (
-              <StatCard key={card.label} card={card} />
-            ))}
-          </section>
-
-          <section className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-12">
-            <div className="xl:col-span-8">
-              <RevenueChartMock bars={revenueBars} />
-            </div>
-
-            <div className="flex flex-col gap-6 xl:col-span-4">
-              <div className="flex flex-1 flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h4 className="mb-4 font-['Plus_Jakarta_Sans',sans-serif] font-bold text-[#0b1c30]">
-                  Tỷ lệ POS vs Pickup
-                </h4>
-                <div className="flex flex-1 items-center justify-center">
-                  <div className="relative flex h-32 w-32 items-center justify-center rounded-full border-16 border-[#f97316] border-r-orange-100">
-                    <div className="text-center">
-                      <p className="text-lg font-bold text-[#0b1c30]">75%</p>
-                      <p className="text-[10px] text-slate-400">POS</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-4 flex justify-around">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-                    <span className="h-2 w-2 rounded-full bg-[#f97316]" />
-                    Tại quầy
-                  </div>
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-                    <span className="h-2 w-2 rounded-full bg-orange-200" />
-                    Pickup
-                  </div>
+        <div className="flex flex-col gap-6 xl:col-span-4">
+          <div className="flex flex-1 flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h4 className="mb-4 font-['Plus_Jakarta_Sans',sans-serif] font-bold text-[#0b1c30]">
+              Tỷ lệ POS vs Pickup
+            </h4>
+            <div className="flex flex-1 items-center justify-center">
+              <div className="relative flex h-32 w-32 items-center justify-center rounded-full border-16 border-[#f97316] border-r-orange-100">
+                <div className="text-center">
+                  <p className="text-lg font-bold text-[#0b1c30]">75%</p>
+                  <p className="text-[10px] text-slate-400">POS</p>
                 </div>
               </div>
-
-              <TopProductsCard products={topProducts} />
             </div>
-          </section>
-
-          <section className="grid grid-cols-1 gap-6 2xl:grid-cols-12">
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm 2xl:col-span-7">
-              <div className="flex items-center justify-between border-b border-slate-200 p-6">
-                <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-bold text-[#0b1c30]">
-                  Đơn hàng gần đây
-                </h4>
-                <button type="button" className="text-xs font-bold text-[#f97316] hover:underline">
-                  Xem tất cả
-                </button>
+            <div className="mt-4 flex justify-around">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+                <span className="h-2 w-2 rounded-full bg-[#f97316]" />
+                Tại quầy
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-640px text-left text-sm">
-                  <thead className="bg-slate-50 font-semibold text-slate-500">
-                    <tr>
-                      <th className="px-6 py-3">Mã đơn</th>
-                      <th className="px-6 py-3">Khách hàng</th>
-                      <th className="px-6 py-3">Loại</th>
-                      <th className="px-6 py-3 text-right">Tổng tiền</th>
-                      <th className="px-6 py-3 text-center">Trạng thái</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {recentOrders.map((order) => (
-                      <tr key={order.code} className="transition-colors hover:bg-slate-50">
-                        <td className="px-6 py-4 font-bold text-[#f97316]">{order.code}</td>
-                        <td className="px-6 py-4 text-[#0b1c30]">{order.customer}</td>
-                        <td className="px-6 py-4">
-                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${order.typeClassName}`}>
-                            {order.type}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right font-semibold text-[#0b1c30]">
-                          {order.total}
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${order.statusClassName}`}>
-                            {order.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+                <span className="h-2 w-2 rounded-full bg-orange-200" />
+                Pickup
               </div>
             </div>
+          </div>
 
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm 2xl:col-span-5">
-              <div className="flex items-center justify-between border-b border-slate-200 p-6">
-                <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-bold text-[#0b1c30]">
-                  Cảnh báo tồn kho
-                </h4>
-                <button type="button" className="text-xs font-bold text-red-600 hover:underline">
-                  Nhập kho ngay
-                </button>
-              </div>
-              
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-420px text-left text-sm">
-                  <thead className="bg-slate-50 font-semibold text-slate-500">
-                    <tr>
-                      <th className="px-6 py-3">Sản phẩm</th>
-                      <th className="px-6 py-3 text-center">Còn lại</th>
-                      <th className="px-6 py-3 text-center">Mức tối thiểu</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {stockAlerts.map((item) => (
-                      <tr key={item.product} className="transition-colors hover:bg-slate-50">
-                        <td className="px-6 py-4 text-[#0b1c30]">{item.product}</td>
-                        <td className="px-6 py-4 text-center font-bold">
-                          <span className={item.remainClassName}>{item.remain}</span>
-                        </td>
-                        <td className="px-6 py-4 text-center text-slate-400">{item.minimum}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </section>
+          <TopProductsCard products={topProducts} />
         </div>
-      </main>
-    </div>
+      </section>
+
+      <section className="grid grid-cols-1 gap-6 2xl:grid-cols-12">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm 2xl:col-span-7">
+          <div className="flex items-center justify-between border-b border-slate-200 p-6">
+            <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-bold text-[#0b1c30]">
+              Đơn hàng gần đây
+            </h4>
+            <button type="button" className="text-xs font-bold text-[#f97316] hover:underline">
+              Xem tất cả
+            </button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-160 text-left text-sm">
+              <thead className="bg-slate-50 font-semibold text-slate-500">
+                <tr>
+                  <th className="px-6 py-3">Mã đơn</th>
+                  <th className="px-6 py-3">Khách hàng</th>
+                  <th className="px-6 py-3">Loại</th>
+                  <th className="px-6 py-3 text-right">Tổng tiền</th>
+                  <th className="px-6 py-3 text-center">Trạng thái</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {recentOrders.map((order) => (
+                  <tr key={order.code} className="transition-colors hover:bg-slate-50">
+                    <td className="px-6 py-4 font-bold text-[#f97316]">{order.code}</td>
+                    <td className="px-6 py-4 text-[#0b1c30]">{order.customer}</td>
+                    <td className="px-6 py-4">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${order.typeClassName}`}
+                      >
+                        {order.type}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right font-semibold text-[#0b1c30]">
+                      {order.total}
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${order.statusClassName}`}
+                      >
+                        {order.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm 2xl:col-span-5">
+          <div className="flex items-center justify-between border-b border-slate-200 p-6">
+            <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-bold text-[#0b1c30]">
+              Cảnh báo tồn kho
+            </h4>
+            <button type="button" className="text-xs font-bold text-red-600 hover:underline">
+              Nhập kho ngay
+            </button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-105 text-left text-sm">
+              <thead className="bg-slate-50 font-semibold text-slate-500">
+                <tr>
+                  <th className="px-6 py-3">Sản phẩm</th>
+                  <th className="px-6 py-3 text-center">Còn lại</th>
+                  <th className="px-6 py-3 text-center">Mức tối thiểu</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {stockAlerts.map((item) => (
+                  <tr key={item.product} className="transition-colors hover:bg-slate-50">
+                    <td className="px-6 py-4 text-[#0b1c30]">{item.product}</td>
+                    <td className="px-6 py-4 text-center font-bold">
+                      <span className={item.remainClassName}>{item.remain}</span>
+                    </td>
+                    <td className="px-6 py-4 text-center text-slate-400">{item.minimum}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </AdminLayout>
   );
 }
 

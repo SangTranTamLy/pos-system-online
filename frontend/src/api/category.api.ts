@@ -71,10 +71,7 @@ export async function createCategory(payload: CreateCategoryPayload) {
   return handleResponse<Category>(response);
 }
 
-export async function updateCategory(
-  id: string,
-  payload: UpdateCategoryPayload
-) {
+export async function updateCategory(id: string, payload: UpdateCategoryPayload) {
   const response = await fetch(`${API_BASE_URL}/categories/${id}`, {
     method: "PUT",
     headers: getAuthHeaders(),
