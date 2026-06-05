@@ -4,6 +4,7 @@ export type Category = {
   id: string;
   name: string;
   description: string | null;
+  imageUrl: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -12,15 +13,21 @@ export type Category = {
 export type CreateCategoryPayload = {
   name: string;
   description?: string | null;
+  imageUrl?: string | null;
 };
 
 export type UpdateCategoryPayload = {
   name: string;
   description?: string | null;
+  imageUrl?: string | null;
 };
 
 export type UpdateCategoryStatusPayload = {
   isActive: boolean;
+};
+
+export type UploadCategoryImageResult = {
+  imageUrl: string;
 };
 
 type ApiResponse<T> = {
@@ -92,4 +99,58 @@ export async function updateCategoryStatus(
   });
 
   return handleResponse<Category>(response);
+}
+
+export async function deleteCategory(id: string) {
+  const token = localStorage.getItem("auth_token");
+
+  const response = await fetch(`${API_BASE_URL}/categories/${id}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(result.message || "Xóa danh mục thất bại");
+  }
+
+  return result;
+}
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+        return;
+      }
+
+      reject(new Error("Không đọc được file ảnh"));
+    };
+
+    reader.onerror = () => {
+      reject(new Error("Không đọc được file ảnh"));
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function uploadCategoryImage(file: File) {
+  const imageBase64 = await readFileAsDataUrl(file);
+
+  const response = await fetch(`${API_BASE_URL}/categories/upload-image`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({
+      fileName: file.name,
+      imageBase64,
+    }),
+  });
+
+  return handleResponse<UploadCategoryImageResult>(response);
 }

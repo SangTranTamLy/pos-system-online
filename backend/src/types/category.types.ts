@@ -2,6 +2,7 @@ export type Category = {
   id: string;
   name: string;
   description: string | null;
+  imageUrl: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -10,13 +11,20 @@ export type Category = {
 export type CreateCategoryBody = {
   name?: string;
   description?: string | null;
+  imageUrl?: string | null;
 };
 
 export type UpdateCategoryBody = {
   name?: string;
   description?: string | null;
+  imageUrl?: string | null;
 };
 
 export type UpdateCategoryStatusBody = {
   isActive?: boolean;
+};
+
+export type UploadCategoryImageBody = {
+  fileName?: string;
+  imageBase64?: string;
 };

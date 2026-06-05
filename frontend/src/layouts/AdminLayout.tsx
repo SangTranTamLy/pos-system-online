@@ -6,6 +6,7 @@ type MenuItem = {
   icon: string;
   path: string;
   group: "main" | "system";
+  disabled?: boolean;
 };
 
 type AuthUser = {
@@ -22,16 +23,15 @@ type AdminLayoutProps = {
 
 const menuItems: MenuItem[] = [
   { label: "Dashboard", icon: "dashboard", path: "/dashboard", group: "main" },
-  { label: "Sản phẩm", icon: "inventory_2", path: "/products", group: "main" },
-  { label: "Danh mục", icon: "category", path: "/categories", group: "main" },
-  { label: "Kho hàng", icon: "warehouse", path: "/stock", group: "main" },
-  { label: "Khách hàng", icon: "group", path: "/customers", group: "main" },
-  { label: "Hóa đơn", icon: "receipt_long", path: "/invoices", group: "main" },
-  { label: "Khuyến mãi", icon: "redeem", path: "/promotions", group: "main" },
-  { label: "Tài khoản", icon: "person", path: "/accounts", group: "system" },
-  { label: "Phân quyền", icon: "security", path: "/roles", group: "system" },
-  { label: "Báo cáo", icon: "analytics", path: "/reports", group: "system" },
-  { label: "Cấu hình hệ thống", icon: "settings", path: "/settings", group: "system" },
+  { label: "Sản phẩm", icon: "package_2", path: "/products", group: "main", disabled: true },
+  { label: "Danh mục", icon: "sell", path: "/categories", group: "main" },
+  { label: "Kho hàng", icon: "delivery_truck_bolt", path: "/stock", group: "main", disabled: true },
+  { label: "Khách hàng", icon: "group", path: "/customers", group: "main", disabled: true },
+  { label: "Hóa đơn", icon: "receipt_long", path: "/invoices", group: "main", disabled: true },
+  { label: "Khuyến mãi", icon: "redeem", path: "/promotions", group: "main", disabled: true },
+  { label: "Nhân viên", icon: "badge", path: "/employees", group: "system", disabled: true },
+  { label: "Báo cáo", icon: "analytics", path: "/reports", group: "system", disabled: true },
+  { label: "Cấu hình hệ thống", icon: "settings", path: "/settings", group: "system", disabled: true },
 ];
 
 export function Icon({
@@ -110,17 +110,26 @@ function SidebarItem({ item }: { item: MenuItem }) {
   const navigate = useNavigate();
   const location = useLocation();
   const isActive =
-    location.pathname === item.path ||
-    (item.path !== "/dashboard" && location.pathname.startsWith(item.path));
+    !item.disabled &&
+    (location.pathname === item.path ||
+      (item.path !== "/dashboard" && location.pathname.startsWith(item.path)));
 
   return (
     <button
       type="button"
-      onClick={() => navigate(item.path)}
+      onClick={() => {
+        if (!item.disabled) {
+          navigate(item.path);
+        }
+      }}
+      disabled={item.disabled}
+      title={item.disabled ? "Chức năng sẽ làm sau" : undefined}
       className={[
         "flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left transition-all duration-200",
         isActive
           ? "bg-[#f97316] font-semibold text-white shadow-sm"
+          : item.disabled
+            ? "cursor-not-allowed font-medium text-slate-400 opacity-70"
           : "font-medium text-slate-600 hover:bg-orange-50 hover:text-[#f97316]",
       ].join(" ")}
     >
@@ -134,17 +143,26 @@ function MobileNavItem({ item }: { item: MenuItem }) {
   const navigate = useNavigate();
   const location = useLocation();
   const isActive =
-    location.pathname === item.path ||
-    (item.path !== "/dashboard" && location.pathname.startsWith(item.path));
+    !item.disabled &&
+    (location.pathname === item.path ||
+      (item.path !== "/dashboard" && location.pathname.startsWith(item.path)));
 
   return (
     <button
       type="button"
-      onClick={() => navigate(item.path)}
+      onClick={() => {
+        if (!item.disabled) {
+          navigate(item.path);
+        }
+      }}
+      disabled={item.disabled}
+      title={item.disabled ? "Chức năng sẽ làm sau" : undefined}
       className={[
         "whitespace-nowrap rounded-full border px-4 py-2 text-sm font-semibold transition-colors",
         isActive
           ? "border-[#f97316] bg-[#f97316] text-white"
+          : item.disabled
+            ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
           : "border-slate-200 bg-white text-[#584237] hover:border-orange-200 hover:bg-orange-50",
       ].join(" ")}
     >
@@ -195,8 +213,8 @@ function AdminLayout({ children, title, subtitle }: AdminLayoutProps) {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8f9ff] font-['Inter',sans-serif] text-[#0b1c30] lg:flex">
-      <aside className="hidden h-screen w-72 shrink-0 overflow-y-auto border-r border-slate-200 bg-white px-4 py-6 shadow-sm lg:fixed lg:inset-y-0 lg:left-0 lg:flex lg:flex-col">
+    <div className="min-h-screen bg-[#f8f9ff] font-['Inter',sans-serif] text-[#0b1c30]">
+      <aside className="hidden h-screen w-72 shrink-0 overflow-y-auto border-r border-slate-200 bg-white px-4 py-6 shadow-sm lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:flex lg:flex-col">
         <div className="mb-8 flex items-center gap-3 px-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#f97316] text-white shadow-md">
             <Icon name="bolt" filled />
@@ -223,7 +241,7 @@ function AdminLayout({ children, title, subtitle }: AdminLayoutProps) {
         </nav>
       </aside>
 
-      <main className="flex min-h-screen flex-1 flex-col lg:ml-72">
+      <main className="flex min-h-screen flex-1 flex-col lg:pl-72">
         <header className="sticky top-0 z-20 flex h-auto flex-col gap-4 border-b border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-6 lg:h-16 lg:flex-row lg:items-center lg:justify-between lg:px-8 lg:py-0">
           <div className="flex items-center gap-4">
             <button

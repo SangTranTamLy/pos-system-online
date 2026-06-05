@@ -26,6 +26,7 @@ export function authMiddleware(
   const authorization = req.headers.authorization;
 
   if (!authorization?.startsWith("Bearer ")) {
+    
     throw new ApiError(401, "Missing access token");
   }
 

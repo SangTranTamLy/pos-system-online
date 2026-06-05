@@ -2,6 +2,7 @@ docs/
 backend/node_modules/
 frontend/node_modules/
 backend/dist/
+backend/uploads/
 frontend/dist/
 backend/.env
 backend/.env.*

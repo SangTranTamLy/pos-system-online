@@ -25,7 +25,7 @@ function getJwtSecret() {
 
 function validateLoginInput(body: LoginRequestBody) {
   if (!body.email || !body.password) {
-    throw new ApiError(400, "Email and password are required");
+    throw new ApiError(400, "Cần có email và mật khẩu.");
   }
 }
 

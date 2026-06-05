@@ -2,11 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 import {
   createCategory,
+  deleteCategory,
   getCategories,
   updateCategory,
   updateCategoryStatus,
+  uploadCategoryImage,
   type Category as ApiCategory,
 } from "../../api/category.api";
+
 
 type CategoryStatus = "active" | "hidden";
 
@@ -45,6 +48,7 @@ const baseStatCards: CategoryStatCard[] = [
 const defaultFormState = {
   name: "",
   description: "",
+  imageUrl: "",
   displayOrder: "1",
   isActive: true,
 };
@@ -72,6 +76,7 @@ function CategoryPage() {
   const [categories, setCategories] = useState<ApiCategory[]>([]);
   const [editingCategory, setEditingCategory] = useState<ApiCategory | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [formState, setFormState] = useState(defaultFormState);
 
@@ -168,6 +173,7 @@ function CategoryPage() {
     setFormState({
       name: category.name,
       description: category.description ?? "",
+      imageUrl: category.imageUrl ?? "",
       displayOrder: "1",
       isActive: category.isActive,
     });
@@ -189,6 +195,7 @@ function CategoryPage() {
       const payload = {
         name: formState.name.trim(),
         description: formState.description.trim() || null,
+        imageUrl: formState.imageUrl.trim() || null,
       };
 
       const response = editingCategory
@@ -224,6 +231,51 @@ function CategoryPage() {
       setErrorMessage(
         error instanceof Error ? error.message : "Cập nhật trạng thái danh mục thất bại"
       );
+    }
+  };
+
+const handleDeleteCategory = async (categoryId: string) => {
+  const confirmDelete = window.confirm("Bạn có chắc muốn xóa danh mục này không?");
+
+  if (!confirmDelete) {
+    return;
+  }
+
+  try {
+    setErrorMessage("");
+
+    await deleteCategory(categoryId);
+    await loadCategories();
+
+    setShowToast(true);
+  } catch (error) {
+    setErrorMessage(
+      error instanceof Error ? error.message : "Xóa danh mục thất bại"
+    );
+  }
+};
+
+  const handleImageFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    try {
+      setIsUploadingImage(true);
+      setErrorMessage("");
+
+      const response = await uploadCategoryImage(file);
+
+      setFormState((current) => ({
+        ...current,
+        imageUrl: response.data.imageUrl,
+      }));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Tải ảnh thất bại");
+    } finally {
+      setIsUploadingImage(false);
     }
   };
 
@@ -309,9 +361,17 @@ function CategoryPage() {
                   <tr key={category.id} className="transition-colors hover:bg-slate-50">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-50 text-[#f97316]">
-                          <Icon name="category" />
-                        </div>
+                        {category.imageUrl ? (
+                          <img
+                            src={category.imageUrl}
+                            alt={category.name}
+                            className="h-12 w-12 rounded-lg object-cover ring-1 ring-slate-200"
+                          />
+                        ) : (
+                          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-orange-50 text-[#f97316]">
+                            <Icon name="restaurant" />
+                          </div>
+                        )}
                         <span
                           className={[
                             "font-bold text-[#0b1c30]",
@@ -367,6 +427,16 @@ function CategoryPage() {
                           name={isHidden ? "visibility_off" : "visibility"}
                           className="text-xl"
                         />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void handleDeleteCategory(category.id);
+                        }}
+                        className="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50"
+                        aria-label="Xóa danh mục"
+                      >
+                        <Icon name="delete" className="text-xl" />
                       </button>
                     </td>
                   </tr>
@@ -474,14 +544,18 @@ function CategoryPage() {
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-[#0b1c30]">Biểu tượng</label>
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-left text-sm transition-colors hover:bg-slate-50"
-                  >
-                    <Icon name="local_cafe" className="text-[#f97316]" />
-                    Chọn icon
-                  </button>
+                  <label className="block text-sm font-semibold text-[#0b1c30]">Ảnh danh mục</label>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    onChange={(event) => {
+                      void handleImageFileChange(event);
+                    }}
+                    className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm outline-none transition-all focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                  />
+                  <p className="text-xs text-slate-500">
+                    {isUploadingImage ? "Đang tải ảnh..." : "Chọn ảnh có sẵn trên máy."}
+                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -499,6 +573,16 @@ function CategoryPage() {
                   />
                 </div>
               </div>
+
+              {formState.imageUrl.trim() ? (
+                <div className="overflow-hidden rounded-xl border border-slate-200">
+                  <img
+                    src={formState.imageUrl}
+                    alt="Ảnh xem trước"
+                    className="h-36 w-full object-cover"
+                  />
+                </div>
+              ) : null}
 
               <div className="flex items-center justify-between rounded-lg bg-slate-50 p-4">
                 <div>
@@ -524,8 +608,8 @@ function CategoryPage() {
                 >
                   <span
                     className={[
-                      "absolute top-[2px] h-5 w-5 rounded-full bg-white transition-transform",
-                      formState.isActive ? "translate-x-6" : "translate-x-[2px]",
+                      "absolute left-[2px] top-[2px] h-5 w-5 rounded-full bg-white shadow-sm transition-transform",
+                      formState.isActive ? "translate-x-6" : "translate-x-0",
                     ].join(" ")}
                   />
                 </button>

@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS categories (
   id CHAR(36) PRIMARY KEY,
   name VARCHAR(120) NOT NULL UNIQUE,
   description TEXT,
+  image_url TEXT,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -40,8 +41,6 @@ CREATE TABLE IF NOT EXISTS products (
   import_price DECIMAL(12, 2) NOT NULL DEFAULT 0,
   sale_price DECIMAL(12, 2) NOT NULL,
   stock_quantity INT NOT NULL DEFAULT 0,
-  reserved_quantity INT NOT NULL DEFAULT 0,
-  available_quantity INT GENERATED ALWAYS AS (stock_quantity - reserved_quantity) STORED,
   status VARCHAR(30) NOT NULL DEFAULT 'active',
   description TEXT,
   image_url TEXT,
@@ -51,30 +50,20 @@ CREATE TABLE IF NOT EXISTS products (
   CONSTRAINT chk_products_import_price CHECK (import_price >= 0),
   CONSTRAINT chk_products_sale_price CHECK (sale_price >= 0),
   CONSTRAINT chk_products_stock_quantity CHECK (stock_quantity >= 0),
-  CONSTRAINT chk_products_reserved_quantity CHECK (reserved_quantity >= 0),
-  CONSTRAINT chk_products_quantity CHECK (stock_quantity >= reserved_quantity),
   CONSTRAINT chk_products_status CHECK (status IN ('active', 'paused', 'out_of_stock'))
 );
 
 CREATE TABLE IF NOT EXISTS customers (
   id CHAR(36) PRIMARY KEY,
   full_name VARCHAR(120) NOT NULL,
-  phone VARCHAR(30) NOT NULL,
+  phone VARCHAR(30) NOT NULL UNIQUE,
   email VARCHAR(255),
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS pickup_schedules (
-  id CHAR(36) PRIMARY KEY,
-  pickup_time DATETIME NOT NULL,
-  store_name VARCHAR(160) NOT NULL,
-  store_address TEXT,
-  max_orders INT NOT NULL DEFAULT 0,
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  loyalty_points INT NOT NULL DEFAULT 0,
+  total_spent DECIMAL(12, 2) NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT chk_pickup_schedules_max_orders CHECK (max_orders >= 0)
+  CONSTRAINT chk_customers_loyalty_points CHECK (loyalty_points >= 0),
+  CONSTRAINT chk_customers_total_spent CHECK (total_spent >= 0)
 );
 
 CREATE TABLE IF NOT EXISTS promotions (
@@ -97,21 +86,24 @@ CREATE TABLE IF NOT EXISTS orders (
   customer_id CHAR(36),
   created_by CHAR(36),
   promotion_id CHAR(36),
-  pickup_schedule_id CHAR(36),
-  order_type VARCHAR(30) NOT NULL,
-  status VARCHAR(30) NOT NULL,
-  pickup_code VARCHAR(80) UNIQUE,
+  status VARCHAR(30) NOT NULL DEFAULT 'completed',
   total_amount DECIMAL(12, 2) NOT NULL DEFAULT 0,
+  discount_amount DECIMAL(12, 2) NOT NULL DEFAULT 0,
+  final_amount DECIMAL(12, 2) NOT NULL DEFAULT 0,
+  points_used INT NOT NULL DEFAULT 0,
+  points_earned INT NOT NULL DEFAULT 0,
   note TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_orders_customer_id FOREIGN KEY (customer_id) REFERENCES customers(id),
   CONSTRAINT fk_orders_created_by FOREIGN KEY (created_by) REFERENCES users(id),
   CONSTRAINT fk_orders_promotion_id FOREIGN KEY (promotion_id) REFERENCES promotions(id),
-  CONSTRAINT fk_orders_pickup_schedule_id FOREIGN KEY (pickup_schedule_id) REFERENCES pickup_schedules(id),
   CONSTRAINT chk_orders_total_amount CHECK (total_amount >= 0),
-  CONSTRAINT chk_orders_type CHECK (order_type IN ('pos', 'online')),
-  CONSTRAINT chk_orders_status CHECK (status IN ('pending', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled'))
+  CONSTRAINT chk_orders_discount_amount CHECK (discount_amount >= 0),
+  CONSTRAINT chk_orders_final_amount CHECK (final_amount >= 0),
+  CONSTRAINT chk_orders_points_used CHECK (points_used >= 0),
+  CONSTRAINT chk_orders_points_earned CHECK (points_earned >= 0),
+  CONSTRAINT chk_orders_status CHECK (status IN ('completed', 'cancelled', 'refunded'))
 );
 
 CREATE TABLE IF NOT EXISTS order_details (
@@ -133,7 +125,7 @@ CREATE TABLE IF NOT EXISTS payments (
   order_id CHAR(36) NOT NULL,
   payment_method VARCHAR(30) NOT NULL,
   amount DECIMAL(12, 2) NOT NULL,
-  payment_status VARCHAR(30) NOT NULL,
+  payment_status VARCHAR(30) NOT NULL DEFAULT 'paid',
   paid_at DATETIME,
   CONSTRAINT fk_payments_order_id FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
   CONSTRAINT chk_payments_amount CHECK (amount >= 0),
@@ -152,42 +144,20 @@ CREATE TABLE IF NOT EXISTS stock_transactions (
   CONSTRAINT fk_stock_transactions_product_id FOREIGN KEY (product_id) REFERENCES products(id),
   CONSTRAINT fk_stock_transactions_created_by FOREIGN KEY (created_by) REFERENCES users(id),
   CONSTRAINT chk_stock_transactions_quantity CHECK (quantity > 0),
-  CONSTRAINT chk_stock_transactions_type CHECK (transaction_type IN ('import', 'export', 'adjustment', 'reserve', 'release'))
+  CONSTRAINT chk_stock_transactions_type CHECK (transaction_type IN ('import', 'export', 'adjustment'))
 );
 
-CREATE TABLE IF NOT EXISTS carts (
+CREATE TABLE IF NOT EXISTS customer_points (
   id CHAR(36) PRIMARY KEY,
-  customer_id CHAR(36),
-  status VARCHAR(30) NOT NULL DEFAULT 'active',
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT fk_carts_customer_id FOREIGN KEY (customer_id) REFERENCES customers(id),
-  CONSTRAINT chk_carts_status CHECK (status IN ('active', 'ordered', 'abandoned'))
-);
-
-CREATE TABLE IF NOT EXISTS cart_items (
-  id CHAR(36) PRIMARY KEY,
-  cart_id CHAR(36) NOT NULL,
-  product_id CHAR(36) NOT NULL,
-  quantity INT NOT NULL,
-  unit_price DECIMAL(12, 2) NOT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_cart_items_cart_id FOREIGN KEY (cart_id) REFERENCES carts(id) ON DELETE CASCADE,
-  CONSTRAINT fk_cart_items_product_id FOREIGN KEY (product_id) REFERENCES products(id),
-  CONSTRAINT chk_cart_items_quantity CHECK (quantity > 0),
-  CONSTRAINT chk_cart_items_unit_price CHECK (unit_price >= 0)
-);
-
-CREATE TABLE IF NOT EXISTS notifications (
-  id CHAR(36) PRIMARY KEY,
+  customer_id CHAR(36) NOT NULL,
   order_id CHAR(36),
-  customer_id CHAR(36),
-  title VARCHAR(160) NOT NULL,
-  message TEXT NOT NULL,
-  is_read BOOLEAN NOT NULL DEFAULT FALSE,
+  points INT NOT NULL,
+  transaction_type VARCHAR(30) NOT NULL,
+  note TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_notifications_order_id FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
-  CONSTRAINT fk_notifications_customer_id FOREIGN KEY (customer_id) REFERENCES customers(id)
+  CONSTRAINT fk_customer_points_customer_id FOREIGN KEY (customer_id) REFERENCES customers(id),
+  CONSTRAINT fk_customer_points_order_id FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL,
+  CONSTRAINT chk_customer_points_type CHECK (transaction_type IN ('earn', 'redeem', 'adjust'))
 );
 
 CREATE TABLE IF NOT EXISTS audit_logs (
@@ -203,17 +173,15 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 CREATE INDEX idx_users_role_id ON users(role_id);
 CREATE INDEX idx_products_category_id ON products(category_id);
 CREATE INDEX idx_products_status ON products(status);
+CREATE INDEX idx_customers_phone ON customers(phone);
 CREATE INDEX idx_orders_customer_id ON orders(customer_id);
 CREATE INDEX idx_orders_created_by ON orders(created_by);
 CREATE INDEX idx_orders_status ON orders(status);
-CREATE INDEX idx_orders_pickup_schedule_id ON orders(pickup_schedule_id);
 CREATE INDEX idx_order_details_order_id ON order_details(order_id);
 CREATE INDEX idx_order_details_product_id ON order_details(product_id);
 CREATE INDEX idx_payments_order_id ON payments(order_id);
 CREATE INDEX idx_stock_transactions_product_id ON stock_transactions(product_id);
 CREATE INDEX idx_stock_transactions_created_by ON stock_transactions(created_by);
-CREATE INDEX idx_carts_customer_id ON carts(customer_id);
-CREATE INDEX idx_cart_items_cart_id ON cart_items(cart_id);
-CREATE INDEX idx_cart_items_product_id ON cart_items(product_id);
-CREATE INDEX idx_notifications_order_id ON notifications(order_id);
+CREATE INDEX idx_customer_points_customer_id ON customer_points(customer_id);
+CREATE INDEX idx_customer_points_order_id ON customer_points(order_id);
 CREATE INDEX idx_audit_logs_user_id ON audit_logs(user_id);
