@@ -23,6 +23,7 @@ type AdminLayoutProps = {
 
 const menuItems: MenuItem[] = [
   { label: "Dashboard", icon: "dashboard", path: "/dashboard", group: "main" },
+  { label: "Bán hàng tại quầy", icon: "point_of_sale", path: "/pos", group: "main" },
   { label: "Sản phẩm", icon: "package_2", path: "/products", group: "main" },
   { label: "Danh mục", icon: "sell", path: "/categories", group: "main" },
   { label: "Kho hàng", icon: "delivery_truck_bolt", path: "/stock", group: "main", disabled: true },

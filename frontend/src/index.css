@@ -1,3 +1,48 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Plus+Jakarta+Sans:wght@600;700&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap");
 @import "tailwindcss";
+
+@media print {
+  html,
+  body {
+    width: 100%;
+    min-height: auto;
+    margin: 0;
+    background: #ffffff !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .pos-receipt-print,
+  .pos-receipt-print * {
+    visibility: visible !important;
+  }
+
+  .pos-receipt-print {
+    position: fixed !important;
+    top: 0 !important;
+    left: 50% !important;
+    width: 92mm !important;
+    max-width: 92mm !important;
+    margin: 0 !important;
+    padding: 10mm !important;
+    transform: translateX(-50%) !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .pos-no-print {
+    display: none !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+}

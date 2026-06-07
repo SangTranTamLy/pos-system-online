@@ -1,11 +1,12 @@
+import { useNavigate } from "react-router-dom";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 
 type QuickAction = {
   label: string;
   icon: string;
-  iconBg: string;
-  iconText: string;
-  iconHoverBg: string;
+  path?: string;
+  status?: string;
+  disabled?: boolean;
 };
 
 type StatsCardData = {
@@ -51,46 +52,19 @@ type StockAlert = {
 
 const quickActions: QuickAction[] = [
   {
-    label: "Mở POS",
+    label: "Quản lý sản phẩm",
+    icon: "package_2",
+    path: "/products",
+  },
+  {
+    label: "Quản lý danh mục",
+    icon: "sell",
+    path: "/categories",
+  },
+  {
+    label: "Bán hàng tại quầy",
     icon: "point_of_sale",
-    iconBg: "bg-orange-50",
-    iconText: "text-[#f97316]",
-    iconHoverBg: "group-hover:bg-[#f97316]",
-  },
-  {
-    label: "Xử lý đơn pickup",
-    icon: "shopping_bag",
-    iconBg: "bg-orange-50",
-    iconText: "text-[#f97316]",
-    iconHoverBg: "group-hover:bg-[#f97316]",
-  },
-  {
-    label: "Thêm sản phẩm",
-    icon: "add_box",
-    iconBg: "bg-orange-50",
-    iconText: "text-[#f97316]",
-    iconHoverBg: "group-hover:bg-[#f97316]",
-  },
-  {
-    label: "Nhập kho",
-    icon: "archive",
-    iconBg: "bg-orange-50",
-    iconText: "text-[#f97316]",
-    iconHoverBg: "group-hover:bg-[#f97316]",
-  },
-  {
-    label: "Tạo khuyến mãi",
-    icon: "celebration",
-    iconBg: "bg-orange-50",
-    iconText: "text-[#f97316]",
-    iconHoverBg: "group-hover:bg-[#f97316]",
-  },
-  {
-    label: "Xem báo cáo",
-    icon: "description",
-    iconBg: "bg-orange-50",
-    iconText: "text-[#f97316]",
-    iconHoverBg: "group-hover:bg-[#f97316]",
+    path: "/pos",
   },
 ];
 
@@ -106,24 +80,24 @@ const statsCards: StatsCardData[] = [
     badgeText: "text-green-600",
   },
   {
-    label: "Đơn hàng hôm nay",
+    label: "Hóa đơn hôm nay",
     value: "142",
-    icon: "shopping_cart",
-    iconBg: "bg-blue-50",
-    iconText: "text-blue-600",
+    icon: "receipt_long",
+    iconBg: "bg-orange-50",
+    iconText: "text-[#f97316]",
     badge: "+8%",
     badgeBg: "bg-green-50",
     badgeText: "text-green-600",
   },
   {
-    label: "Đơn pickup chờ",
-    value: "28",
-    icon: "hourglass_top",
-    iconBg: "bg-yellow-50",
-    iconText: "text-yellow-600",
-    badge: "12 mới",
-    badgeBg: "bg-red-50",
-    badgeText: "text-red-600",
+    label: "Danh mục đang bán",
+    value: "11",
+    icon: "sell",
+    iconBg: "bg-orange-50",
+    iconText: "text-[#f97316]",
+    badge: "Đồ ăn & nước",
+    badgeBg: "bg-orange-50",
+    badgeText: "text-[#f97316]",
   },
   {
     label: "Sản phẩm sắp hết",
@@ -141,19 +115,19 @@ const statsCards: StatsCardData[] = [
     icon: "person_add",
     iconBg: "bg-green-50",
     iconText: "text-green-600",
-    badge: "Mới",
+    badge: "Tích điểm",
     badgeBg: "bg-green-50",
     badgeText: "text-green-600",
   },
   {
-    label: "Sản phẩm kích hoạt",
+    label: "Sản phẩm đang bán",
     value: "458",
     icon: "inventory",
-    iconBg: "bg-indigo-50",
-    iconText: "text-indigo-600",
+    iconBg: "bg-orange-50",
+    iconText: "text-[#f97316]",
     badge: "Đang bán",
     badgeBg: "bg-slate-50",
-    badgeText: "text-slate-400",
+    badgeText: "text-slate-500",
   },
 ];
 
@@ -168,37 +142,37 @@ const revenueBars: RevenueBar[] = [
 ];
 
 const topProducts: TopProduct[] = [
-  { name: "Cà phê sữa đá", sold: "428 ly", width: "85%" },
-  { name: "Trà đào cam sả", sold: "312 ly", width: "65%" },
-  { name: "Bạc xỉu", sold: "245 ly", width: "50%" },
+  { name: "Bánh mì thịt", sold: "428 phần", width: "85%" },
+  { name: "Cà phê sữa đá", sold: "312 ly", width: "65%" },
+  { name: "Phở gà", sold: "245 tô", width: "50%" },
 ];
 
 const recentOrders: RecentOrder[] = [
   {
-    code: "#ORD-2584",
+    code: "#HD-2584",
     customer: "Nguyễn Văn An",
     type: "POS",
     total: "125.000đ",
     status: "Hoàn tất",
-    typeClassName: "bg-blue-50 text-blue-600",
+    typeClassName: "bg-orange-50 text-[#f97316]",
     statusClassName: "bg-green-50 text-green-600",
   },
   {
-    code: "#ORD-2583",
+    code: "#HD-2583",
     customer: "Trần Thị Hoa",
-    type: "Pickup",
+    type: "POS",
     total: "85.000đ",
-    status: "Đang pha",
-    typeClassName: "bg-orange-50 text-orange-600",
-    statusClassName: "bg-yellow-50 text-yellow-600",
+    status: "Hoàn tất",
+    typeClassName: "bg-orange-50 text-[#f97316]",
+    statusClassName: "bg-green-50 text-green-600",
   },
   {
-    code: "#ORD-2582",
+    code: "#HD-2582",
     customer: "Khách lẻ",
     type: "POS",
     total: "45.000đ",
     status: "Hoàn tất",
-    typeClassName: "bg-blue-50 text-blue-600",
+    typeClassName: "bg-orange-50 text-[#f97316]",
     statusClassName: "bg-green-50 text-green-600",
   },
 ];
@@ -224,24 +198,36 @@ const stockAlerts: StockAlert[] = [
   },
 ];
 
-function QuickActionCard({ action }: { action: QuickAction }) {
+function QuickActionCard({
+  action,
+  onSelect,
+}: {
+  action: QuickAction;
+  onSelect: () => void;
+}) {
+  const isDisabled = action.disabled || !action.path;
+
   return (
     <button
       type="button"
-      className="group flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-white p-4 transition-all hover:border-[#f97316] hover:shadow-md"
+      onClick={onSelect}
+      disabled={isDisabled}
+      className={[
+        "group flex min-h-32 flex-col items-center justify-center rounded-xl border border-slate-200 bg-white p-4 transition-all",
+        isDisabled
+          ? "cursor-not-allowed opacity-60"
+          : "hover:-translate-y-0.5 hover:border-[#f97316] hover:shadow-md",
+      ].join(" ")}
     >
-      <div
-        className={[
-          "mb-2 flex h-12 w-12 items-center justify-center rounded-full transition-all",
-          action.iconBg,
-          action.iconText,
-          action.iconHoverBg,
-          "group-hover:text-white",
-        ].join(" ")}
-      >
+      <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-orange-50 text-[#f97316] transition-all group-enabled:group-hover:bg-[#f97316] group-enabled:group-hover:text-white">
         <Icon name={action.icon} />
       </div>
       <span className="text-center text-sm font-semibold text-[#0b1c30]">{action.label}</span>
+      {action.status ? (
+        <span className="mt-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+          {action.status}
+        </span>
+      ) : null}
     </button>
   );
 }
@@ -273,7 +259,9 @@ function RevenueChartMock({ bars }: { bars: RevenueBar[] }) {
           <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-bold text-[#0b1c30]">
             Doanh thu 7 ngày qua
           </h4>
-          <p className="text-xs text-slate-400">Tăng trưởng ổn định ở mức 12% hàng tuần</p>
+          <p className="text-xs text-slate-400">
+            Theo dõi doanh thu bán đồ ăn sáng và nước uống
+          </p>
         </div>
         <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
           <span className="h-2.5 w-2.5 rounded-full bg-[#f97316]" />
@@ -335,15 +323,30 @@ function TopProductsCard({ products }: { products: TopProduct[] }) {
 }
 
 function DashboardPage() {
+  const navigate = useNavigate();
+
   return (
     <AdminLayout>
       <section className="mb-8">
-        <h2 className="mb-4 font-['Plus_Jakarta_Sans',sans-serif] text-lg font-bold text-[#0b1c30]">
-          Thao tác nhanh
-        </h2>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+        <div className="mb-4 flex flex-col gap-1">
+          <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-lg font-bold text-[#0b1c30]">
+            Thao tác nhanh
+          </h2>
+          <p className="text-sm text-slate-500">
+            Chỉ hiển thị các chức năng phù hợp với đề tài hiện tại.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {quickActions.map((action) => (
-            <QuickActionCard key={action.label} action={action} />
+            <QuickActionCard
+              key={action.label}
+              action={action}
+              onSelect={() => {
+                if (action.path) {
+                  navigate(action.path);
+                }
+              }}
+            />
           ))}
         </div>
       </section>
@@ -362,24 +365,24 @@ function DashboardPage() {
         <div className="flex flex-col gap-6 xl:col-span-4">
           <div className="flex flex-1 flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <h4 className="mb-4 font-['Plus_Jakarta_Sans',sans-serif] font-bold text-[#0b1c30]">
-              Tỷ lệ POS vs Pickup
+              Cơ cấu món bán chạy
             </h4>
             <div className="flex flex-1 items-center justify-center">
               <div className="relative flex h-32 w-32 items-center justify-center rounded-full border-16 border-[#f97316] border-r-orange-100">
                 <div className="text-center">
-                  <p className="text-lg font-bold text-[#0b1c30]">75%</p>
-                  <p className="text-[10px] text-slate-400">POS</p>
+                  <p className="text-lg font-bold text-[#0b1c30]">60%</p>
+                  <p className="text-[10px] text-slate-400">Đồ ăn</p>
                 </div>
               </div>
             </div>
             <div className="mt-4 flex justify-around">
               <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
                 <span className="h-2 w-2 rounded-full bg-[#f97316]" />
-                Tại quầy
+                Đồ ăn
               </div>
               <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
                 <span className="h-2 w-2 rounded-full bg-orange-200" />
-                Pickup
+                Nước uống
               </div>
             </div>
           </div>
@@ -392,7 +395,7 @@ function DashboardPage() {
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm 2xl:col-span-7">
           <div className="flex items-center justify-between border-b border-slate-200 p-6">
             <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-bold text-[#0b1c30]">
-              Đơn hàng gần đây
+              Hóa đơn gần đây
             </h4>
             <button type="button" className="text-xs font-bold text-[#f97316] hover:underline">
               Xem tất cả
@@ -444,8 +447,12 @@ function DashboardPage() {
             <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-bold text-[#0b1c30]">
               Cảnh báo tồn kho
             </h4>
-            <button type="button" className="text-xs font-bold text-red-600 hover:underline">
-              Nhập kho ngay
+            <button
+              type="button"
+              onClick={() => navigate("/products")}
+              className="text-xs font-bold text-[#f97316] hover:underline"
+            >
+              Xem sản phẩm
             </button>
           </div>
 

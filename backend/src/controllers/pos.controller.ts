@@ -1,0 +1,17 @@
+import type { Request, Response } from "express";
+import { createPosOrderService } from "../services/pos.service";
+import { ApiError } from "../utils/apiError";
+
+export async function createPosOrderController(req: Request, res: Response) {
+  if (!req.user) {
+    throw new ApiError(401, "ChÆ°a Ä‘Æ°á»£c xÃ¡c thá»±c");
+  }
+
+  const order = await createPosOrderService(req.body, req.user.id);
+
+  return res.status(201).json({
+    success: true,
+    message: "Create POS order successful",
+    data: order,
+  });
+}
