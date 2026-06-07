@@ -3,6 +3,7 @@ import {
   createProductController,
   getProductDetailController,
   getProductsController,
+  uploadProductImageController,
   updateProductStatusController,
   updateProductController,
   deleteProductController
@@ -14,6 +15,7 @@ const productRouter = Router();
 
 productRouter.use(authMiddleware);
 productRouter.get("/", asyncHandler(getProductsController));
+productRouter.post("/upload-image", asyncHandler(uploadProductImageController));
 productRouter.get("/:id", asyncHandler(getProductDetailController));
 productRouter.post("/", asyncHandler(createProductController));
 productRouter.put("/:id", asyncHandler(updateProductController));

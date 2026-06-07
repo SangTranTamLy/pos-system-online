@@ -3,6 +3,7 @@ import LoginPage from "../pages/auth/LoginPage";
 import DashboardPage from "../pages/dashboard/DashboardPage";
 import ProtectedRoute from "./ProtectedRoute";
 import CategoryPage from "../pages/categories/CategoryPage";
+import ProductPage from "../pages/products/ProductPage";
 function AppRoutes() {
   return (
     <Routes>
@@ -11,6 +12,7 @@ function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/products" element={<ProductPage />} />
         <Route path="/categories" element={<CategoryPage />} />
       </Route>
     </Routes>

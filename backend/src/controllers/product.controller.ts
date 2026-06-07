@@ -4,6 +4,7 @@ import {
   deleteProductService,
   getProductDetailService,
   getProductsService,
+  uploadProductImageService,
   updateProductStatusService,
   updateProductService,
 } from "../services/product.service";
@@ -29,6 +30,17 @@ export async function getProductDetailController(req: Request, res: Response) {
     success: true,
     message: "Get product detail successful",
     data: product,
+  });
+}
+
+export async function uploadProductImageController(req: Request, res: Response) {
+  const baseUrl = `${req.protocol}://${req.get("host")}`;
+  const image = await uploadProductImageService(req.body, baseUrl);
+
+  return res.status(201).json({
+    success: true,
+    message: "Upload product image successful",
+    data: image,
   });
 }
 

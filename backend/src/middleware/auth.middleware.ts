@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
-import type { AuthTokenPayload,AuthUser } from "../types/auth.types";
-import { ApiError } from "../utils/apiError";
 import jwt from "jsonwebtoken";
+import type { AuthTokenPayload, AuthUser } from "../types/auth.types";
+import { ApiError } from "../utils/apiError";
 
 declare global {
   namespace Express {
@@ -10,14 +10,17 @@ declare global {
     }
   }
 }
-function getJwtSecret(){
+
+function getJwtSecret() {
   const secret = process.env.JWT_SECRET;
 
-  if(!secret){
-    throw new ApiError(500, "Thiếu JWT_SECRET")
+  if (!secret) {
+    throw new ApiError(500, "Thiếu JWT_SECRET");
   }
+
   return secret;
 }
+
 export function authMiddleware(
   req: Request,
   _res: Response,
@@ -26,28 +29,42 @@ export function authMiddleware(
   const authorization = req.headers.authorization;
 
   if (!authorization?.startsWith("Bearer ")) {
-    
-    throw new ApiError(401, "Missing access token");
+    throw new ApiError(401, "Thiếu mã truy cập");
   }
 
   const token = authorization.replace("Bearer ", "");
-  const payload = jwt.verify(
-    token, getJwtSecret()
-  ) as AuthTokenPayload;
+
+  let payload: AuthTokenPayload;
+
+  try {
+    payload = jwt.verify(token, getJwtSecret()) as AuthTokenPayload;
+  } catch (error) {
+    if (error instanceof jwt.TokenExpiredError) {
+      throw new ApiError(401, "Phiên đăng nhập đã hết hạn");
+    }
+
+    if (error instanceof jwt.JsonWebTokenError) {
+      throw new ApiError(401, "Mã truy cập không hợp lệ");
+    }
+
+    throw error;
+  }
+
   req.user = {
     id: payload.userId,
     fullName: payload.fullName,
-    email:payload.email,
+    email: payload.email,
     roleId: payload.roleId,
     roleName: payload.roleName,
   };
+
   next();
 }
 
 export function requireRoles(allowedRoles: string[]) {
   return (req: Request, _res: Response, next: NextFunction) => {
     if (!req.user) {
-      throw new ApiError(401, "Unauthenticated");
+      throw new ApiError(401, "Chưa được xác thực");
     }
 
     if (!allowedRoles.includes(req.user.roleName)) {

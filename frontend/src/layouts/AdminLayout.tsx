@@ -23,7 +23,7 @@ type AdminLayoutProps = {
 
 const menuItems: MenuItem[] = [
   { label: "Dashboard", icon: "dashboard", path: "/dashboard", group: "main" },
-  { label: "Sản phẩm", icon: "package_2", path: "/products", group: "main", disabled: true },
+  { label: "Sản phẩm", icon: "package_2", path: "/products", group: "main" },
   { label: "Danh mục", icon: "sell", path: "/categories", group: "main" },
   { label: "Kho hàng", icon: "delivery_truck_bolt", path: "/stock", group: "main", disabled: true },
   { label: "Khách hàng", icon: "group", path: "/customers", group: "main", disabled: true },
@@ -106,6 +106,24 @@ function getInitials(fullName: string) {
     .join("");
 }
 
+function useCurrentDateTime() {
+  const [currentDateTime, setCurrentDateTime] = useState(() =>
+    formatCurrentDateTime(new Date())
+  );
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setCurrentDateTime(formatCurrentDateTime(new Date()));
+    }, 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  return currentDateTime;
+}
+
 function SidebarItem({ item }: { item: MenuItem }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -130,7 +148,7 @@ function SidebarItem({ item }: { item: MenuItem }) {
           ? "bg-[#f97316] font-semibold text-white shadow-sm"
           : item.disabled
             ? "cursor-not-allowed font-medium text-slate-400 opacity-70"
-          : "font-medium text-slate-600 hover:bg-orange-50 hover:text-[#f97316]",
+            : "font-medium text-slate-600 hover:bg-orange-50 hover:text-[#f97316]",
       ].join(" ")}
     >
       <Icon name={item.icon} className="text-[20px]" />
@@ -163,30 +181,12 @@ function MobileNavItem({ item }: { item: MenuItem }) {
           ? "border-[#f97316] bg-[#f97316] text-white"
           : item.disabled
             ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
-          : "border-slate-200 bg-white text-[#584237] hover:border-orange-200 hover:bg-orange-50",
+            : "border-slate-200 bg-white text-[#584237] hover:border-orange-200 hover:bg-orange-50",
       ].join(" ")}
     >
       {item.label}
     </button>
   );
-}
-
-function useCurrentDateTime() {
-  const [currentDateTime, setCurrentDateTime] = useState(() =>
-    formatCurrentDateTime(new Date())
-  );
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setCurrentDateTime(formatCurrentDateTime(new Date()));
-    }, 1000);
-
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, []);
-
-  return currentDateTime;
 }
 
 function AdminLayout({ children, title, subtitle }: AdminLayoutProps) {

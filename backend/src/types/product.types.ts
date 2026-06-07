@@ -39,3 +39,8 @@ export interface UpdateProductBody {
   description?: string | null;
   imageUrl?: string | null;
 }
+
+export interface UploadProductImageBody {
+  fileName?: string;
+  imageBase64?: string;
+}

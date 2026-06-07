@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 import {
   createCategory,
@@ -68,6 +69,7 @@ function CategoryStatCard({ card }: { card: CategoryStatCard }) {
 }
 
 function CategoryPage() {
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | CategoryStatus>("all");
   const [page, setPage] = useState(1);
@@ -255,6 +257,10 @@ const handleDeleteCategory = async (categoryId: string) => {
   }
 };
 
+  const handleViewCategoryProducts = (category: ApiCategory) => {
+    navigate(`/products?category=${encodeURIComponent(category.name)}`);
+  };
+
   const handleImageFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
 
@@ -390,7 +396,9 @@ const handleDeleteCategory = async (categoryId: string) => {
                     >
                       {category.description || "Chưa có mô tả"}
                     </td>
-                    <td className="px-6 py-4 text-center font-medium text-[#0b1c30]">0</td>
+                    <td className="px-6 py-4 text-center font-medium text-[#0b1c30]">
+                      {category.productCount}
+                    </td>
                     <td className="px-6 py-4 text-center">
                       <span
                         className={[
@@ -407,6 +415,15 @@ const handleDeleteCategory = async (categoryId: string) => {
                       {new Date(category.createdAt).toLocaleDateString("vi-VN")}
                     </td>
                     <td className="space-x-2 px-6 py-4 text-right">
+                      <button
+                        type="button"
+                        onClick={() => handleViewCategoryProducts(category)}
+                        className="rounded-lg p-2 text-blue-600 transition-colors hover:bg-blue-50"
+                        aria-label="Xem sản phẩm trong danh mục"
+                        title="Xem sản phẩm trong danh mục"
+                      >
+                        <Icon name="package_2" className="text-xl" />
+                      </button>
                       <button
                         type="button"
                         onClick={() => openEditModal(category)}

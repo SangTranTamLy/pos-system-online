@@ -5,6 +5,7 @@ export type Category = {
   name: string;
   description: string | null;
   imageUrl: string | null;
+  productCount: number;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -45,12 +46,26 @@ function getAuthHeaders() {
 
   return {
     "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
+    Authorization: token ? `Bearer ${token}` : "",
   };
+}
+
+function logoutAndRedirect() {
+  localStorage.removeItem("auth_token");
+  localStorage.removeItem("auth_user");
+
+  if (!window.location.pathname.includes("/login")) {
+    window.location.href = `${import.meta.env.BASE_URL}login`;
+  }
 }
 
 async function handleResponse<T>(response: Response): Promise<ApiResponse<T>> {
   const data = await response.json();
+
+  if (response.status === 401) {
+    logoutAndRedirect();
+    throw new Error(data.message || "Phiên đăng nhập đã hết hạn");
+  }
 
   if (!response.ok) {
     throw new Error(data.message || "Yêu cầu API thất bại");
@@ -102,23 +117,14 @@ export async function updateCategoryStatus(
 }
 
 export async function deleteCategory(id: string) {
-  const token = localStorage.getItem("auth_token");
-
   const response = await fetch(`${API_BASE_URL}/categories/${id}`, {
     method: "DELETE",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    headers: getAuthHeaders(),
   });
 
-  const result = await response.json();
-
-  if (!response.ok) {
-    throw new Error(result.message || "Xóa danh mục thất bại");
-  }
-
-  return result;
+  return handleResponse<Category>(response);
 }
+
 function readFileAsDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();

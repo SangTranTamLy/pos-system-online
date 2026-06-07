@@ -3,6 +3,7 @@ export type Category = {
   name: string;
   description: string | null;
   imageUrl: string | null;
+  productCount: number;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
