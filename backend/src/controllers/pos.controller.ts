@@ -4,7 +4,7 @@ import { ApiError } from "../utils/apiError";
 
 export async function createPosOrderController(req: Request, res: Response) {
   if (!req.user) {
-    throw new ApiError(401, "ChÆ°a Ä‘Æ°á»£c xÃ¡c thá»±c");
+    throw new ApiError(401, "Chưa được xác thực");
   }
 
   const order = await createPosOrderService(req.body, req.user.id);

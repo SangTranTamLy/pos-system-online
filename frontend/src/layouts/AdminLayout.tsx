@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+﻿import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 type MenuItem = {
@@ -23,7 +23,7 @@ type AdminLayoutProps = {
 
 const menuItems: MenuItem[] = [
   { label: "Dashboard", icon: "dashboard", path: "/dashboard", group: "main" },
-  { label: "Bán hàng tại quầy", icon: "point_of_sale", path: "/pos", group: "main" },
+  { label: "Bán hàng (POS)", icon: "point_of_sale", path: "/pos", group: "main" },
   { label: "Sản phẩm", icon: "package_2", path: "/products", group: "main" },
   { label: "Danh mục", icon: "sell", path: "/categories", group: "main" },
   { label: "Kho hàng", icon: "delivery_truck_bolt", path: "/stock", group: "main", disabled: true },
@@ -318,3 +318,4 @@ function AdminLayout({ children, title, subtitle }: AdminLayoutProps) {
 }
 
 export default AdminLayout;
+

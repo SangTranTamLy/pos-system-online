@@ -10,7 +10,7 @@ const allowedPaymentMethods: PosPaymentMethod[] = ["cash", "qr", "card"];
 
 function normalizeItems(items: CreatePosOrderBody["items"]) {
   if (!Array.isArray(items) || items.length === 0) {
-    throw new ApiError(400, "Vui lÃ²ng chá»n sáº£n pháº©m cáº§n bÃ¡n");
+    throw new ApiError(400, "Vui lòng chọn sản phẩm cần bán");
   }
 
   const itemMap = new Map<string, number>();
@@ -20,11 +20,11 @@ function normalizeItems(items: CreatePosOrderBody["items"]) {
     const quantity = Number(item.quantity);
 
     if (!productId) {
-      throw new ApiError(400, "Thiáº¿u sáº£n pháº©m trong Ä‘Æ¡n hÃ ng");
+      throw new ApiError(400, "Thiếu sản phẩm trong đơn hàng");
     }
 
     if (!Number.isInteger(quantity) || quantity <= 0) {
-      throw new ApiError(400, "Sá»‘ lÆ°á»£ng sáº£n pháº©m khÃ´ng há»£p lá»‡");
+      throw new ApiError(400, "Số lượng sản phẩm không hợp lệ");
     }
 
     itemMap.set(productId, (itemMap.get(productId) ?? 0) + quantity);
@@ -45,7 +45,7 @@ export async function createPosOrderService(
   const paymentMethod = body.paymentMethod ?? "cash";
 
   if (!allowedPaymentMethods.includes(paymentMethod)) {
-    throw new ApiError(400, "PhÆ°Æ¡ng thá»©c thanh toÃ¡n khÃ´ng há»£p lá»‡");
+    throw new ApiError(400, "Phương thức thanh toán không hợp lệ");
   }
 
   const items = normalizeItems(body.items);

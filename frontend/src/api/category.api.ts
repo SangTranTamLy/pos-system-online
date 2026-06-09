@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://localhost:5000/api";
+﻿const API_BASE_URL = "http://localhost:5000/api";
 
 export type Category = {
   id: string;
@@ -64,7 +64,7 @@ async function handleResponse<T>(response: Response): Promise<ApiResponse<T>> {
 
   if (response.status === 401) {
     logoutAndRedirect();
-    throw new Error(data.message || "Phiên đăng nhập đã hết hạn");
+    throw new Error(data.message || "Yêu cầu API thất bại");
   }
 
   if (!response.ok) {
@@ -160,3 +160,4 @@ export async function uploadCategoryImage(file: File) {
 
   return handleResponse<UploadCategoryImageResult>(response);
 }
+

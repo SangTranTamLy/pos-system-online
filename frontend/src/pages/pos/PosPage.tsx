@@ -13,6 +13,16 @@ type CartItem = {
   quantity: number;
 };
 
+const paymentMethods: Array<{
+  value: PosPaymentMethod;
+  label: string;
+  icon: string;
+}> = [
+  { value: "cash", label: "Tiền mặt", icon: "payments" },
+  { value: "qr", label: "QR", icon: "qr_code" },
+  { value: "card", label: "Thẻ", icon: "credit_card" },
+];
+
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("vi-VN", {
     style: "currency",
@@ -32,23 +42,45 @@ function ProductCard({
   product: Product;
   onAdd: (product: Product) => void;
 }) {
+  const isOutOfStock = product.status === "out_of_stock" || product.stockQuantity <= 0;
+  const isUnavailable = isOutOfStock;
+  const statusLabel = "Hết hàng";
+
   return (
     <button
       type="button"
-      onClick={() => onAdd(product)}
-      className="group overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#f97316] hover:shadow-md"
+      onClick={() => {
+        if (!isUnavailable) {
+          onAdd(product);
+        }
+      }}
+      disabled={isUnavailable}
+      className={[
+        "group overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm transition-all",
+        isUnavailable
+          ? "cursor-not-allowed opacity-65"
+          : "hover:-translate-y-0.5 hover:border-[#f97316] hover:shadow-md",
+      ].join(" ")}
     >
-      {product.imageUrl ? (
-        <img
-          src={product.imageUrl}
-          alt={product.name}
-          className="h-36 w-full object-cover"
-        />
-      ) : (
-        <div className="flex h-36 w-full items-center justify-center bg-orange-50 text-[#f97316]">
-          <Icon name="restaurant" className="text-4xl" />
-        </div>
-      )}
+      <div className="relative">
+        {product.imageUrl ? (
+          <img
+            src={product.imageUrl}
+            alt={product.name}
+            className={["h-36 w-full object-cover", isUnavailable ? "grayscale" : ""].join(" ")}
+          />
+        ) : (
+          <div className="flex h-36 w-full items-center justify-center bg-orange-50 text-[#f97316]">
+            <Icon name="restaurant" className="text-4xl" />
+          </div>
+        )}
+
+        {isUnavailable ? (
+          <span className="absolute top-3 left-3 rounded-full bg-[#0b1c30]/90 px-3 py-1 text-xs font-bold text-white">
+            {statusLabel}
+          </span>
+        ) : null}
+      </div>
 
       <div className="space-y-2 p-4">
         <div className="flex items-start justify-between gap-3">
@@ -56,8 +88,13 @@ function ProductCard({
             <p className="truncate font-bold text-[#0b1c30]">{product.name}</p>
             <p className="mt-1 text-xs font-semibold text-slate-400">{product.sku}</p>
           </div>
-          <span className="rounded-full bg-orange-50 px-2 py-1 text-[10px] font-bold text-[#f97316]">
-            Còn {product.stockQuantity}
+          <span
+            className={[
+              "rounded-full px-2 py-1 text-[10px] font-bold",
+              isUnavailable ? "bg-slate-100 text-slate-500" : "bg-orange-50 text-[#f97316]",
+            ].join(" ")}
+          >
+            {`Còn ${product.stockQuantity}`}
           </span>
         </div>
 
@@ -65,8 +102,15 @@ function ProductCard({
           <p className="text-lg font-extrabold text-[#f97316]">
             {formatCurrency(product.salePrice)}
           </p>
-          <span className="rounded-full bg-[#0b1c30] px-3 py-1 text-xs font-bold text-white opacity-0 transition-opacity group-hover:opacity-100">
-            Thêm
+          <span
+            className={[
+              "rounded-full px-3 py-1 text-xs font-bold transition-opacity",
+              isUnavailable
+                ? "bg-slate-100 text-slate-500"
+                : "bg-[#0b1c30] text-white opacity-0 group-hover:opacity-100",
+            ].join(" ")}
+          >
+            {isUnavailable ? statusLabel : "Thêm"}
           </span>
         </div>
       </div>
@@ -102,26 +146,18 @@ function PosPage() {
     void Promise.resolve().then(loadProducts);
   }, [loadProducts]);
 
-  const activeProducts = useMemo(
-    () =>
-      products.filter(
-        (product) => product.status === "active" && product.stockQuantity > 0
-      ),
-    [products]
-  );
-
   const categories = useMemo(() => {
-    const names = activeProducts
+    const names = products
       .map((product) => product.categoryName)
       .filter((name): name is string => Boolean(name));
 
     return Array.from(new Set(names));
-  }, [activeProducts]);
+  }, [products]);
 
   const filteredProducts = useMemo(() => {
     const query = normalizeText(search);
 
-    return activeProducts.filter((product) => {
+    return products.filter((product) => {
       const matchesSearch =
         query.length === 0 ||
         normalizeText(product.name).includes(query) ||
@@ -131,7 +167,7 @@ function PosPage() {
 
       return matchesSearch && matchesCategory;
     });
-  }, [activeProducts, categoryFilter, search]);
+  }, [categoryFilter, products, search]);
 
   const subtotal = useMemo(
     () =>
@@ -145,6 +181,12 @@ function PosPage() {
   const addToCart = (product: Product) => {
     setCompletedOrder(null);
     setErrorMessage("");
+
+    if (product.status === "out_of_stock" || product.stockQuantity <= 0) {
+      setErrorMessage(`${product.name} đã hết hàng`);
+      return;
+    }
+
     setCartItems((currentItems) => {
       const existedItem = currentItems.find((item) => item.product.id === product.id);
 
@@ -289,7 +331,7 @@ function PosPage() {
                 <p className="text-sm text-slate-500">
                   {isLoading
                     ? "Đang tải sản phẩm..."
-                    : `${filteredProducts.length} sản phẩm đang bán`}
+                    : `${filteredProducts.length} sản phẩm trong thực đơn`}
                 </p>
               </div>
               <span className="rounded-full bg-orange-50 px-3 py-1 text-xs font-bold text-[#f97316]">
@@ -424,17 +466,29 @@ function PosPage() {
 
               <label className="block space-y-2">
                 <span className="text-sm font-bold text-[#0b1c30]">Thanh toán</span>
-                <select
-                  value={paymentMethod}
-                  onChange={(event) =>
-                    setPaymentMethod(event.target.value as PosPaymentMethod)
-                  }
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
-                >
-                  <option value="cash">💵 Tiền mặt</option>
-                  <option value="qr">📱 QR</option>
-                  <option value="card">💳 Thẻ</option>
-                </select>
+                <div className="grid grid-cols-3 gap-2">
+                  {paymentMethods.map((method) => {
+                    const isSelected = paymentMethod === method.value;
+
+                    return (
+                      <button
+                        key={method.value}
+                        type="button"
+                        onClick={() => setPaymentMethod(method.value)}
+                        className={[
+                          "flex h-20 flex-col items-center justify-center gap-1.5 rounded-xl border bg-white px-2 text-xs font-bold transition-all",
+                          isSelected
+                            ? "border-[#f97316] bg-orange-50 text-[#f97316] shadow-sm shadow-orange-100"
+                            : "border-slate-200 text-slate-600 hover:border-orange-200 hover:bg-orange-50/60",
+                        ].join(" ")}
+                        aria-pressed={isSelected}
+                      >
+                        <Icon name={method.icon} className="text-[28px]" />
+                        <span>{method.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </label>
 
               <div className="space-y-2 text-sm">
@@ -523,4 +577,3 @@ function PosPage() {
 }
 
 export default PosPage;
-

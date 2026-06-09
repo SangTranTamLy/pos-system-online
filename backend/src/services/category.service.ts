@@ -42,20 +42,20 @@ const allowedImageTypes: Record<string, string> = {
 
 function parseImageBase64(imageBase64: string | undefined) {
   if (!imageBase64) {
-    throw new ApiError(400, "Vui lÃ²ng chá»n áº£nh danh má»¥c");
+    throw new ApiError(400, "Vui lòng chọn ảnh danh mục");
   }
 
   const match = imageBase64.match(/^data:(image\/(?:jpeg|png|webp|gif));base64,(.+)$/);
 
   if (!match) {
-    throw new ApiError(400, "File áº£nh khÃ´ng há»£p lá»‡");
+    throw new ApiError(400, "File ảnh không hợp lệ");
   }
 
   const [, mimeType, base64Data] = match;
   const extension = allowedImageTypes[mimeType];
 
   if (!extension) {
-    throw new ApiError(400, "Chá»‰ há»— trá»£ áº£nh JPG, PNG, WEBP hoáº·c GIF");
+    throw new ApiError(400, "Chỉ hỗ trợ ảnh JPG, PNG, WEBP hoặc GIF");
   }
 
   return {

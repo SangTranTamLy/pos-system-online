@@ -1,11 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { login } from "../../api/auth.api";
+import heroImage from "../../assets/brg_login.png";
 
 type LoginTab = "staff" | "quick";
-
-const heroImage =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuCHaTHSgxMtWtH2dsT3sXP1VZH_db018XP0VmJDPXcpjHPbjTFurG2q9tXbWYcv8jtUoVz_fHoRLZKuUIrpy1VC8rM_Obojf8xjLedpOZ9VkPz12vv0fqZdun4VpileXw7qtNdmvFanNNnH20LddE8PRvBAHBgQJ8RfEsoplhLpaALglXri8l1uLVXcDOlHQuX3s7Cl3dGkO0tBz2kUMDYtbOszvwT9yrVv0AyZ2jyg4GA17DR2W20h5-Uv3FT6Yyftz-4HNO9ERR7Z";
 
 function Icon({
   name,
