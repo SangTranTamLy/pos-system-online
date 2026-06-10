@@ -19,7 +19,7 @@ app.use(morgan("dev"));
 app.use(express.json({ limit: "10mb" }));
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
-app.get("/health", async (req, res) => {
+app.get("/health", async (_req, res) => {
   try {
     const [rows] = await db.query("SELECT 1 AS status");
 

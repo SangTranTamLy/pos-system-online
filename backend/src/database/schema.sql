@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS products (
   status VARCHAR(30) NOT NULL DEFAULT 'active',
   description TEXT,
   image_url TEXT,
+  requires_preparation BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_products_category_id FOREIGN KEY (category_id) REFERENCES categories(id),
@@ -93,11 +94,15 @@ CREATE TABLE IF NOT EXISTS orders (
   points_used INT NOT NULL DEFAULT 0,
   points_earned INT NOT NULL DEFAULT 0,
   note TEXT,
+  cancelled_by CHAR(36),
+  cancelled_at DATETIME,
+  cancel_reason TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_orders_customer_id FOREIGN KEY (customer_id) REFERENCES customers(id),
   CONSTRAINT fk_orders_created_by FOREIGN KEY (created_by) REFERENCES users(id),
   CONSTRAINT fk_orders_promotion_id FOREIGN KEY (promotion_id) REFERENCES promotions(id),
+  CONSTRAINT fk_orders_cancelled_by FOREIGN KEY (cancelled_by) REFERENCES users(id),
   CONSTRAINT chk_orders_total_amount CHECK (total_amount >= 0),
   CONSTRAINT chk_orders_discount_amount CHECK (discount_amount >= 0),
   CONSTRAINT chk_orders_final_amount CHECK (final_amount >= 0),
@@ -140,6 +145,9 @@ CREATE TABLE IF NOT EXISTS stock_transactions (
   transaction_type VARCHAR(30) NOT NULL,
   quantity INT NOT NULL,
   note TEXT,
+  cancelled_by CHAR(36),
+  cancelled_at DATETIME,
+  cancel_reason TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_stock_transactions_product_id FOREIGN KEY (product_id) REFERENCES products(id),
   CONSTRAINT fk_stock_transactions_created_by FOREIGN KEY (created_by) REFERENCES users(id),
@@ -154,6 +162,9 @@ CREATE TABLE IF NOT EXISTS customer_points (
   points INT NOT NULL,
   transaction_type VARCHAR(30) NOT NULL,
   note TEXT,
+  cancelled_by CHAR(36),
+  cancelled_at DATETIME,
+  cancel_reason TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_customer_points_customer_id FOREIGN KEY (customer_id) REFERENCES customers(id),
   CONSTRAINT fk_customer_points_order_id FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL,
@@ -166,10 +177,25 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action VARCHAR(120) NOT NULL,
   entity_name VARCHAR(120),
   entity_id CHAR(36),
+  metadata JSON,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_audit_logs_user_id FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
+
+CREATE TABLE IF NOT EXISTS waste_transactions (
+  id CHAR(36) PRIMARY KEY,
+  order_id CHAR(36),
+  product_id CHAR(36) NOT NULL,
+  created_by CHAR(36),
+  quantity INT NOT NULL,
+  reason TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_waste_transactions_order_id FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL,
+  CONSTRAINT fk_waste_transactions_product_id FOREIGN KEY (product_id) REFERENCES products(id),
+  CONSTRAINT fk_waste_transactions_created_by FOREIGN KEY (created_by) REFERENCES users(id),
+  CONSTRAINT chk_waste_transactions_quantity CHECK (quantity > 0)
+);
 CREATE INDEX idx_users_role_id ON users(role_id);
 CREATE INDEX idx_products_category_id ON products(category_id);
 CREATE INDEX idx_products_status ON products(status);
@@ -185,3 +211,5 @@ CREATE INDEX idx_stock_transactions_created_by ON stock_transactions(created_by)
 CREATE INDEX idx_customer_points_customer_id ON customer_points(customer_id);
 CREATE INDEX idx_customer_points_order_id ON customer_points(order_id);
 CREATE INDEX idx_audit_logs_user_id ON audit_logs(user_id);
+CREATE INDEX idx_waste_transactions_order_id ON waste_transactions(order_id);
+CREATE INDEX idx_waste_transactions_product_id ON waste_transactions(product_id);

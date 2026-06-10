@@ -18,7 +18,7 @@ export async function getProductsController(_req: Request, res: Response) {
 
   return res.json({
     success: true,
-    message: "Get products successful",
+    message: "Lấy danh sách sản phẩm thành công",
     data: products,
   });
 }
@@ -28,7 +28,7 @@ export async function getProductDetailController(req: Request, res: Response) {
 
   return res.json({
     success: true,
-    message: "Get product detail successful",
+    message: "Lấy chi tiết sản phẩm thành công",
     data: product,
   });
 }
@@ -39,7 +39,7 @@ export async function uploadProductImageController(req: Request, res: Response) 
 
   return res.status(201).json({
     success: true,
-    message: "Upload product image successful",
+    message: "Tải ảnh sản phẩm thành công",
     data: image,
   });
 }
@@ -49,7 +49,7 @@ export async function createProductController(req: Request, res: Response) {
 
   return res.status(201).json({
     success: true,
-    message: "Create product successful",
+    message: "Tạo sản phẩm thành công",
     data: product,
   });
 }
@@ -59,7 +59,7 @@ export async function updateProductController(req: Request, res: Response) {
 
   return res.json({
     success: true,
-    message: "Update product successful",
+    message: "Cập nhật sản phẩm thành công",
     data: product,
   });
 }
@@ -72,7 +72,7 @@ export async function updateProductStatusController(req: Request, res: Response)
 
   return res.json({
     success: true,
-    message: "Update product status successful",
+    message: "Cập nhật trạng thái sản phẩm thành công",
     data: product,
   });
 }
@@ -82,7 +82,7 @@ export async function deleteProductController(req: Request, res: Response) {
 
   return res.json({
     success: true,
-    message: "Delete product successful",
+    message: "Xóa sản phẩm thành công",
     data: product,
   });
 }

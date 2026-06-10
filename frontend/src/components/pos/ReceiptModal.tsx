@@ -1,5 +1,8 @@
-import type { PosOrderResult, PosPaymentMethod } from "../../api/pos.api";
+﻿import type { PosOrderResult, PosPaymentMethod } from "../../api/pos.api";
 import { Icon } from "../../layouts/AdminLayout";
+import cashImage from "../../assets/tien.jpg";
+import qrImage from "../../assets/qr.png";
+import cardImage from "../../assets/the.png";
 
 type ReceiptModalProps = {
   order: PosOrderResult;
@@ -24,6 +27,18 @@ function getPaymentMethodLabel(method: PosPaymentMethod) {
   }
 
   return "Tiền mặt";
+}
+
+function getPaymentMethodImage(method: PosPaymentMethod) {
+  if (method === "qr") {
+    return qrImage;
+  }
+
+  if (method === "card") {
+    return cardImage;
+  }
+
+  return cashImage;
 }
 
 function getCurrentEmployeeName() {
@@ -53,9 +68,7 @@ function escapeHtml(value: string) {
 function buildReceiptHtml(order: PosOrderResult, employeeName: string) {
   const orderCode = `#HD${order.id.slice(0, 10)}`;
   const createdAt = new Date().toLocaleString("vi-VN");
-  const paymentLabel = `${order.payment.paymentMethod === "cash" ? "💵 " : ""}${getPaymentMethodLabel(
-    order.payment.paymentMethod
-  )}`;
+  const paymentLabel = getPaymentMethodLabel(order.payment.paymentMethod);
   const detailRows = order.details
     .map(
       (detail) => `
@@ -326,7 +339,7 @@ function ReceiptPreview({ order, employeeName }: { order: PosOrderResult; employ
           <Icon name="bolt" filled className="text-3xl" />
         </div>
         <p className="font-['Plus_Jakarta_Sans',sans-serif] text-lg font-extrabold tracking-wide text-[#0b1c30]">
-          POS STORE
+          QuickServe POS  
         </p>
         <p className="mt-1 text-sm text-slate-500">Hotline: 1900 8888</p>
       </div>
@@ -388,8 +401,12 @@ function ReceiptPreview({ order, employeeName }: { order: PosOrderResult; employ
 
       <div className="flex items-center justify-between border-y border-dashed border-slate-300 py-4 text-sm">
         <span className="font-extrabold uppercase text-[#f97316]">Phương thức:</span>
-        <span className="font-semibold text-[#0b1c30]">
-          {order.payment.paymentMethod === "cash" ? "💵 " : ""}
+        <span className="flex items-center gap-2 font-semibold text-[#0b1c30]">
+          <img
+            src={getPaymentMethodImage(order.payment.paymentMethod)}
+            alt={getPaymentMethodLabel(order.payment.paymentMethod)}
+            className="h-7 w-7 rounded-md object-cover"
+          />
           {getPaymentMethodLabel(order.payment.paymentMethod)}
         </span>
       </div>

@@ -7,20 +7,17 @@ import {
   updateCategoryService,
   updateCategoryStatusService,
 } from "../services/category.service";
-import { count } from "console";
-import { countProductsByCategoryId, deleteCategoryById } from "../repositories/category.repository";
-import { ApiError } from "../utils/apiError";
 
 function getParamId(id: string | string[]) {
   return Array.isArray(id) ? id[0] : id;
 }
 
-export async function getCategoriesController(req: Request, res: Response) {
+export async function getCategoriesController(_req: Request, res: Response) {
   const categories = await getCategoriesService();
 
   res.json({
     success: true,
-    message: "Get categories successful",
+    message: "Lấy danh mục thành công",
     data: categories,
   });
 }
@@ -30,7 +27,7 @@ export async function createCategoryController(req: Request, res: Response) {
 
   res.status(201).json({
     success: true,
-    message: "Create category successful",
+    message: "Tạo danh mục thành công",
     data: category,
   });
 }
@@ -41,7 +38,7 @@ export async function uploadCategoryImageController(req: Request, res: Response)
 
   res.status(201).json({
     success: true,
-    message: "Upload category image successful",
+    message: "Cập nhật ảnh danh mục thành công",
     data: image,
   });
 }

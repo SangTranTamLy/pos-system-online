@@ -16,6 +16,8 @@ type ProductRow = RowDataPacket & {
     image_url: string | null;
     created_at: Date;
     updated_at: Date; 
+    requires_preparation: number;
+    is_stock_returnable: number;
 };
 
 function mapProduct(row: ProductRow): Product{
@@ -23,6 +25,8 @@ function mapProduct(row: ProductRow): Product{
         id: row.id,
     categoryId: row.category_id,
     categoryName: row.category_name,
+    requiresPreparation: Boolean(row.requires_preparation),
+    isStockReturnable: Boolean(row.is_stock_returnable),
     sku: row.sku,
     name: row.name,
     importPrice: Number(row.import_price),
@@ -51,7 +55,9 @@ export async function findProducts(): Promise<Product[]>{
             products.description,
             products.image_url,
             products.created_at,
-            products.updated_at
+            products.updated_at,
+            products.requires_preparation,
+            products.is_stock_returnable
         FROM products
         JOIN categories ON products.category_id = categories.id
         ORDER BY products.created_at DESC`
@@ -75,7 +81,9 @@ export async function findProductById(id: string): Promise<Product | null> {
         products.description,
         products.image_url,
         products.created_at,
-        products.updated_at
+        products.updated_at,
+        products.requires_preparation,
+        products.is_stock_returnable
         FROM products
         JOIN categories ON products.category_id = categories.id
         WHERE products.id = ?
@@ -103,7 +111,9 @@ export async function findProductBySku(sku: string): Promise<Product | null> {
         products.description,
         products.image_url,
         products.created_at,
-        products.updated_at
+        products.updated_at,
+        products.requires_preparation,
+        products.is_stock_returnable
         FROM products
         JOIN categories ON products.category_id = categories.id
         WHERE products.sku = ?
@@ -123,6 +133,8 @@ export async function createProduct(data: CreateProductBody): Promise<Product> {
         INSERT INTO products (
         id,
         category_id,
+        requires_preparation,
+        is_stock_returnable,
         sku,
         name,
         import_price,
@@ -132,11 +144,13 @@ export async function createProduct(data: CreateProductBody): Promise<Product> {
         description,
         image_url
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
         id,
         data.categoryId,
+        data.requiresPreparation ? 1 : 0,
+        data.isStockReturnable ? 1 : 0,
         data.sku,
         data.name,
         data.importPrice ?? 0,
@@ -165,6 +179,8 @@ export async function updateProductById(
         UPDATE products
         SET
         category_id = ?,
+        requires_preparation = ?,
+        is_stock_returnable = ?,
         sku = ?,
         name = ?,
         import_price = ?,
@@ -177,6 +193,8 @@ export async function updateProductById(
         `,
         [
         data.categoryId ?? null,
+        data.requiresPreparation ? 1 : 0,
+        data.isStockReturnable ? 1 : 0,
         data.sku ?? null,
         data.name ?? null,
         data.importPrice ?? 0,

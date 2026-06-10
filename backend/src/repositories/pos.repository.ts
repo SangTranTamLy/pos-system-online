@@ -76,7 +76,7 @@ export async function createPosOrderTransaction(
       const customer = await findCustomerForUpdate(connection, data.customerId);
 
       if (!customer) {
-        throw new ApiError(404, "KhÃ´ng tÃ¬m tháº¥y khÃ¡ch hÃ ng");
+        throw new ApiError(404, "Không tìm thấy khách hàng");
       }
     }
 
@@ -87,15 +87,15 @@ export async function createPosOrderTransaction(
       const product = await findProductForUpdate(connection, item.productId);
 
       if (!product) {
-        throw new ApiError(404, "KhÃ´ng tÃ¬m tháº¥y sáº£n pháº©m");
+        throw new ApiError(404, "Không tìm thấy sản phẩm");
       }
 
       if (product.status !== "active") {
-        throw new ApiError(409, `Sáº£n pháº©m "${product.name}" khÃ´ng Ä‘ang bÃ¡n`);
+        throw new ApiError(409, `Sản phẩm "${product.name}" không đang bán`);
       }
 
       if (product.stock_quantity < item.quantity) {
-        throw new ApiError(409, `Sáº£n pháº©m "${product.name}" khÃ´ng Ä‘á»§ tá»“n kho`);
+        throw new ApiError(409, `Sản phẩm "${product.name}" không đủ tồn kho`);
       }
 
       const unitPrice = Number(product.sale_price);
@@ -198,7 +198,7 @@ export async function createPosOrderTransaction(
           detail.productId,
           data.createdBy,
           detail.quantity,
-          `BÃ¡n hÃ ng táº¡i quáº§y - Ä‘Æ¡n ${orderId}`,
+          `Bán hàng tại quầy - đơn ${orderId}`,
         ]
       );
     }

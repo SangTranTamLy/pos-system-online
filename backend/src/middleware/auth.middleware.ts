@@ -67,8 +67,11 @@ export function requireRoles(allowedRoles: string[]) {
       throw new ApiError(401, "Chưa được xác thực");
     }
 
-    if (!allowedRoles.includes(req.user.roleName)) {
-      throw new ApiError(403, "Forbidden");
+    const userRole = req.user.roleName.trim().toUpperCase();
+    const normalizedAllowedRoles = allowedRoles.map((role) => role.trim().toUpperCase());
+
+    if (!normalizedAllowedRoles.includes(userRole)) {
+      throw new ApiError(403, "Bạn không có quyền thực hiện thao tác này");
     }
 
     next();

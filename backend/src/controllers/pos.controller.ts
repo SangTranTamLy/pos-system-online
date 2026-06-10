@@ -11,7 +11,7 @@ export async function createPosOrderController(req: Request, res: Response) {
 
   return res.status(201).json({
     success: true,
-    message: "Create POS order successful",
+    message: "Tạo đơn hàng POS thành công",
     data: order,
   });
 }

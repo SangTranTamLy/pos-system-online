@@ -26,13 +26,15 @@ const menuItems: MenuItem[] = [
   { label: "Bán hàng (POS)", icon: "point_of_sale", path: "/pos", group: "main" },
   { label: "Sản phẩm", icon: "package_2", path: "/products", group: "main" },
   { label: "Danh mục", icon: "sell", path: "/categories", group: "main" },
-  { label: "Kho hàng", icon: "delivery_truck_bolt", path: "/stock", group: "main", disabled: true },
-  { label: "Khách hàng", icon: "group", path: "/customers", group: "main", disabled: true },
-  { label: "Hóa đơn", icon: "receipt_long", path: "/invoices", group: "main", disabled: true },
-  { label: "Khuyến mãi", icon: "redeem", path: "/promotions", group: "main", disabled: true },
-  { label: "Nhân viên", icon: "badge", path: "/employees", group: "system", disabled: true },
-  { label: "Báo cáo", icon: "analytics", path: "/reports", group: "system", disabled: true },
-  { label: "Cấu hình hệ thống", icon: "settings", path: "/settings", group: "system", disabled: true },
+  { label: "Kho hàng", icon: "delivery_truck_bolt", path: "/stock", group: "main" },
+  { label: "Khách hàng", icon: "group", path: "/customers", group: "main" },
+  { label: "Hóa đơn", icon: "receipt_long", path: "/invoices", group: "main" },
+  { label: "Khuyến mãi", icon: "redeem", path: "/promotions", group: "main" },
+  { label: "Nhân viên", icon: "badge", path: "/employees", group: "system" },
+  { label: "Ca làm", icon: "work_history", path: "/shifts", group: "system" },
+  { label: "Audit Log", icon: "history", path: "/audit-logs", group: "system" },
+  { label: "Báo cáo", icon: "analytics", path: "/reports", group: "system" },
+  { label: "Cấu hình hệ thống", icon: "settings", path: "/settings", group: "system" },
 ];
 
 export function Icon({
@@ -125,7 +127,13 @@ function useCurrentDateTime() {
   return currentDateTime;
 }
 
-function SidebarItem({ item }: { item: MenuItem }) {
+function SidebarItem({
+  item,
+  onNavigate,
+}: {
+  item: MenuItem;
+  onNavigate?: () => void;
+}) {
   const navigate = useNavigate();
   const location = useLocation();
   const isActive =
@@ -139,6 +147,7 @@ function SidebarItem({ item }: { item: MenuItem }) {
       onClick={() => {
         if (!item.disabled) {
           navigate(item.path);
+          onNavigate?.();
         }
       }}
       disabled={item.disabled}
@@ -158,42 +167,11 @@ function SidebarItem({ item }: { item: MenuItem }) {
   );
 }
 
-function MobileNavItem({ item }: { item: MenuItem }) {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const isActive =
-    !item.disabled &&
-    (location.pathname === item.path ||
-      (item.path !== "/dashboard" && location.pathname.startsWith(item.path)));
-
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        if (!item.disabled) {
-          navigate(item.path);
-        }
-      }}
-      disabled={item.disabled}
-      title={item.disabled ? "Chức năng sẽ làm sau" : undefined}
-      className={[
-        "whitespace-nowrap rounded-full border px-4 py-2 text-sm font-semibold transition-colors",
-        isActive
-          ? "border-[#f97316] bg-[#f97316] text-white"
-          : item.disabled
-            ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
-            : "border-slate-200 bg-white text-[#584237] hover:border-orange-200 hover:bg-orange-50",
-      ].join(" ")}
-    >
-      {item.label}
-    </button>
-  );
-}
-
 function AdminLayout({ children, title, subtitle }: AdminLayoutProps) {
   const navigate = useNavigate();
   const currentDateTime = useCurrentDateTime();
   const [user] = useState<AuthUser>(() => getStoredAuthUser());
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const mainMenuItems = useMemo(
     () => menuItems.filter((item) => item.group === "main"),
@@ -242,11 +220,67 @@ function AdminLayout({ children, title, subtitle }: AdminLayoutProps) {
         </nav>
       </aside>
 
+      {isMobileMenuOpen ? (
+        <div className="fixed inset-0 z-40 lg:hidden">
+          <button
+            type="button"
+            aria-label="Đóng menu"
+            className="absolute inset-0 bg-[#0b1c30]/45"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+          <aside className="relative flex h-full w-[min(82vw,288px)] flex-col overflow-y-auto border-r border-slate-200 bg-white px-4 py-6 shadow-2xl">
+            <div className="mb-6 flex items-center justify-between gap-3 px-2">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#f97316] text-white shadow-md">
+                  <Icon name="bolt" filled />
+                </div>
+                <h1 className="truncate font-['Plus_Jakarta_Sans',sans-serif] text-lg font-extrabold tracking-tight text-[#f97316]">
+                  QuickServe POS
+                </h1>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600"
+                aria-label="Đóng menu"
+              >
+                <Icon name="close" />
+              </button>
+            </div>
+
+            <nav className="flex-1 space-y-1">
+              {mainMenuItems.map((item) => (
+                <SidebarItem
+                  key={item.label}
+                  item={item}
+                  onNavigate={() => setIsMobileMenuOpen(false)}
+                />
+              ))}
+
+              <div className="pb-2 pt-4">
+                <p className="px-4 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                  Hệ thống
+                </p>
+              </div>
+
+              {systemMenuItems.map((item) => (
+                <SidebarItem
+                  key={item.label}
+                  item={item}
+                  onNavigate={() => setIsMobileMenuOpen(false)}
+                />
+              ))}
+            </nav>
+          </aside>
+        </div>
+      ) : null}
+
       <main className="flex min-h-screen flex-1 flex-col lg:pl-72">
         <header className="sticky top-0 z-20 flex h-auto flex-col gap-4 border-b border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-6 lg:h-16 lg:flex-row lg:items-center lg:justify-between lg:px-8 lg:py-0">
           <div className="flex items-center gap-4">
             <button
               type="button"
+              onClick={() => setIsMobileMenuOpen(true)}
               className="rounded-lg p-2 text-[#0b1c30] hover:bg-orange-50 lg:hidden"
               aria-label="Menu"
             >
@@ -300,17 +334,6 @@ function AdminLayout({ children, title, subtitle }: AdminLayoutProps) {
           </div>
         </header>
 
-        <div className="border-b border-slate-200 bg-white px-4 py-3 lg:hidden">
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {menuItems.map((item) => (
-              <MobileNavItem key={item.label} item={item} />
-            ))}
-          </div>
-          <p className="mt-3 text-sm font-medium capitalize text-slate-500 sm:hidden">
-            {currentDateTime}
-          </p>
-        </div>
-
         <div className="max-w-full p-4 sm:p-6 lg:p-8">{children}</div>
       </main>
     </div>
@@ -318,4 +341,3 @@ function AdminLayout({ children, title, subtitle }: AdminLayoutProps) {
 }
 
 export default AdminLayout;
-

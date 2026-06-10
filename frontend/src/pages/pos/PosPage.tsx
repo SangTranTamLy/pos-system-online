@@ -334,12 +334,9 @@ function PosPage() {
                     : `${filteredProducts.length} sản phẩm trong thực đơn`}
                 </p>
               </div>
-              <span className="rounded-full bg-orange-50 px-3 py-1 text-xs font-bold text-[#f97316]">
-                POS
-              </span>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+            <div className="min-h-0 flex-1 overflow-y-auto pb-36 pr-1 xl:pb-0">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-3">
                 {filteredProducts.map((product) => (
                   <ProductCard key={product.id} product={product} onAdd={addToCart} />
@@ -363,9 +360,6 @@ function PosPage() {
                 <h2 className="flex items-center gap-2 font-['Plus_Jakarta_Sans',sans-serif] text-lg font-extrabold text-[#0b1c30]">
                   <Icon name="shopping_cart" className="text-xl" />
                   Giỏ hàng
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">
-                    {cartItems.length}
-                  </span>
                 </h2>
               </div>
               <button
@@ -479,7 +473,7 @@ function PosPage() {
                           "flex h-20 flex-col items-center justify-center gap-1.5 rounded-xl border bg-white px-2 text-xs font-bold transition-all",
                           isSelected
                             ? "border-[#f97316] bg-orange-50 text-[#f97316] shadow-sm shadow-orange-100"
-                            : "border-slate-200 text-slate-600 hover:border-orange-200 hover:bg-orange-50/60",
+                            : "border-slate-200 text-slate-600 hover:border-slate-200 hover:bg-white hover:text-slate-600",
                         ].join(" ")}
                         aria-pressed={isSelected}
                       >
@@ -533,7 +527,7 @@ function PosPage() {
         </aside>
       </div>
 
-      <div className="fixed inset-x-4 bottom-4 z-30 xl:hidden">
+      <div className="fixed inset-x-3 bottom-3 z-30 sm:inset-x-4 sm:bottom-4 xl:hidden">
         <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl">
           <div className="mb-3 flex items-center justify-between">
             <div>

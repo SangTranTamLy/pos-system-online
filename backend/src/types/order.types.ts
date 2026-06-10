@@ -1,0 +1,58 @@
+export type OrderStatus = "completed" | "cancelled" | "refunded";
+export type PaymentMethod = "cash" | "qr" | "card";
+export type PaymentStatus = "pending" | "paid" | "failed" | "refunded";
+
+export type CancelOrderBody = {
+  reason?: string;
+  cancel_reason?: string;
+  cancelled_by?: string;
+};
+
+export type OrderListQuery = {
+  status?: OrderStatus;
+  search?: string;
+  dateFrom?: string;
+  dateTo?: string;
+};
+
+export type OrderListItem = {
+  id: string;
+  customerId: string | null;
+  customerName: string;
+  createdBy: string | null;
+  createdByName: string | null;
+  status: OrderStatus;
+  totalAmount: number;
+  discountAmount: number;
+  finalAmount: number;
+  paymentMethod: PaymentMethod | null;
+  paymentStatus: PaymentStatus | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type OrderDetailItem = {
+  id: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+};
+
+export type OrderPayment = {
+  id: string;
+  paymentMethod: PaymentMethod;
+  amount: number;
+  paymentStatus: PaymentStatus;
+  paidAt: string | null;
+};
+
+export type OrderDetail = OrderListItem & {
+  promotionId: string | null;
+  note: string | null;
+  pointsUsed: number;
+  pointsEarned: number;
+  details: OrderDetailItem[];
+  payments: OrderPayment[];
+};

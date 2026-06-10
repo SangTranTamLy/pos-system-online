@@ -107,6 +107,7 @@ export async function uploadProductImageService(
 }
 
 export async function createProductService(body: CreateProductBody) {
+  try {
   if (!body.categoryId) {
     throw new ApiError(400, "Vui lòng chọn danh mục");
   }
@@ -135,16 +136,23 @@ export async function createProductService(body: CreateProductBody) {
   validateMoney(body.importPrice, "Giá nhập");
   validateQuantity(body.stockQuantity);
 
-  return createProduct({
+  return await createProduct({
     ...body,
     sku: body.sku.trim(),
     name: body.name.trim(),
     description: body.description?.trim() || null,
     imageUrl: body.imageUrl?.trim() || null,
+    requiresPreparation: Boolean(category.requiresPreparation),
+    isStockReturnable: Boolean(category.isStockReturnable),
   });
+  } catch (err) {
+    if (err instanceof ApiError) throw err;
+    throw new ApiError(500, "Lỗi khi tạo sản phẩm");
+  }
 }
 
 export async function updateProductService(id: string, body: UpdateProductBody) {
+  try {
   const currentProduct = await findProductById(id);
 
   if (!currentProduct) {
@@ -179,6 +187,8 @@ export async function updateProductService(id: string, body: UpdateProductBody) 
     name: body.name.trim(),
     description: body.description?.trim() || null,
     imageUrl: body.imageUrl?.trim() || null,
+    requiresPreparation: Boolean(category.requiresPreparation),
+    isStockReturnable: Boolean(category.isStockReturnable),
   });
 
   if (!updatedProduct) {
@@ -186,6 +196,10 @@ export async function updateProductService(id: string, body: UpdateProductBody) 
   }
 
   return updatedProduct;
+  } catch (err) {
+    if (err instanceof ApiError) throw err;
+    throw new ApiError(500, "Lỗi khi cập nhật sản phẩm");
+  }
 }
 
 export async function updateProductStatusService(

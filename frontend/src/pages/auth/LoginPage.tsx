@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { login } from "../../api/auth.api";
 import heroImage from "../../assets/brg_login.png";
@@ -98,8 +98,8 @@ function LoginPage() {
   
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#f8f9ff] font-sans text-[#0b1c30]">
-      <div className="flex min-h-screen w-full">
+    <main className="h-screen overflow-hidden bg-[#f8f9ff] font-sans text-[#0b1c30]">
+      <div className="flex h-full min-h-0 w-full">
         <section className="relative hidden overflow-hidden lg:block lg:w-3/5">
           <div className="absolute inset-0 z-10 bg-linear-to-t from-black/60 to-transparent" />
           <img
@@ -126,8 +126,8 @@ function LoginPage() {
           </div>
         </section>
 
-        <section className="flex w-full flex-col justify-between bg-white lg:w-2/5">
-          <header className="flex justify-center p-6 lg:hidden">
+        <section className="flex h-full min-h-0 w-full flex-col bg-white lg:w-2/5">
+          <header className="flex shrink-0 justify-center px-6 py-4 lg:hidden">
             <div className="flex items-center gap-2">
               <Icon name="terminal" filled className="text-2xl text-[#9d4300]" />
               <span className="font-['Plus_Jakarta_Sans',sans-serif] text-2xl font-bold text-[#9d4300]">
@@ -136,9 +136,9 @@ function LoginPage() {
             </div>
           </header>
 
-          <div className="flex flex-1 items-center justify-center px-8 py-12 md:px-16">
+          <div className="flex min-h-0 flex-1 items-center justify-center px-8 py-6 md:px-16">
             <div className="w-full max-w-md">
-              <div className="mb-8">
+              <div className="mb-6">
                 <h2 className="mb-2 font-['Plus_Jakarta_Sans',sans-serif] text-4xl font-bold text-[#0b1c30]">
                   Chào Mừng 
                 </h2>
@@ -147,7 +147,7 @@ function LoginPage() {
                 </p>
               </div>
 
-              <div className="mb-8 flex border-b border-[#e0c0b1]" role="tablist">
+              <div className="mb-6 flex border-b border-[#e0c0b1]" role="tablist">
                 <TabButton
                   active={activeTab === "staff"}
                   label="Tài khoản nhân sự"
@@ -162,7 +162,7 @@ function LoginPage() {
 
               <div className="min-h-32rem">
                 {activeTab === "staff" ? (
-                  <form className="space-y-6" onSubmit={handleStaffLogin}>
+                  <form className="space-y-4" onSubmit={handleStaffLogin}>
                     <div className="space-y-2">
                       <label htmlFor="email" className="text-sm font-semibold tracking-[0.02em]">
                         tài khoản
@@ -228,13 +228,13 @@ function LoginPage() {
                     )}
                     <button
                       type="submit"
-                      className="w-full rounded-lg bg-[#f97316] py-4 font-['Plus_Jakarta_Sans',sans-serif] text-2xl font-semibold text-white shadow-lg transition-all hover:brightness-110 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+                      className="w-full rounded-lg bg-[#f97316] py-3 font-['Plus_Jakarta_Sans',sans-serif] text-xl font-semibold text-white shadow-lg transition-all hover:brightness-110 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {isSubmitting ? "Đang đăng nhập..." : "Đăng nhập"}
                     </button>
                   </form>
                 ) : (
-                  <form className="space-y-6">
+                  <form className="space-y-4">
                     <div className="space-y-2 text-center">
                       <p className="text-sm font-semibold tracking-[0.02em] text-[#584237]">
                         Nhập mã nhân viên hoặc quét thẻ nhân viên
@@ -305,7 +305,7 @@ function LoginPage() {
 
                     <button
                       type="submit"
-                      className="w-full rounded-lg bg-[#f97316] py-4 font-['Plus_Jakarta_Sans',sans-serif] text-2xl font-semibold text-white shadow-lg transition-all hover:brightness-110 active:translate-y-px"
+                      className="w-full rounded-lg bg-[#f97316] py-3 font-['Plus_Jakarta_Sans',sans-serif] text-xl font-semibold text-white shadow-lg transition-all hover:brightness-110 active:translate-y-px"
                     >
                       Xác nhận đăng nhập
                     </button>
@@ -313,7 +313,7 @@ function LoginPage() {
                 )}
               </div>
 
-              <div className="mt-8 text-center">
+              <div className="mt-5 text-center">
                 <button
                   type="button"
                   className="flex w-full items-center justify-center gap-2 py-2 text-sm font-semibold tracking-[0.02em] text-[#584237] transition-colors hover:text-[#9d4300]"
@@ -325,7 +325,7 @@ function LoginPage() {
             </div>
           </div>
 
-          <footer className="flex flex-col items-center justify-between gap-4 border-t border-[#e0c0b1]/30 p-8 md:flex-row">
+          <footer className="flex flex-col items-center justify-between gap-4 shrink-0 border-t border-[#e0c0b1]/30 px-6 py-4 md:flex-row">
             <p className="text-sm font-semibold tracking-[0.02em] text-[#584237] opacity-60">
               Copyright 2024 QuickServe Systems. All rights reserved.
             </p>

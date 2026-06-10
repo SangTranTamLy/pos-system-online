@@ -86,6 +86,7 @@ export async function uploadCategoryImageService(
 }
 
 export async function createCategoryService(body: CreateCategoryBody) {
+  try {
   const name = normalizeName(body.name ?? "");
 
   if (!name) {
@@ -98,17 +99,24 @@ export async function createCategoryService(body: CreateCategoryBody) {
     throw new ApiError(409, "Tên danh mục đã tồn tại");
   }
 
-  return createCategory({
+  return await createCategory({
     name,
     description: normalizeDescription(body.description),
     imageUrl: normalizeImageUrl(body.imageUrl),
+    requiresPreparation: Boolean(body.requiresPreparation),
+    isStockReturnable: Boolean(body.isStockReturnable),
   });
+  } catch (err) {
+    if (err instanceof ApiError) throw err;
+    throw new ApiError(500, "Lỗi khi tạo danh mục");
+  }
 }
 
 export async function updateCategoryService(
   id: string,
   body: UpdateCategoryBody
 ) {
+  try {
   const currentCategory = await findCategoryById(id);
 
   if (!currentCategory) {
@@ -131,6 +139,8 @@ export async function updateCategoryService(
     name,
     description: normalizeDescription(body.description),
     imageUrl: normalizeImageUrl(body.imageUrl),
+    requiresPreparation: typeof body.requiresPreparation === "boolean" ? body.requiresPreparation : currentCategory.requiresPreparation,
+    isStockReturnable: typeof body.isStockReturnable === "boolean" ? body.isStockReturnable : currentCategory.isStockReturnable,
   });
 
   if (!updatedCategory) {
@@ -138,6 +148,10 @@ export async function updateCategoryService(
   }
 
   return updatedCategory;
+  } catch (err) {
+    if (err instanceof ApiError) throw err;
+    throw new ApiError(500, "Lỗi khi cập nhật danh mục");
+  }
 }
 
 export async function deleteCategoryService(id: string) {

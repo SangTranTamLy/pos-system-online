@@ -40,6 +40,8 @@ const defaultFormState = {
   description: "",
   imageUrl: "",
   displayOrder: "1",
+  requiresPreparation: true,
+  isStockReturnable: false,
 };
 
 function CategoryStatCard({ card }: { card: CategoryStatCard }) {
@@ -168,6 +170,8 @@ function CategoryPage() {
       description: category.description ?? "",
       imageUrl: category.imageUrl ?? "",
       displayOrder: "1",
+      requiresPreparation: category.requiresPreparation,
+      isStockReturnable: category.isStockReturnable,
     });
     setIsModalOpen(true);
   };
@@ -188,6 +192,8 @@ function CategoryPage() {
         name: formState.name.trim(),
         description: formState.description.trim() || null,
         imageUrl: formState.imageUrl.trim() || null,
+        requiresPreparation: Boolean(formState.requiresPreparation),
+        isStockReturnable: Boolean(formState.isStockReturnable),
       };
 
       if (editingCategory) {
@@ -307,7 +313,7 @@ function CategoryPage() {
         ) : null}
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[920px] text-left text-sm">
+          <table className="w-full min-w-230 text-left text-sm">
             <thead className="bg-slate-50 font-semibold text-slate-500">
               <tr>
                 <th className="px-6 py-3">Tên danh mục</th>
@@ -338,7 +344,7 @@ function CategoryPage() {
                         </span>
                       </div>
                     </td>
-                    <td className="max-w-[240px] truncate px-6 py-4 text-slate-600">
+                    <td className="max-w-60 truncate px-6 py-4 text-slate-600">
                       {category.description || "Chưa có mô tả"}
                     </td>
                     <td className="px-6 py-4 text-center font-medium text-[#0b1c30]">
@@ -433,7 +439,7 @@ function CategoryPage() {
       </section>
 
       {isModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(11,28,48,0.4)] p-4 backdrop-blur-[4px]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(11,28,48,0.4)] p-4 backdrop-blur-xs">
           <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-5">
               <div className="flex items-center gap-3">
@@ -528,6 +534,38 @@ function CategoryPage() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(formState.requiresPreparation)}
+                      onChange={(e) =>
+                        setFormState((cur) => ({ ...cur, requiresPreparation: e.target.checked }))
+                      }
+                      className="h-4 w-4"
+                    />
+                    <span className="text-sm font-semibold text-[#0b1c30]">Món này cần chế biến tại quầy</span>
+                  </label>
+                  <p className="text-xs text-slate-500">Bật nếu là món cần đứng bếp, pha chế như cà phê, trà sữa, bánh mì... Tắt nếu là đồ đóng chai có sẵn.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(formState.isStockReturnable)}
+                      onChange={(e) =>
+                        setFormState((cur) => ({ ...cur, isStockReturnable: e.target.checked }))
+                      }
+                      className="h-4 w-4"
+                    />
+                    <span className="text-sm font-semibold text-[#0b1c30]">Cho phép hoàn tồn kho khi hủy đơn</span>
+                  </label>
+                  <p className="text-xs text-slate-500">Bật nếu sản phẩm có thể cất ngược lại vào kho để bán tiếp khi khách hủy hóa đơn.</p>
+                </div>
+              </div>
+
               {formState.imageUrl.trim() ? (
                 <div className="overflow-hidden rounded-xl border border-slate-200">
                   <img
@@ -560,7 +598,7 @@ function CategoryPage() {
       ) : null}
 
       {showToast ? (
-        <div className="pointer-events-none fixed right-8 bottom-8 z-[60]">
+        <div className="pointer-events-none fixed right-8 bottom-8 z-60">
           <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white/90 p-4 shadow-2xl backdrop-blur-md">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-white">
               <Icon name="check" className="text-sm" />

@@ -1,5 +1,12 @@
+﻿import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Bar, BarChart, CartesianGrid, Cell, Tooltip, XAxis, YAxis } from "recharts";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
+import {
+  getDashboardSummary,
+  type DashboardRevenuePeriod,
+  type DashboardSummary,
+} from "../../api/dashboard.api";
 
 type QuickAction = {
   label: string;
@@ -20,11 +27,10 @@ type StatsCardData = {
   badgeText: string;
 };
 
-type RevenueBar = {
+type RevenuePoint = {
+  sort: number;
   label: string;
-  value: string;
-  height: number;
-  highlight?: boolean;
+  revenue: number;
 };
 
 type TopProduct = {
@@ -68,135 +74,7 @@ const quickActions: QuickAction[] = [
   },
 ];
 
-const statsCards: StatsCardData[] = [
-  {
-    label: "Doanh thu hôm nay",
-    value: "24.500.000đ",
-    icon: "payments",
-    iconBg: "bg-orange-50",
-    iconText: "text-[#f97316]",
-    badge: "+15%",
-    badgeBg: "bg-green-50",
-    badgeText: "text-green-600",
-  },
-  {
-    label: "Hóa đơn hôm nay",
-    value: "142",
-    icon: "receipt_long",
-    iconBg: "bg-orange-50",
-    iconText: "text-[#f97316]",
-    badge: "+8%",
-    badgeBg: "bg-green-50",
-    badgeText: "text-green-600",
-  },
-  {
-    label: "Danh mục đang bán",
-    value: "11",
-    icon: "sell",
-    iconBg: "bg-orange-50",
-    iconText: "text-[#f97316]",
-    badge: "Đồ ăn & nước",
-    badgeBg: "bg-orange-50",
-    badgeText: "text-[#f97316]",
-  },
-  {
-    label: "Sản phẩm sắp hết",
-    value: "15",
-    icon: "priority_high",
-    iconBg: "bg-red-50",
-    iconText: "text-red-600",
-    badge: "Sắp hết",
-    badgeBg: "bg-red-50",
-    badgeText: "text-red-600",
-  },
-  {
-    label: "Tổng khách hàng",
-    value: "1.250",
-    icon: "person_add",
-    iconBg: "bg-green-50",
-    iconText: "text-green-600",
-    badge: "Tích điểm",
-    badgeBg: "bg-green-50",
-    badgeText: "text-green-600",
-  },
-  {
-    label: "Sản phẩm đang bán",
-    value: "458",
-    icon: "inventory",
-    iconBg: "bg-orange-50",
-    iconText: "text-[#f97316]",
-    badge: "Đang bán",
-    badgeBg: "bg-slate-50",
-    badgeText: "text-slate-500",
-  },
-];
 
-const revenueBars: RevenueBar[] = [
-  { label: "18/05", value: "14.2M", height: 65 },
-  { label: "19/05", value: "9.8M", height: 45 },
-  { label: "20/05", value: "18.5M", height: 85 },
-  { label: "21/05", value: "15.1M", height: 70 },
-  { label: "22/05", value: "12.7M", height: 60 },
-  { label: "23/05", value: "20.4M", height: 95 },
-  { label: "Hôm nay", value: "19.3M", height: 90, highlight: true },
-];
-
-const topProducts: TopProduct[] = [
-  { name: "Bánh mì thịt", sold: "428 phần", width: "85%" },
-  { name: "Cà phê sữa đá", sold: "312 ly", width: "65%" },
-  { name: "Phở gà", sold: "245 tô", width: "50%" },
-];
-
-const recentOrders: RecentOrder[] = [
-  {
-    code: "#HD-2584",
-    customer: "Nguyễn Văn An",
-    type: "POS",
-    total: "125.000đ",
-    status: "Hoàn tất",
-    typeClassName: "bg-orange-50 text-[#f97316]",
-    statusClassName: "bg-green-50 text-green-600",
-  },
-  {
-    code: "#HD-2583",
-    customer: "Trần Thị Hoa",
-    type: "POS",
-    total: "85.000đ",
-    status: "Hoàn tất",
-    typeClassName: "bg-orange-50 text-[#f97316]",
-    statusClassName: "bg-green-50 text-green-600",
-  },
-  {
-    code: "#HD-2582",
-    customer: "Khách lẻ",
-    type: "POS",
-    total: "45.000đ",
-    status: "Hoàn tất",
-    typeClassName: "bg-orange-50 text-[#f97316]",
-    statusClassName: "bg-green-50 text-green-600",
-  },
-];
-
-const stockAlerts: StockAlert[] = [
-  {
-    product: "Sữa đặc Vinamilk",
-    remain: "2 hộp",
-    minimum: "10 hộp",
-    remainClassName: "text-red-600",
-  },
-  {
-    product: "Hạt cà phê Robusta",
-    remain: "3.5 kg",
-    minimum: "5 kg",
-    remainClassName: "text-orange-600",
-  },
-  {
-    product: "Bột Matcha Nhật",
-    remain: "0.2 kg",
-    minimum: "1 kg",
-    remainClassName: "text-red-600",
-  },
-];
 
 function QuickActionCard({
   action,
@@ -251,54 +129,143 @@ function StatCard({ card }: { card: StatsCardData }) {
   );
 }
 
-function RevenueChartMock({ bars }: { bars: RevenueBar[] }) {
+function getRevenueChartTitle(period: DashboardRevenuePeriod) {
+  return period === "year" ? "Doanh thu trong năm" : "Doanh thu trong tháng";
+}
+
+function getRevenueChartSubtitle(period: DashboardRevenuePeriod) {
+  return period === "year"
+    ? "Theo dõi doanh thu theo từng tháng trong năm hiện tại"
+    : "Theo dõi doanh thu theo từng ngày trong tháng hiện tại";
+}
+
+function getXAxisInterval(period: DashboardRevenuePeriod) {
+  return period === "year" ? 0 : 4;
+}
+
+function isCurrentRevenuePoint(point: RevenuePoint, period: DashboardRevenuePeriod) {
+  const today = new Date();
+  const currentSort = period === "year" ? today.getMonth() + 1 : today.getDate();
+
+  return point.sort === currentSort;
+}
+
+function useChartSize() {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [size, setSize] = useState({ width: 0, height: 320 });
+
+  useEffect(() => {
+    const element = containerRef.current;
+
+    if (!element) {
+      return undefined;
+    }
+
+    const updateSize = () => {
+      const rect = element.getBoundingClientRect();
+      const width = Math.floor(rect.width);
+      const height = Math.floor(rect.height);
+
+      if (width > 0 && height > 0) {
+        setSize({ width, height });
+      }
+    };
+
+    updateSize();
+
+    const resizeObserver = new ResizeObserver(updateSize);
+    resizeObserver.observe(element);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
+
+  return { containerRef, size };
+}
+
+function RevenueChart({
+  data,
+  period,
+  onPeriodChange,
+}: {
+  data: RevenuePoint[];
+  period: DashboardRevenuePeriod;
+  onPeriodChange: (period: DashboardRevenuePeriod) => void;
+}) {
+  const { containerRef, size } = useChartSize();
+  const canRenderChart = size.width > 0 && size.height > 0;
+
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-bold text-[#0b1c30]">
-            Doanh thu 7 ngày qua
+            {getRevenueChartTitle(period)}
           </h4>
-          <p className="text-xs text-slate-400">
-            Theo dõi doanh thu bán đồ ăn sáng và nước uống
-          </p>
+          <p className="text-xs text-slate-400">{getRevenueChartSubtitle(period)}</p>
         </div>
-        <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
-          <span className="h-2.5 w-2.5 rounded-full bg-[#f97316]" />
-          Doanh thu
-        </div>
-      </div>
-
-      <div className="relative flex h-64 w-full items-end gap-3 px-2">
-        <div className="pointer-events-none absolute inset-0 flex flex-col justify-between py-2">
-          {[0, 1, 2, 3].map((line) => (
-            <div key={line} className="border-t border-slate-50" />
-          ))}
-        </div>
-
-        {bars.map((bar) => (
-          <div key={bar.label} className="group relative flex flex-1 items-end">
-            <div
-              title={`${bar.label}: ${bar.value}`}
-              className={[
-                "w-full rounded-t-lg transition-all duration-200",
-                bar.highlight ? "bg-[#f97316]" : "bg-[#f97316]/20 hover:bg-[#f97316]",
-              ].join(" ")}
-              style={{ height: `${bar.height}%` }}
-            />
+        <div className="flex items-center gap-3">
+          <select
+            value={period}
+            onChange={(event) => onPeriodChange(event.target.value as DashboardRevenuePeriod)}
+            className="h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-600 outline-none transition-colors hover:border-orange-200 focus:border-[#f97316]"
+            aria-label="Chọn kỳ xem doanh thu"
+          >
+            <option value="month">Tháng</option>
+            <option value="year">Năm</option>
+          </select>
+          <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+            <span className="h-2.5 w-2.5 rounded-full bg-[#f97316]" />
+            Doanh thu
           </div>
-        ))}
+        </div>
       </div>
 
-      <div className="mt-4 flex justify-between px-2 text-[10px] font-bold text-slate-400">
-        {bars.map((bar) => (
-          <span key={bar.label}>{bar.label}</span>
-        ))}
+      <div ref={containerRef} className="h-80 min-h-80 min-w-0 w-full">
+        {canRenderChart ? (
+          <BarChart
+            width={size.width}
+            height={size.height}
+            data={data}
+            margin={{ top: 12, right: 12, left: 0, bottom: 0 }}
+          >
+            <CartesianGrid stroke="#eef2f7" vertical={false} />
+            <XAxis
+              dataKey="label"
+              axisLine={false}
+              tickLine={false}
+              interval={getXAxisInterval(period)}
+              tick={{ fill: "#94a3b8", fontSize: 10, fontWeight: 700 }}
+              dy={12}
+            />
+            <YAxis hide domain={[0, "dataMax"]} />
+            <Tooltip
+              cursor={{ fill: "rgba(249, 115, 22, 0.08)" }}
+              formatter={(value) => [formatCurrency(Number(value)), "Doanh thu"]}
+              labelFormatter={(label) => String(label)}
+              contentStyle={{
+                border: "1px solid #fed7aa",
+                borderRadius: 12,
+                boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
+                fontSize: 12,
+                fontWeight: 700,
+              }}
+            />
+            <Bar dataKey="revenue" fill="#fdba74" radius={[6, 6, 0, 0]} maxBarSize={34}>
+              {data.map((point) => (
+                <Cell
+                  key={point.label}
+                  fill={isCurrentRevenuePoint(point, period) ? "#f97316" : "#fdba74"}
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        ) : null}
       </div>
     </div>
   );
 }
-
 function TopProductsCard({ products }: { products: TopProduct[] }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -321,12 +288,194 @@ function TopProductsCard({ products }: { products: TopProduct[] }) {
     </div>
   );
 }
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
 
+
+function getOrderStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    completed: "Hoàn tất",
+    cancelled: "Đã hủy",
+    refunded: "Hoàn tiền",
+  };
+
+  return labels[status] ?? status;
+}
+
+function getOrderStatusClassName(status: string) {
+  const classNames: Record<string, string> = {
+    completed: "bg-green-50 text-green-600",
+    cancelled: "bg-red-50 text-red-600",
+    refunded: "bg-slate-100 text-slate-500",
+  };
+
+  return classNames[status] ?? "bg-slate-100 text-slate-500";
+}
+
+function getStockRemainClassName(stockQuantity: number) {
+  return stockQuantity <= 5 ? "text-red-600" : "text-orange-600";
+}
 function DashboardPage() {
   const navigate = useNavigate();
+  const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [revenuePeriod, setRevenuePeriod] = useState<DashboardRevenuePeriod>("month");
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadDashboard() {
+      try {
+        const response = await getDashboardSummary(revenuePeriod);
+
+        if (isActive) {
+          setDashboard(response.data);
+          setErrorMessage("");
+        }
+      } catch (error) {
+        if (isActive) {
+          setErrorMessage(
+            error instanceof Error ? error.message : "Không tải được dữ liệu dashboard"
+          );
+        }
+      } finally {
+        if (isActive) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadDashboard();
+
+    return () => {
+      isActive = false;
+    };
+  }, [revenuePeriod]);
+  const stats = dashboard?.stats;
+
+  const realStatsCards: StatsCardData[] = [
+    {
+      label: "Doanh thu hôm nay",
+      value: formatCurrency(stats?.todayRevenue ?? 0),
+      icon: "payments",
+      iconBg: "bg-orange-50",
+      iconText: "text-[#f97316]",
+      badge: "Hôm nay",
+      badgeBg: "bg-green-50",
+      badgeText: "text-green-600",
+    },
+    {
+      label: "Hóa đơn hôm nay",
+      value: String(stats?.todayOrders ?? 0),
+      icon: "receipt_long",
+      iconBg: "bg-orange-50",
+      iconText: "text-[#f97316]",
+      badge: "POS",
+      badgeBg: "bg-green-50",
+      badgeText: "text-green-600",
+    },
+    {
+      label: "Danh mục đang bán",
+      value: String(stats?.activeCategories ?? 0),
+      icon: "sell",
+      iconBg: "bg-orange-50",
+      iconText: "text-[#f97316]",
+      badge: "Đang hoạt động",
+      badgeBg: "bg-orange-50",
+      badgeText: "text-[#f97316]",
+    },
+    {
+      label: "Sản phẩm sắp hết",
+      value: String(stats?.lowStockProducts ?? 0),
+      icon: "priority_high",
+      iconBg: "bg-red-50",
+      iconText: "text-red-600",
+      badge: "Sắp hết",
+      badgeBg: "bg-red-50",
+      badgeText: "text-red-600",
+    },
+    {
+      label: "Tổng khách hàng",
+      value: String(stats?.totalCustomers ?? 0),
+      icon: "person_add",
+      iconBg: "bg-green-50",
+      iconText: "text-green-600",
+      badge: "Khách hàng",
+      badgeBg: "bg-green-50",
+      badgeText: "text-green-600",
+    },
+    {
+      label: "Sản phẩm đang bán",
+      value: String(stats?.activeProducts ?? 0),
+      icon: "inventory",
+      iconBg: "bg-orange-50",
+      iconText: "text-[#f97316]",
+      badge: "Đang bán",
+      badgeBg: "bg-slate-50",
+      badgeText: "text-slate-500",
+    },
+  ];
+
+  const realRevenueTrend: RevenuePoint[] = dashboard?.revenueTrend ?? [];
+
+  const maxSoldQuantity = Math.max(
+    ...(dashboard?.topProducts ?? []).map((item) => item.soldQuantity),
+    0
+  );
+  const realTopProducts: TopProduct[] = (dashboard?.topProducts ?? []).map((item) => ({
+    name: item.name,
+    sold: `${item.soldQuantity} đã bán`,
+    width: maxSoldQuantity > 0 ? `${Math.max((item.soldQuantity / maxSoldQuantity) * 100, 8)}%` : "8%",
+  }));
+  const totalTopProductSold = (dashboard?.topProducts ?? []).reduce(
+    (total, item) => total + item.soldQuantity,
+    0
+  );
+  const totalTopProductRevenue = (dashboard?.topProducts ?? []).reduce(
+    (total, item) => total + item.revenue,
+    0
+  );
+
+  const realRecentOrders: RecentOrder[] = (dashboard?.recentOrders ?? []).map((order) => ({
+    code: `#HD-${order.id}`,
+    customer: order.customerName,
+    type: "POS",
+    total: formatCurrency(order.finalAmount),
+    status: getOrderStatusLabel(order.status),
+    typeClassName: "bg-orange-50 text-[#f97316]",
+    statusClassName: getOrderStatusClassName(order.status),
+  }));
+
+  const realStockAlerts: StockAlert[] = (dashboard?.stockAlerts ?? []).map((item) => ({
+    product: item.productName,
+    remain: String(item.stockQuantity),
+    minimum: "10",
+    remainClassName: getStockRemainClassName(item.stockQuantity),
+  }));
+
+  if (isLoading) {
+    return (
+      <AdminLayout>
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm font-semibold text-slate-500 shadow-sm">
+          Đang tải dữ liệu dashboard...
+        </div>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout>
+      {errorMessage ? (
+        <div className="mb-6 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-600">
+          {errorMessage}
+        </div>
+      ) : null}
+
       <section className="mb-8">
         <div className="mb-4 flex flex-col gap-1">
           <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-lg font-bold text-[#0b1c30]">
@@ -352,42 +501,36 @@ function DashboardPage() {
       </section>
 
       <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
-        {statsCards.map((card) => (
+        {realStatsCards.map((card) => (
           <StatCard key={card.label} card={card} />
         ))}
       </section>
 
       <section className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <div className="xl:col-span-8">
-          <RevenueChartMock bars={revenueBars} />
+        <div className="min-w-0 xl:col-span-8">
+          <RevenueChart data={realRevenueTrend} period={revenuePeriod} onPeriodChange={setRevenuePeriod} />
         </div>
 
         <div className="flex flex-col gap-6 xl:col-span-4">
           <div className="flex flex-1 flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <h4 className="mb-4 font-['Plus_Jakarta_Sans',sans-serif] font-bold text-[#0b1c30]">
-              Cơ cấu món bán chạy
+              Các món bán chạy
             </h4>
-            <div className="flex flex-1 items-center justify-center">
-              <div className="relative flex h-32 w-32 items-center justify-center rounded-full border-16 border-[#f97316] border-r-orange-100">
-                <div className="text-center">
-                  <p className="text-lg font-bold text-[#0b1c30]">60%</p>
-                  <p className="text-[10px] text-slate-400">Đồ ăn</p>
-                </div>
+            <div className="grid flex-1 grid-cols-2 gap-3">
+              <div className="rounded-xl bg-orange-50 p-4">
+                <p className="text-xs font-semibold text-slate-500">Số lượng đã bán</p>
+                <p className="mt-2 text-2xl font-bold text-[#0b1c30]">{totalTopProductSold}</p>
               </div>
-            </div>
-            <div className="mt-4 flex justify-around">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-                <span className="h-2 w-2 rounded-full bg-[#f97316]" />
-                Đồ ăn
-              </div>
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-                <span className="h-2 w-2 rounded-full bg-orange-200" />
-                Nước uống
+              <div className="rounded-xl bg-green-50 p-4">
+                <p className="text-xs font-semibold text-slate-500">Doanh thu top món</p>
+                <p className="mt-2 text-lg font-bold text-[#0b1c30]">
+                  {formatCurrency(totalTopProductRevenue)}
+                </p>
               </div>
             </div>
           </div>
 
-          <TopProductsCard products={topProducts} />
+          <TopProductsCard products={realTopProducts} />
         </div>
       </section>
 
@@ -414,29 +557,37 @@ function DashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {recentOrders.map((order) => (
-                  <tr key={order.code} className="transition-colors hover:bg-slate-50">
-                    <td className="px-6 py-4 font-bold text-[#f97316]">{order.code}</td>
-                    <td className="px-6 py-4 text-[#0b1c30]">{order.customer}</td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${order.typeClassName}`}
-                      >
-                        {order.type}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right font-semibold text-[#0b1c30]">
-                      {order.total}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${order.statusClassName}`}
-                      >
-                        {order.status}
-                      </span>
+                {realRecentOrders.length > 0 ? (
+                  realRecentOrders.map((order) => (
+                    <tr key={order.code} className="transition-colors hover:bg-slate-50">
+                      <td className="px-6 py-4 font-bold text-[#f97316]">{order.code}</td>
+                      <td className="px-6 py-4 text-[#0b1c30]">{order.customer}</td>
+                      <td className="px-6 py-4">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${order.typeClassName}`}
+                        >
+                          {order.type}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right font-semibold text-[#0b1c30]">
+                        {order.total}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${order.statusClassName}`}
+                        >
+                          {order.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-6 text-center text-sm text-slate-400">
+                      Chưa có hóa đơn gần đây
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
@@ -457,7 +608,7 @@ function DashboardPage() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-105 text-left text-sm">
+            <table className="w-full min-w-104 text-left text-sm">
               <thead className="bg-slate-50 font-semibold text-slate-500">
                 <tr>
                   <th className="px-6 py-3">Sản phẩm</th>
@@ -465,16 +616,24 @@ function DashboardPage() {
                   <th className="px-6 py-3 text-center">Mức tối thiểu</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200">
-                {stockAlerts.map((item) => (
-                  <tr key={item.product} className="transition-colors hover:bg-slate-50">
-                    <td className="px-6 py-4 text-[#0b1c30]">{item.product}</td>
-                    <td className="px-6 py-4 text-center font-bold">
-                      <span className={item.remainClassName}>{item.remain}</span>
+              <tbody className="divide-y divide-slate-200"> 
+                {realStockAlerts.length > 0 ? (
+                  realStockAlerts.map((item) => (
+                    <tr key={item.product} className="transition-colors hover:bg-slate-50">
+                      <td className="px-6 py-4 text-[#0b1c30]">{item.product}</td>
+                      <td className="px-6 py-4 text-center font-bold">
+                        <span className={item.remainClassName}>{item.remain}</span>
+                      </td>
+                      <td className="px-6 py-4 text-center text-slate-400">{item.minimum}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={3} className="px-6 py-6 text-center text-sm text-slate-400">
+                      Không có sản phẩm sắp hết hàng
                     </td>
-                    <td className="px-6 py-4 text-center text-slate-400">{item.minimum}</td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
