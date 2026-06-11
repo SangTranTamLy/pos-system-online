@@ -312,3 +312,180 @@ DESCRIBE products;
 DESCRIBE orders;
 DESCRIBE audit_logs;
 DESCRIBE waste_transactions;
+
+
+-- =========================================================
+-- SCRIPT BỔ SUNG RÀNG BUỘC LOGIC TỒN KHO CHO HỆ THỐNG POS
+-- Mục đích:
+-- 1. Bổ sung khóa ngoại và index cho bảng stock_transactions.
+-- 2. Bổ sung ràng buộc loại giao dịch kho.
+-- 3. Bổ sung ràng buộc logic danh mục/sản phẩm:
+--    - Món cần chế biến: requires_preparation = 1, is_stock_returnable = 0
+--    - Hàng có sẵn/đóng chai: requires_preparation = 0, is_stock_returnable = 1
+-- 4. Đồng bộ lại logic từ categories xuống products.
+-- =========================================================
+
+
+-- =========================================================
+-- PHẦN 1: KIỂM TRA DỮ LIỆU SAI TRƯỚC KHI THÊM CONSTRAINT
+-- Nếu 2 câu SELECT bên dưới trả về 0 dòng thì dữ liệu đang hợp lệ.
+-- Dữ liệu sai gồm:
+-- requires_preparation = 1 AND is_stock_returnable = 1  => vừa chế biến vừa hoàn kho, không hợp lệ
+-- requires_preparation = 0 AND is_stock_returnable = 0  => không thuộc loại nào, không hợp lệ
+-- =========================================================
+
+-- Kiểm tra danh mục sai logic
+SELECT id, name, requires_preparation, is_stock_returnable
+FROM categories
+WHERE
+  (requires_preparation = 1 AND is_stock_returnable = 1)
+  OR
+  (requires_preparation = 0 AND is_stock_returnable = 0);
+
+-- Kiểm tra sản phẩm sai logic
+SELECT id, name, requires_preparation, is_stock_returnable
+FROM products
+WHERE
+  (requires_preparation = 1 AND is_stock_returnable = 1)
+  OR
+  (requires_preparation = 0 AND is_stock_returnable = 0);
+
+
+-- =========================================================
+-- PHẦN 2: ĐỒNG BỘ LOGIC TỪ DANH MỤC XUỐNG SẢN PHẨM
+-- Mục đích:
+-- Sản phẩm thuộc danh mục nào thì kế thừa logic tồn kho của danh mục đó.
+-- Ví dụ:
+-- - Danh mục "Trà sữa": requires_preparation = 1, is_stock_returnable = 0
+-- - Sản phẩm thuộc "Trà sữa" cũng sẽ được cập nhật theo đúng 2 giá trị này.
+--
+-- Lưu ý:
+-- Tắt SQL_SAFE_UPDATES tạm thời để MySQL Workbench cho phép UPDATE nhiều dòng.
+-- Sau khi UPDATE xong thì bật lại.
+-- =========================================================
+
+SET SQL_SAFE_UPDATES = 0;
+
+UPDATE products p
+JOIN categories c ON p.category_id = c.id
+SET
+  p.requires_preparation = c.requires_preparation,
+  p.is_stock_returnable = c.is_stock_returnable;
+
+SET SQL_SAFE_UPDATES = 1;
+
+
+-- =========================================================
+-- PHẦN 3: KIỂM TRA SAU KHI ĐỒNG BỘ
+-- Mục đích:
+-- Xem từng sản phẩm đang kế thừa đúng logic từ danh mục chưa.
+-- =========================================================
+
+SELECT
+  p.name AS product_name,
+  c.name AS category_name,
+  p.requires_preparation,
+  p.is_stock_returnable
+FROM products p
+JOIN categories c ON p.category_id = c.id
+ORDER BY p.created_at DESC;
+
+
+-- =========================================================
+-- PHẦN 4: THÊM INDEX VÀ KHÓA NGOẠI CHO BẢNG stock_transactions
+-- Mục đích:
+-- Đảm bảo mỗi giao dịch kho luôn gắn với một sản phẩm hợp lệ trong bảng products.
+-- =========================================================
+
+ALTER TABLE stock_transactions
+ADD INDEX idx_stock_transactions_product_id (product_id);
+
+ALTER TABLE stock_transactions
+ADD CONSTRAINT fk_stock_transactions_product_id
+FOREIGN KEY (product_id) REFERENCES products(id);
+
+
+-- =========================================================
+-- PHẦN 5: THÊM RÀNG BUỘC LOẠI GIAO DỊCH KHO
+-- Mục đích:
+-- Chỉ cho phép transaction_type thuộc các loại hợp lệ:
+-- import      : nhập kho
+-- export      : xuất kho do bán hàng
+-- adjustment  : điều chỉnh kho
+-- return      : hoàn kho
+-- =========================================================
+
+ALTER TABLE stock_transactions
+ADD CONSTRAINT chk_stock_transactions_type
+CHECK (transaction_type IN ('import', 'export', 'adjustment', 'return'));
+
+
+-- =========================================================
+-- PHẦN 6: THÊM CONSTRAINT CHO categories
+-- Mục đích:
+-- Chặn dữ liệu danh mục sai logic.
+--
+-- Hợp lệ:
+-- requires_preparation = 1 AND is_stock_returnable = 0
+-- => Món cần chế biến, không hoàn kho khi hủy.
+--
+-- requires_preparation = 0 AND is_stock_returnable = 1
+-- => Hàng có sẵn/đóng chai, được hoàn kho khi hủy.
+-- =========================================================
+
+ALTER TABLE categories
+ADD CONSTRAINT chk_categories_stock_logic
+CHECK (
+  (requires_preparation = 1 AND is_stock_returnable = 0)
+  OR
+  (requires_preparation = 0 AND is_stock_returnable = 1)
+);
+
+
+-- =========================================================
+-- PHẦN 7: THÊM CONSTRAINT CHO products
+-- Mục đích:
+-- Chặn dữ liệu sản phẩm sai logic.
+-- Sản phẩm chỉ được thuộc một trong hai nhóm:
+-- 1. Món cần chế biến
+-- 2. Hàng có sẵn/được hoàn kho
+-- =========================================================
+
+ALTER TABLE products
+ADD CONSTRAINT chk_products_stock_logic
+CHECK (
+  (requires_preparation = 1 AND is_stock_returnable = 0)
+  OR
+  (requires_preparation = 0 AND is_stock_returnable = 1)
+);
+
+
+-- =========================================================
+-- PHẦN 8: KIỂM TRA LẠI CẤU TRÚC BẢNG SAU KHI THÊM CONSTRAINT
+-- Mục đích:
+-- Xác nhận các ràng buộc đã được thêm vào bảng.
+-- =========================================================
+
+SHOW CREATE TABLE stock_transactions;
+SHOW CREATE TABLE categories;
+SHOW CREATE TABLE products;
+
+
+-- =========================================================
+-- PHẦN 9: KIỂM TRA DANH SÁCH CHECK CONSTRAINT TRONG DATABASE HIỆN TẠI
+-- Mục đích:
+-- Kiểm tra nhanh các constraint đã tồn tại trong database.
+-- =========================================================
+
+SELECT
+  TABLE_NAME,
+  CONSTRAINT_NAME,
+  CHECK_CLAUSE
+FROM information_schema.CHECK_CONSTRAINTS
+WHERE CONSTRAINT_SCHEMA = DATABASE()
+  AND CONSTRAINT_NAME IN (
+    'chk_stock_transactions_type',
+    'chk_categories_stock_logic',
+    'chk_products_stock_logic'
+  );
+

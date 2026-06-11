@@ -40,10 +40,22 @@ const defaultFormState = {
   description: "",
   imageUrl: "",
   displayOrder: "1",
+  logicType: "prepared" as CategoryLogicType,
   requiresPreparation: true,
   isStockReturnable: false,
 };
+type CategoryLogicType = "prepared" | "stock_returnable";
 
+function getCategoryLogicType(category: { /**fix logic xử lý tồn kho */
+  requiresPreparation: boolean;
+  isStockReturnable: boolean;
+}): CategoryLogicType {
+  if (category.isStockReturnable) {
+    return "stock_returnable";
+  }
+
+  return "prepared";
+}
 function CategoryStatCard({ card }: { card: CategoryStatCard }) {
   return (
     <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
@@ -164,14 +176,17 @@ function CategoryPage() {
   };
 
   const openEditModal = (category: ApiCategory) => {
+    const logicType = getCategoryLogicType(category);
+
     setEditingCategory(category);
     setFormState({
       name: category.name,
       description: category.description ?? "",
       imageUrl: category.imageUrl ?? "",
       displayOrder: "1",
-      requiresPreparation: category.requiresPreparation,
-      isStockReturnable: category.isStockReturnable,
+      logicType,
+      requiresPreparation: logicType === "prepared",
+      isStockReturnable: logicType === "stock_returnable",
     });
     setIsModalOpen(true);
   };
@@ -188,12 +203,14 @@ function CategoryPage() {
     try {
       setErrorMessage("");
 
+      const isPrepared = formState.logicType === "prepared";
+
       const payload = {
         name: formState.name.trim(),
         description: formState.description.trim() || null,
         imageUrl: formState.imageUrl.trim() || null,
-        requiresPreparation: Boolean(formState.requiresPreparation),
-        isStockReturnable: Boolean(formState.isStockReturnable),
+        requiresPreparation: isPrepared,
+        isStockReturnable: !isPrepared,
       };
 
       if (editingCategory) {
@@ -534,36 +551,37 @@ function CategoryPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <label className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(formState.requiresPreparation)}
-                      onChange={(e) =>
-                        setFormState((cur) => ({ ...cur, requiresPreparation: e.target.checked }))
-                      }
-                      className="h-4 w-4"
-                    />
-                    <span className="text-sm font-semibold text-[#0b1c30]">Món này cần chế biến tại quầy</span>
-                  </label>
-                  <p className="text-xs text-slate-500">Bật nếu là món cần đứng bếp, pha chế như cà phê, trà sữa, bánh mì... Tắt nếu là đồ đóng chai có sẵn.</p>
-                </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-[#0b1c30]">
+                  Loại danh mục <span className="text-red-600">*</span>
+                </label>
 
-                <div className="space-y-2">
-                  <label className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(formState.isStockReturnable)}
-                      onChange={(e) =>
-                        setFormState((cur) => ({ ...cur, isStockReturnable: e.target.checked }))
-                      }
-                      className="h-4 w-4"
-                    />
-                    <span className="text-sm font-semibold text-[#0b1c30]">Cho phép hoàn tồn kho khi hủy đơn</span>
-                  </label>
-                  <p className="text-xs text-slate-500">Bật nếu sản phẩm có thể cất ngược lại vào kho để bán tiếp khi khách hủy hóa đơn.</p>
-                </div>
+                <select
+                  value={formState.logicType}
+                  onChange={(event) => {
+                    const logicType = event.target.value as CategoryLogicType;
+
+                    setFormState((current) => ({
+                      ...current,
+                      logicType,
+                      requiresPreparation: logicType === "prepared",
+                      isStockReturnable: logicType === "stock_returnable",
+                    }));
+                  }}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition-all focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                >
+                  <option value="prepared">
+                    Món cần chế biến / pha chế
+                  </option>
+                  <option value="stock_returnable">
+                    Hàng có sẵn / đóng chai / hoàn kho được
+                  </option>
+                </select>
+
+                <p className="text-xs text-slate-500">
+                  Món cần chế biến sẽ không hoàn kho khi hủy hóa đơn. Hàng có sẵn như nước chai,
+                  nước lon sẽ được hoàn lại tồn kho khi hủy hóa đơn.
+                </p>
               </div>
 
               {formState.imageUrl.trim() ? (

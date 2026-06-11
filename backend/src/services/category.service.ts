@@ -32,6 +32,32 @@ function normalizeImageUrl(imageUrl: string | null | undefined) {
   const value = imageUrl?.trim();
   return value ? value : null;
 }
+function normalizeCategoryStockLogic(input: {
+  requiresPreparation?: boolean;
+  isStockReturnable?: boolean;
+}) {
+  const requiresPreparation = Boolean(input.requiresPreparation);
+  const isStockReturnable = Boolean(input.isStockReturnable);
+
+  if (requiresPreparation && isStockReturnable) {
+    throw new ApiError(
+      400,
+      "Danh mục không thể vừa cần chế biến vừa cho phép hoàn kho"
+    );
+  }
+
+  if (!requiresPreparation && !isStockReturnable) {
+    throw new ApiError(
+      400,
+      "Vui lòng chọn loại danh mục: món cần chế biến hoặc hàng có sẵn"
+    );
+  }
+
+  return {
+    requiresPreparation,
+    isStockReturnable,
+  };
+}
 
 const allowedImageTypes: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -89,6 +115,32 @@ export async function createCategoryService(body: CreateCategoryBody) {
   try {
   const name = normalizeName(body.name ?? "");
 
+  function normalizeCategoryStockLogic(input: {
+    requiresPreparation?: boolean;
+    isStockReturnable?: boolean;
+  }) {
+    const requiresPreparation = Boolean(input.requiresPreparation);
+    const isStockReturnable = Boolean(input.isStockReturnable);
+
+    if (requiresPreparation && isStockReturnable) {
+      throw new ApiError(
+        400,
+        "Danh mục không thể vừa cần chế biến vừa cho phép hoàn kho"
+      );
+    }
+
+    if (!requiresPreparation && !isStockReturnable) {
+      throw new ApiError(
+        400,
+        "Vui lòng chọn loại danh mục: món cần chế biến hoặc hàng có sẵn"
+      );
+    }
+
+    return {
+      requiresPreparation,
+      isStockReturnable,
+    };
+  }
   if (!name) {
     throw new ApiError(400, "Tên danh mục là bắt buộc");
   }
@@ -99,12 +151,16 @@ export async function createCategoryService(body: CreateCategoryBody) {
     throw new ApiError(409, "Tên danh mục đã tồn tại");
   }
 
+  const stockLogic = normalizeCategoryStockLogic({
+  requiresPreparation: body.requiresPreparation,
+  isStockReturnable: body.isStockReturnable,
+  });
+
   return await createCategory({
     name,
     description: normalizeDescription(body.description),
     imageUrl: normalizeImageUrl(body.imageUrl),
-    requiresPreparation: Boolean(body.requiresPreparation),
-    isStockReturnable: Boolean(body.isStockReturnable),
+    ...stockLogic,
   });
   } catch (err) {
     if (err instanceof ApiError) throw err;
@@ -135,12 +191,21 @@ export async function updateCategoryService(
     throw new ApiError(409, "Tên danh mục đã tồn tại");
   }
 
+  const stockLogic = normalizeCategoryStockLogic({
+    requiresPreparation:
+      typeof body.requiresPreparation === "boolean"
+        ? body.requiresPreparation
+        : currentCategory.requiresPreparation,
+    isStockReturnable:
+      typeof body.isStockReturnable === "boolean"
+        ? body.isStockReturnable
+        : currentCategory.isStockReturnable,
+  });
   const updatedCategory = await updateCategory(id, {
     name,
     description: normalizeDescription(body.description),
     imageUrl: normalizeImageUrl(body.imageUrl),
-    requiresPreparation: typeof body.requiresPreparation === "boolean" ? body.requiresPreparation : currentCategory.requiresPreparation,
-    isStockReturnable: typeof body.isStockReturnable === "boolean" ? body.isStockReturnable : currentCategory.isStockReturnable,
+    ...stockLogic,
   });
 
   if (!updatedCategory) {

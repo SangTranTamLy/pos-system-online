@@ -42,79 +42,83 @@ function ProductCard({
   product: Product;
   onAdd: (product: Product) => void;
 }) {
-  const isOutOfStock = product.status === "out_of_stock" || product.stockQuantity <= 0;
+  const isOutOfStock =
+    product.status === "out_of_stock" || product.stockQuantity <= 0;
   const isUnavailable = isOutOfStock;
-  const statusLabel = "Hết hàng";
 
   return (
-    <button
-      type="button"
-      onClick={() => {
-        if (!isUnavailable) {
-          onAdd(product);
-        }
-      }}
-      disabled={isUnavailable}
-      className={[
-        "group overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm transition-all",
-        isUnavailable
-          ? "cursor-not-allowed opacity-65"
-          : "hover:-translate-y-0.5 hover:border-[#f97316] hover:shadow-md",
-      ].join(" ")}
+    <article
+        className={[
+          "relative flex min-h-[265px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm",
+          isUnavailable ? "opacity-60" : "",
+        ].join(" ")}
     >
-      <div className="relative">
+      <div className="flex h-[150px] items-center justify-center bg-white px-4 pt-4">
         {product.imageUrl ? (
           <img
             src={product.imageUrl}
             alt={product.name}
-            className={["h-36 w-full object-cover", isUnavailable ? "grayscale" : ""].join(" ")}
+            className={[
+              "h-full max-h-[135px] w-full object-contain",
+              isUnavailable ? "grayscale" : "",
+            ].join(" ")}
           />
         ) : (
-          <div className="flex h-36 w-full items-center justify-center bg-orange-50 text-[#f97316]">
-            <Icon name="restaurant" className="text-4xl" />
+          <div className="flex h-full w-full items-center justify-center rounded-xl bg-orange-50 text-[#f97316]">
+            <Icon name="restaurant" className="text-5xl" />
           </div>
         )}
-
-        {isUnavailable ? (
-          <span className="absolute top-3 left-3 rounded-full bg-[#0b1c30]/90 px-3 py-1 text-xs font-bold text-white">
-            {statusLabel}
-          </span>
-        ) : null}
       </div>
 
-      <div className="space-y-2 p-4">
+      <div className="flex flex-1 flex-col px-4 pb-4 pt-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="truncate font-bold text-[#0b1c30]">{product.name}</p>
-            <p className="mt-1 text-xs font-semibold text-slate-400">{product.sku}</p>
+            <h3 className="line-clamp-2 text-[15px] font-extrabold leading-snug text-[#0b1c30]">
+              {product.name}
+            </h3>
+            <p className="mt-1 text-xs font-semibold text-slate-400">
+              SKU: {product.sku}
+            </p>
           </div>
+
           <span
             className={[
-              "rounded-full px-2 py-1 text-[10px] font-bold",
-              isUnavailable ? "bg-slate-100 text-slate-500" : "bg-orange-50 text-[#f97316]",
+              "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-extrabold",
+              isUnavailable
+                ? "bg-slate-100 text-slate-500"
+                : "bg-orange-50 text-[#f97316]",
             ].join(" ")}
           >
-            {`Còn ${product.stockQuantity}`}
+            {isUnavailable ? "Hết hàng" : `Còn ${product.stockQuantity}`}
           </span>
         </div>
 
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-lg font-extrabold text-[#f97316]">
+        <div className="mt-auto flex items-end justify-between gap-3 pt-5">
+          <p className="text-xl font-extrabold text-[#f97316]">
             {formatCurrency(product.salePrice)}
           </p>
-          <span
+
+          <button
+            type="button"
+            onClick={() => {
+              if (!isUnavailable) {
+                onAdd(product);
+              }
+            }}
+            disabled={isUnavailable}
             className={[
-              "rounded-full px-3 py-1 text-xs font-bold transition-opacity",
+              "flex h-10 w-10 items-center justify-center rounded-xl text-xl font-bold shadow-sm",
               isUnavailable
-                ? "bg-slate-100 text-slate-500"
-                : "bg-[#0b1c30] text-white opacity-0 group-hover:opacity-100",
+                ? "cursor-not-allowed bg-slate-100 text-slate-400"
+                : "cursor-pointer bg-orange-50 text-[#f97316]",
             ].join(" ")}
+            aria-label={`Thêm ${product.name} vào giỏ`}
           >
-            {isUnavailable ? statusLabel : "Thêm"}
-          </span>
+            <Icon name="add" />
+          </button>
         </div>
       </div>
-    </button>
+    </article>
   );
 }
 
@@ -337,7 +341,7 @@ function PosPage() {
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto pb-36 pr-1 xl:pb-0">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
                 {filteredProducts.map((product) => (
                   <ProductCard key={product.id} product={product} onAdd={addToCart} />
                 ))}
