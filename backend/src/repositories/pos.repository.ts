@@ -142,9 +142,17 @@ export async function createPosOrderTransaction(
       discountAmount = calculateDiscount(totalAmount, promotion);
     }
 
+    // Không cho giảm giá vượt quá tổng tiền
+    // (tránh final_amount âm vi phạm CHECK constraint trong MySQL gây lỗi 500)
+    discountAmount = Math.min(discountAmount, totalAmount);
+
     let pointsUsed = data.pointsUsed ?? 0;
     let pointsEarned = 0;
     let finalAmount = totalAmount - discountAmount;
+
+    if (!customer && pointsUsed > 0) {
+      throw new ApiError(400, "Cần chọn khách hàng để sử dụng điểm tích lũy");
+    }
 
     if (customer) {
       if (pointsUsed > 0) {
