@@ -74,7 +74,7 @@ function QrPaymentModal({
 }: QrPaymentModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-      <div className="w-full max-w-sm overflow-hidden rounded-3xl bg-white shadow-2xl">
+      <div className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-3xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <h3 className="flex items-center gap-2 font-['Plus_Jakarta_Sans',sans-serif] text-lg font-extrabold text-[#0b1c30]">
             <Icon name="qr_code" className="text-xl" />
@@ -96,11 +96,11 @@ function QrPaymentModal({
             Đưa mã cho khách quét bằng ứng dụng ngân hàng hoặc ví điện tử
           </p>
 
-          <div className="mx-auto w-fit rounded-2xl border border-slate-200 bg-white p-3">
+          <div className="mx-auto w-full overflow-hidden rounded-2xl border border-slate-200 bg-white">
             <img
               src={buildQrImageUrl(amount, reference)}
               alt="Mã QR thanh toán"
-              className="h-56 w-56 object-contain"
+              className="aspect-square w-full object-contain"
             />
           </div>
 
