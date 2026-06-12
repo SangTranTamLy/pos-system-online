@@ -1,10 +1,6 @@
 import { Icon } from "../../layouts/AdminLayout";
-import qrFallback from "../../assets/qr.png";
+import qrFallback from "../../assets/qrtt.jpg";
 
-// ===== Cấu hình VietQR =====
-// Điền thông tin tài khoản nhận tiền để tạo mã QR động theo số tiền từng đơn hàng.
-// VIETQR_BANK_ID: mã ngân hàng theo VietQR (ví dụ: "vcb", "mbbank", "vietinbank", "tpbank"...)
-// Nếu để trống, hệ thống dùng ảnh QR tĩnh tại frontend/src/assets/qr.png.
 const VIETQR_BANK_ID = "";
 const VIETQR_ACCOUNT_NO = "";
 const VIETQR_ACCOUNT_NAME = "";
@@ -24,7 +20,7 @@ function buildQrImageUrl(amount: number) {
 
   const params = new URLSearchParams({
     amount: String(Math.round(amount)),
-    addInfo: "Thanh toan don hang tai quay",
+    addInfo: "Thanh toán đơn hàng tại cửa hàng",
   });
 
   if (VIETQR_ACCOUNT_NAME) {
