@@ -1,13 +1,36 @@
 import { Icon } from "../../layouts/AdminLayout";
 import qrFallback from "../../assets/qr.png";
 
-// ===== Cấu hình VietQR =====
-// Điền thông tin tài khoản nhận tiền để tạo mã QR động theo số tiền từng đơn hàng.
-// VIETQR_BANK_ID: mã ngân hàng theo VietQR (ví dụ: "vcb", "mbbank", "vietinbank", "tpbank"...)
-// Nếu để trống, hệ thống dùng ảnh QR tĩnh tại frontend/src/assets/qr.png.
-const VIETQR_BANK_ID = "";
-const VIETQR_ACCOUNT_NO = "";
-const VIETQR_ACCOUNT_NAME = "";
+// ============================================================================
+// THANH TOÁN QR - HƯỚNG DẪN CẤU HÌNH
+//
+// >>> CÁCH 1 (đang dùng) - QR TĨNH:
+//   Thay ảnh mã QR nhận tiền THẬT của bạn vào file:
+//
+//       frontend/src/assets/qr.png   <-- THAY ẢNH QR THẬT VÀO ĐÂY
+//
+//   (giữ nguyên tên file qr.png rồi restart frontend).
+//   Số tiền và nội dung chuyển khoản sẽ hiển thị bên dưới mã QR
+//   để khách tự nhập khi quét.
+//
+// >>> CÁCH 2 (nâng cao) - QR ĐỘNG VietQR (tự điền sẵn số tiền + nội dung):
+//   Tạo file frontend/.env (xem mẫu frontend/.env.example) và điền:
+//     VITE_VIETQR_BANK_ID=mbbank          (mã ngân hàng theo vietqr.io)
+//     VITE_VIETQR_ACCOUNT_NO=0123456789   (số tài khoản nhận tiền)
+//     VITE_VIETQR_ACCOUNT_NAME=TRAN THANH SANG
+//   Sau đó restart frontend (npm run dev). KHÔNG commit file .env.
+//   Khi đã cấu hình, hệ thống tự dùng QR động thay cho ảnh tĩnh.
+// ============================================================================
+
+const VIETQR_BANK_ID = import.meta.env.VITE_VIETQR_BANK_ID as string | undefined;
+const VIETQR_ACCOUNT_NO = import.meta.env.VITE_VIETQR_ACCOUNT_NO as
+  | string
+  | undefined;
+const VIETQR_ACCOUNT_NAME = import.meta.env.VITE_VIETQR_ACCOUNT_NAME as
+  | string
+  | undefined;
+
+const isDynamicQrEnabled = Boolean(VIETQR_BANK_ID && VIETQR_ACCOUNT_NO);
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("vi-VN", {
@@ -17,14 +40,14 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
-function buildQrImageUrl(amount: number) {
-  if (!VIETQR_BANK_ID || !VIETQR_ACCOUNT_NO) {
+function buildQrImageUrl(amount: number, reference: string) {
+  if (!isDynamicQrEnabled) {
     return qrFallback;
   }
 
   const params = new URLSearchParams({
     amount: String(Math.round(amount)),
-    addInfo: "Thanh toan don hang tai quay",
+    addInfo: reference,
   });
 
   if (VIETQR_ACCOUNT_NAME) {
@@ -36,6 +59,7 @@ function buildQrImageUrl(amount: number) {
 
 type QrPaymentModalProps = {
   amount: number;
+  reference: string;
   isProcessing: boolean;
   onConfirm: () => void;
   onClose: () => void;
@@ -43,6 +67,7 @@ type QrPaymentModalProps = {
 
 function QrPaymentModal({
   amount,
+  reference,
   isProcessing,
   onConfirm,
   onClose,
@@ -73,13 +98,13 @@ function QrPaymentModal({
 
           <div className="mx-auto w-fit rounded-2xl border border-slate-200 bg-white p-3">
             <img
-              src={buildQrImageUrl(amount)}
+              src={buildQrImageUrl(amount, reference)}
               alt="Mã QR thanh toán"
               className="h-56 w-56 object-contain"
             />
           </div>
 
-          <div>
+          <div className="space-y-1">
             <p className="text-xs font-bold uppercase text-slate-400">
               Số tiền cần thanh toán
             </p>
@@ -87,6 +112,21 @@ function QrPaymentModal({
               {formatCurrency(amount)}
             </p>
           </div>
+
+          <div className="rounded-xl bg-slate-50 p-3">
+            <p className="text-xs font-bold uppercase text-slate-400">
+              Nội dung chuyển khoản
+            </p>
+            <p className="font-mono text-lg font-extrabold tracking-wider text-[#0b1c30]">
+              {reference}
+            </p>
+          </div>
+
+          {!isDynamicQrEnabled && (
+            <p className="rounded-lg bg-orange-50 p-2 text-xs font-semibold text-[#f97316]">
+              Nhắc khách nhập đúng số tiền và nội dung chuyển khoản ở trên
+            </p>
+          )}
 
           <button
             type="button"
