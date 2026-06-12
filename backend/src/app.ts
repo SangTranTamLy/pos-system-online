@@ -43,6 +43,15 @@ app.use(errorMiddleware);
 
 const PORT = process.env.PORT || 5000;
 
+// Tránh tiến trình Node chết hẳn (gây ERR_CONNECTION_REFUSED) khi có lỗi không được bắt
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled Rejection:", reason);
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("Uncaught Exception:", error);
+});
+
 app.listen(PORT, () => {
   console.log(`Server đang chạy trên ${PORT}`);
 });
