@@ -7,6 +7,7 @@ import {
   validatePromotionCode,
 } from "../../api/pos.api";
 import { searchCustomers, type Customer } from "../../api/customers.api";
+import QrPaymentModal from "../../components/pos/QrPaymentModal";
 import ReceiptModal from "../../components/pos/ReceiptModal";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 
@@ -155,6 +156,7 @@ function PosPage() {
   const [pointsUsed, setPointsUsed] = useState(0);
   // Tiền khách đưa: lưu dạng chuỗi để thu ngân tự nhập, không tự tăng theo giỏ hàng
   const [cashPaid, setCashPaid] = useState("");
+  const [showQrModal, setShowQrModal] = useState(false);
 
   const loadProducts = useCallback(async () => {
     try {
@@ -330,17 +332,7 @@ function PosPage() {
     setCashPaid("");
   };
 
-  const handleCheckout = async () => {
-    if (cartItems.length === 0) {
-      setErrorMessage("Vui lòng chọn ít nhất một sản phẩm");
-      return;
-    }
-
-    if (paymentMethod === "cash" && finalAmount > 0 && cashPaidAmount < finalAmount) {
-      setErrorMessage("Tiền khách đưa chưa đủ để thanh toán");
-      return;
-    }
-
+  const submitOrder = async () => {
     try {
       setIsProcessing(true);
       setErrorMessage("");
@@ -358,6 +350,7 @@ function PosPage() {
         changeAmount,
       });
 
+      setShowQrModal(false);
       setCompletedOrder(response.data);
       setSelectedCustomer(null);
       setPromotion(null);
@@ -369,6 +362,27 @@ function PosPage() {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleCheckout = async () => {
+    if (cartItems.length === 0) {
+      setErrorMessage("Vui lòng chọn ít nhất một sản phẩm");
+      return;
+    }
+
+    if (paymentMethod === "cash" && finalAmount > 0 && cashPaidAmount < finalAmount) {
+      setErrorMessage("Tiền khách đưa chưa đủ để thanh toán");
+      return;
+    }
+
+    // Thanh toán QR: hiển thị mã QR cho khách quét, xác nhận xong mới tạo đơn
+    if (paymentMethod === "qr" && finalAmount > 0) {
+      setErrorMessage("");
+      setShowQrModal(true);
+      return;
+    }
+
+    await submitOrder();
   };
 
   return (
@@ -808,6 +822,19 @@ function PosPage() {
           </div>
         </div>
       </div>
+
+      {showQrModal ? (
+        <QrPaymentModal
+          amount={finalAmount}
+          isProcessing={isProcessing}
+          onConfirm={() => {
+            void submitOrder();
+          }}
+          onClose={() => {
+            if (!isProcessing) setShowQrModal(false);
+          }}
+        />
+      ) : null}
 
       {completedOrder ? (
         <ReceiptModal
