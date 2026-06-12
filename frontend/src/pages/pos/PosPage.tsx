@@ -7,6 +7,7 @@ import {
   validatePromotionCode,
 } from "../../api/pos.api";
 import { searchCustomers, type Customer } from "../../api/customers.api";
+import PaymentConfirmModal from "../../components/pos/PaymentConfirmModal";
 import QrPaymentModal from "../../components/pos/QrPaymentModal";
 import ReceiptModal from "../../components/pos/ReceiptModal";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
@@ -42,6 +43,11 @@ function formatCurrency(value: number) {
 
 function normalizeText(value: string) {
   return value.trim().toLowerCase();
+}
+
+function createTransferReference() {
+  const randomPart = Math.floor(1000 + Math.random() * 9000);
+  return `ZTECH-${Date.now().toString().slice(-6)}-${randomPart}`;
 }
 
 function ProductCard({
@@ -156,9 +162,9 @@ function PosPage() {
   const [pointsUsed, setPointsUsed] = useState(0);
   // Tiền khách đưa: lưu dạng chuỗi để thu ngân tự nhập, không tự tăng theo giỏ hàng
   const [cashPaid, setCashPaid] = useState("");
+  const [showPaymentConfirmModal, setShowPaymentConfirmModal] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
-  // Mã tham chiếu chuyển khoản, hiển thị cạnh QR và lưu vào ghi chú đơn để đối soát
-  const [qrReference, setQrReference] = useState("");
+  const [transferReference, setTransferReference] = useState("");
 
   const loadProducts = useCallback(async () => {
     try {
@@ -279,6 +285,7 @@ function PosPage() {
   const addToCart = (product: Product) => {
     setCompletedOrder(null);
     setErrorMessage("");
+    setTransferReference("");
 
     if (product.status === "out_of_stock" || product.stockQuantity <= 0) {
       setErrorMessage(`${product.name} đã hết hàng`);
@@ -306,6 +313,7 @@ function PosPage() {
   };
 
   const updateQuantity = (productId: string, quantity: number) => {
+    setTransferReference("");
     setCartItems((currentItems) =>
       currentItems
         .map((item) =>
@@ -321,6 +329,7 @@ function PosPage() {
   };
 
   const removeFromCart = (productId: string) => {
+    setTransferReference("");
     setCartItems((currentItems) =>
       currentItems.filter((item) => item.product.id !== productId)
     );
@@ -332,6 +341,7 @@ function PosPage() {
     setErrorMessage("");
     setPointsUsed(0);
     setCashPaid("");
+    setTransferReference("");
   };
 
   const submitOrder = async () => {
@@ -343,8 +353,8 @@ function PosPage() {
         customerId: selectedCustomer?.id || null,
         paymentMethod,
         note:
-          paymentMethod === "qr" && qrReference
-            ? `${note.trim() || "Bán tại quầy"} | Ma CK: ${qrReference}`
+          paymentMethod === "qr" && transferReference
+            ? `${note.trim() || "Bán tại quầy"} | Nội dung CK: ${transferReference}`
             : note.trim() || "Bán tại quầy",
         items: cartItems.map((item) => ({
           productId: item.product.id,
@@ -355,8 +365,10 @@ function PosPage() {
         changeAmount,
       });
 
+      setShowPaymentConfirmModal(false);
       setShowQrModal(false);
       setCompletedOrder(response.data);
+      setTransferReference("");
       setSelectedCustomer(null);
       setPromotion(null);
       setPromotionCode("");
@@ -380,10 +392,14 @@ function PosPage() {
       return;
     }
 
-    // Thanh toán QR: sinh mã tham chiếu CK và hiển thị mã QR, xác nhận xong mới tạo đơn
+    setErrorMessage("");
+    setTransferReference((current) => current || createTransferReference());
+    setShowPaymentConfirmModal(true);
+  };
+
+  const handleConfirmPayment = async () => {
     if (paymentMethod === "qr" && finalAmount > 0) {
-      setErrorMessage("");
-      setQrReference(`DH${Date.now().toString().slice(-8)}`);
+      setShowPaymentConfirmModal(false);
       setShowQrModal(true);
       return;
     }
@@ -694,7 +710,10 @@ function PosPage() {
                       <button
                         key={method.value}
                         type="button"
-                        onClick={() => setPaymentMethod(method.value)}
+                        onClick={() => {
+                          setPaymentMethod(method.value);
+                          setTransferReference("");
+                        }}
                         className={[
                           "flex h-20 flex-col items-center justify-center gap-1.5 rounded-xl border bg-white px-2 text-xs font-bold transition-all",
                           isSelected
@@ -730,7 +749,7 @@ function PosPage() {
                 )}
                 <div className="flex justify-between text-xl font-extrabold text-[#0b1c30]">
                   <span>Tổng cộng</span>
-                  <span className="text-blue-600">{formatCurrency(finalAmount)}</span>
+                  <span className="text-[#f97316]">{formatCurrency(finalAmount)}</span>
                 </div>
               </div>
 
@@ -829,16 +848,41 @@ function PosPage() {
         </div>
       </div>
 
+      {showPaymentConfirmModal ? (
+        <PaymentConfirmModal
+          cartItems={cartItems}
+          subtotal={subtotal}
+          discountAmount={discountAmount}
+          pointsValue={pointsValue}
+          finalAmount={finalAmount}
+          paymentMethod={paymentMethod}
+          isProcessing={isProcessing}
+          onConfirm={() => {
+            void handleConfirmPayment();
+          }}
+          onClose={() => {
+            if (!isProcessing) setShowPaymentConfirmModal(false);
+          }}
+        />
+      ) : null}
+
       {showQrModal ? (
         <QrPaymentModal
           amount={finalAmount}
-          reference={qrReference}
+          cartItems={cartItems}
+          subtotal={subtotal}
+          discountAmount={discountAmount}
+          pointsValue={pointsValue}
+          transferReference={transferReference}
           isProcessing={isProcessing}
           onConfirm={() => {
             void submitOrder();
           }}
           onClose={() => {
-            if (!isProcessing) setShowQrModal(false);
+            if (!isProcessing) {
+              setShowQrModal(false);
+              setShowPaymentConfirmModal(true);
+            }
           }}
         />
       ) : null}

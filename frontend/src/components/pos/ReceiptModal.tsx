@@ -19,7 +19,7 @@ function formatCurrency(value: number) {
 
 function getPaymentMethodLabel(method: PosPaymentMethod) {
   if (method === "qr") {
-    return "QR chuyển khoản";
+    return "Chuyển khoản";
   }
 
   if (method === "card") {
@@ -439,13 +439,13 @@ function ReceiptModal({ order, onClose }: ReceiptModalProps) {
               <Icon name="arrow_back" className="text-xl" />
             </button>
             <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-2xl font-extrabold text-[#0b1c30]">
-              Chi tiết hóa đơn
+              Thanh toán thành công
             </h3>
           </div>
 
           <div className="flex items-center gap-4">
             <span className="rounded-xl bg-green-50 px-4 py-2 text-sm font-extrabold text-green-600">
-              Đã thanh toán
+              Bill đã tạo
             </span>
             <button
               type="button"
