@@ -1,6 +1,10 @@
 import { Icon } from "../../layouts/AdminLayout";
 import qrFallback from "../../assets/qrtt.jpg";
 
+// ===== Cấu hình VietQR =====
+// Điền thông tin tài khoản nhận tiền để tạo mã QR động theo số tiền từng đơn hàng.
+// VIETQR_BANK_ID: mã ngân hàng theo VietQR (ví dụ: "vcb", "mbbank", "vietinbank", "tpbank"...)
+// Nếu để trống, hệ thống dùng ảnh QR tĩnh tại frontend/src/assets/qr.png.
 const VIETQR_BANK_ID = "";
 const VIETQR_ACCOUNT_NO = "";
 const VIETQR_ACCOUNT_NAME = "";
@@ -13,14 +17,14 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
-function buildQrImageUrl(amount: number) {
-  if (!VIETQR_BANK_ID || !VIETQR_ACCOUNT_NO) {
+function buildQrImageUrl(amount: number, reference: string) {
+  if (!isDynamicQrEnabled) {
     return qrFallback;
   }
 
   const params = new URLSearchParams({
     amount: String(Math.round(amount)),
-    addInfo: "Thanh toán đơn hàng tại cửa hàng",
+    addInfo: "Thanh toan don hang tai quay",
   });
 
   if (VIETQR_ACCOUNT_NAME) {
@@ -32,6 +36,7 @@ function buildQrImageUrl(amount: number) {
 
 type QrPaymentModalProps = {
   amount: number;
+  reference: string;
   isProcessing: boolean;
   onConfirm: () => void;
   onClose: () => void;
@@ -39,13 +44,14 @@ type QrPaymentModalProps = {
 
 function QrPaymentModal({
   amount,
+  reference,
   isProcessing,
   onConfirm,
   onClose,
 }: QrPaymentModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-      <div className="w-full max-w-sm overflow-hidden rounded-3xl bg-white shadow-2xl">
+      <div className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-3xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <h3 className="flex items-center gap-2 font-['Plus_Jakarta_Sans',sans-serif] text-lg font-extrabold text-[#0b1c30]">
             <Icon name="qr_code" className="text-xl" />
@@ -67,15 +73,15 @@ function QrPaymentModal({
             Đưa mã cho khách quét bằng ứng dụng ngân hàng hoặc ví điện tử
           </p>
 
-          <div className="mx-auto w-fit rounded-2xl border border-slate-200 bg-white p-3">
+          <div className="mx-auto w-full overflow-hidden rounded-2xl border border-slate-200 bg-white">
             <img
-              src={buildQrImageUrl(amount)}
+              src={buildQrImageUrl(amount, reference)}
               alt="Mã QR thanh toán"
-              className="h-56 w-56 object-contain"
+              className="aspect-square w-full object-contain"
             />
           </div>
 
-          <div>
+          <div className="space-y-1">
             <p className="text-xs font-bold uppercase text-slate-400">
               Số tiền cần thanh toán
             </p>
@@ -83,6 +89,21 @@ function QrPaymentModal({
               {formatCurrency(amount)}
             </p>
           </div>
+
+          <div className="rounded-xl bg-slate-50 p-3">
+            <p className="text-xs font-bold uppercase text-slate-400">
+              Nội dung chuyển khoản
+            </p>
+            <p className="font-mono text-lg font-extrabold tracking-wider text-[#0b1c30]">
+              {reference}
+            </p>
+          </div>
+
+          {!isDynamicQrEnabled && (
+            <p className="rounded-lg bg-orange-50 p-2 text-xs font-semibold text-[#f97316]">
+              Nhắc khách nhập đúng số tiền và nội dung chuyển khoản ở trên
+            </p>
+          )}
 
           <button
             type="button"

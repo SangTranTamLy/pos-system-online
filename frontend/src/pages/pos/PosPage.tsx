@@ -157,6 +157,8 @@ function PosPage() {
   // Tiền khách đưa: lưu dạng chuỗi để thu ngân tự nhập, không tự tăng theo giỏ hàng
   const [cashPaid, setCashPaid] = useState("");
   const [showQrModal, setShowQrModal] = useState(false);
+  // Mã tham chiếu chuyển khoản, hiển thị cạnh QR và lưu vào ghi chú đơn để đối soát
+  const [qrReference, setQrReference] = useState("");
 
   const loadProducts = useCallback(async () => {
     try {
@@ -340,7 +342,10 @@ function PosPage() {
       const response = await createPosOrder({
         customerId: selectedCustomer?.id || null,
         paymentMethod,
-        note: note.trim() || "Bán tại quầy",
+        note:
+          paymentMethod === "qr" && qrReference
+            ? `${note.trim() || "Bán tại quầy"} | Ma CK: ${qrReference}`
+            : note.trim() || "Bán tại quầy",
         items: cartItems.map((item) => ({
           productId: item.product.id,
           quantity: item.quantity,
@@ -375,9 +380,10 @@ function PosPage() {
       return;
     }
 
-    // Thanh toán QR: hiển thị mã QR cho khách quét, xác nhận xong mới tạo đơn
+    // Thanh toán QR: sinh mã tham chiếu CK và hiển thị mã QR, xác nhận xong mới tạo đơn
     if (paymentMethod === "qr" && finalAmount > 0) {
       setErrorMessage("");
+      setQrReference(`DH${Date.now().toString().slice(-8)}`);
       setShowQrModal(true);
       return;
     }
@@ -826,6 +832,7 @@ function PosPage() {
       {showQrModal ? (
         <QrPaymentModal
           amount={finalAmount}
+          reference={qrReference}
           isProcessing={isProcessing}
           onConfirm={() => {
             void submitOrder();
