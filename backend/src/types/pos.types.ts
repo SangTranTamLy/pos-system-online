@@ -10,6 +10,9 @@ export type CreatePosOrderBody = {
   paymentMethod?: PosPaymentMethod;
   note?: string | null;
   items?: CreatePosOrderItemBody[];
+  promotionCode?: string | null;
+  pointsUsed?: number;
+  changeAmount?: number;
 };
 
 export type NormalizedPosOrderItem = {
@@ -41,6 +44,9 @@ export type PosOrderResult = {
   totalAmount: number;
   discountAmount: number;
   finalAmount: number;
+  pointsEarned: number;
+  pointsUsed: number;
+  changeAmount: number;
   note: string | null;
   details: PosOrderDetail[];
   payment: PosPayment;

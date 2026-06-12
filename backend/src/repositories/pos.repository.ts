@@ -8,6 +8,15 @@ import type {
   PosPaymentMethod,
 } from "../types/pos.types";
 import { ApiError } from "../utils/apiError";
+import {
+  findPromotionByCode,
+  calculateDiscount,
+} from "./promotions.repository";
+import {
+  findCustomerById,
+  updateCustomerAfterOrder,
+  recordPointsTransaction,
+} from "./customers.repository";
 
 type ProductForSaleRow = RowDataPacket & {
   id: string;
@@ -17,23 +26,24 @@ type ProductForSaleRow = RowDataPacket & {
   status: "active" | "paused" | "out_of_stock";
 };
 
-type CustomerRow = RowDataPacket & {
-  id: string;
-};
-
 type CreatePosOrderTransactionData = {
   customerId: string | null;
   createdBy: string;
   paymentMethod: PosPaymentMethod;
   note: string | null;
   items: NormalizedPosOrderItem[];
+  promotionCode?: string | null;
+  pointsUsed?: number;
+  changeAmount?: number;
 };
+
+const POINTS_PER_VND = 1 / 10000;
 
 async function findCustomerForUpdate(
   connection: PoolConnection,
   customerId: string
 ) {
-  const [rows] = await connection.execute<CustomerRow[]>(
+  const [rows] = await connection.execute<RowDataPacket[]>(
     `
     SELECT id
     FROM customers
@@ -72,8 +82,9 @@ export async function createPosOrderTransaction(
   try {
     await connection.beginTransaction();
 
+    let customer = null;
     if (data.customerId) {
-      const customer = await findCustomerForUpdate(connection, data.customerId);
+      customer = await findCustomerById(connection, data.customerId);
 
       if (!customer) {
         throw new ApiError(404, "Không tìm thấy khách hàng");
@@ -116,8 +127,45 @@ export async function createPosOrderTransaction(
       (total, detail) => total + detail.lineTotal,
       0
     );
-    const discountAmount = 0;
-    const finalAmount = totalAmount - discountAmount;
+
+    let discountAmount = 0;
+    let promotionId: string | null = null;
+
+    if (data.promotionCode) {
+      const promotion = await findPromotionByCode(connection, data.promotionCode);
+
+      if (!promotion) {
+        throw new ApiError(400, "Mã khuyến mãi không hợp lệ hoặc đã hết hạn");
+      }
+
+      promotionId = promotion.id;
+      discountAmount = calculateDiscount(totalAmount, promotion);
+    }
+
+    let pointsUsed = data.pointsUsed ?? 0;
+    let pointsEarned = 0;
+    let finalAmount = totalAmount - discountAmount;
+
+    if (customer) {
+      if (pointsUsed > 0) {
+        const maxPointsCanUse = customer.loyalty_points;
+        if (pointsUsed > maxPointsCanUse) {
+          throw new ApiError(
+            400,
+            `Khách hàng chỉ có ${maxPointsCanUse} điểm, không thể sử dụng ${pointsUsed} điểm`
+          );
+        }
+
+        const pointsValue = pointsUsed * 100;
+        if (pointsValue > finalAmount) {
+          throw new ApiError(400, "Điểm sử dụng không thể vượt quá tổng tiền");
+        }
+
+        finalAmount -= pointsValue;
+      }
+
+      pointsEarned = Math.floor(finalAmount * POINTS_PER_VND);
+    }
 
     await connection.execute(
       `
@@ -125,21 +173,27 @@ export async function createPosOrderTransaction(
         id,
         customer_id,
         created_by,
+        promotion_id,
         status,
         total_amount,
         discount_amount,
         final_amount,
+        points_used,
+        points_earned,
         note
       )
-      VALUES (?, ?, ?, 'completed', ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, 'completed', ?, ?, ?, ?, ?, ?)
       `,
       [
         orderId,
         data.customerId,
         data.createdBy,
+        promotionId,
         totalAmount,
         discountAmount,
         finalAmount,
+        pointsUsed,
+        pointsEarned,
         data.note,
       ]
     );
@@ -203,6 +257,36 @@ export async function createPosOrderTransaction(
       );
     }
 
+    if (customer && (pointsEarned > 0 || pointsUsed > 0)) {
+      await updateCustomerAfterOrder(
+        connection,
+        data.customerId!,
+        finalAmount,
+        pointsEarned,
+        pointsUsed
+      );
+
+      if (pointsEarned > 0) {
+        await recordPointsTransaction(
+          connection,
+          data.customerId!,
+          orderId,
+          pointsEarned,
+          "earn"
+        );
+      }
+
+      if (pointsUsed > 0) {
+        await recordPointsTransaction(
+          connection,
+          data.customerId!,
+          orderId,
+          pointsUsed,
+          "redeem"
+        );
+      }
+    }
+
     const paymentId = randomUUID();
 
     await connection.execute(
@@ -222,6 +306,8 @@ export async function createPosOrderTransaction(
 
     await connection.commit();
 
+    const changeAmount = data.changeAmount ?? 0;
+
     return {
       id: orderId,
       customerId: data.customerId,
@@ -230,6 +316,9 @@ export async function createPosOrderTransaction(
       totalAmount,
       discountAmount,
       finalAmount,
+      pointsEarned,
+      pointsUsed,
+      changeAmount,
       note: data.note,
       details,
       payment: {

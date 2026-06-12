@@ -1,16 +1,24 @@
-﻿import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getProducts, type Product } from "../../api/product.api";
 import {
   createPosOrder,
   type PosOrderResult,
   type PosPaymentMethod,
+  validatePromotionCode,
 } from "../../api/pos.api";
+import { searchCustomers, type Customer } from "../../api/customers.api";
 import ReceiptModal from "../../components/pos/ReceiptModal";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 
 type CartItem = {
   product: Product;
   quantity: number;
+};
+
+type PromotionInfo = {
+  code: string;
+  discountPercent?: number;
+  discountFixed?: number;
 };
 
 const paymentMethods: Array<{
@@ -134,6 +142,19 @@ function PosPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [showCustomerList, setShowCustomerList] = useState(false);
+
+  const [promotionCode, setPromotionCode] = useState("");
+  const [promotion, setPromotion] = useState<PromotionInfo | null>(null);
+  const [isValidatingPromo, setIsValidatingPromo] = useState(false);
+  const [promoMessage, setPromoMessage] = useState("");
+
+  const [pointsUsed, setPointsUsed] = useState(0);
+  const [cashPaid, setCashPaid] = useState(0);
+
   const loadProducts = useCallback(async () => {
     try {
       setErrorMessage("");
@@ -143,6 +164,45 @@ function PosPage() {
       setErrorMessage(error instanceof Error ? error.message : "Không tải được sản phẩm");
     } finally {
       setIsLoading(false);
+    }
+  }, []);
+
+  const searchForCustomers = useCallback(async (query: string) => {
+    if (!query.trim()) {
+      setCustomers([]);
+      return;
+    }
+
+    try {
+      const response = await searchCustomers(query);
+      setCustomers(response.data);
+    } catch (error) {
+      console.error("Lỗi tìm kiếm khách hàng:", error);
+    }
+  }, []);
+
+  const validatePromotion = useCallback(async (code: string) => {
+    if (!code.trim()) {
+      setPromotion(null);
+      setPromoMessage("");
+      return;
+    }
+
+    try {
+      setIsValidatingPromo(true);
+      setPromoMessage("");
+      const response = await validatePromotionCode(code);
+      setPromotion({
+        code,
+        discountPercent: response.data.discountPercent,
+        discountFixed: response.data.discountFixed,
+      });
+      setPromoMessage(response.message);
+    } catch (error) {
+      setPromotion(null);
+      setPromoMessage(error instanceof Error ? error.message : "Mã khuyến mãi không hợp lệ");
+    } finally {
+      setIsValidatingPromo(false);
     }
   }, []);
 
@@ -180,6 +240,33 @@ function PosPage() {
         0
       ),
     [cartItems]
+  );
+
+  const discountAmount = useMemo(() => {
+    if (!promotion) return 0;
+
+    if (promotion.discountPercent) {
+      return (subtotal * promotion.discountPercent) / 100;
+    }
+
+    return Math.min(promotion.discountFixed || 0, subtotal);
+  }, [subtotal, promotion]);
+
+  const pointsValue = useMemo(() => pointsUsed * 100, [pointsUsed]);
+
+  const totalAfterDiscount = useMemo(
+    () => subtotal - discountAmount,
+    [subtotal, discountAmount]
+  );
+
+  const finalAmount = useMemo(
+    () => Math.max(0, totalAfterDiscount - pointsValue),
+    [totalAfterDiscount, pointsValue]
+  );
+
+  const changeAmount = useMemo(
+    () => Math.max(0, cashPaid - finalAmount),
+    [cashPaid, finalAmount]
   );
 
   const addToCart = (product: Product) => {
@@ -236,6 +323,8 @@ function PosPage() {
     setCartItems([]);
     setNote("");
     setErrorMessage("");
+    setPointsUsed(0);
+    setCashPaid(0);
   };
 
   const handleCheckout = async () => {
@@ -249,16 +338,22 @@ function PosPage() {
       setErrorMessage("");
 
       const response = await createPosOrder({
-        customerId: null,
+        customerId: selectedCustomer?.id || null,
         paymentMethod,
         note: note.trim() || "Bán tại quầy",
         items: cartItems.map((item) => ({
           productId: item.product.id,
           quantity: item.quantity,
         })),
+        promotionCode: promotion?.code || null,
+        pointsUsed,
+        changeAmount,
       });
 
       setCompletedOrder(response.data);
+      setSelectedCustomer(null);
+      setPromotion(null);
+      setPromotionCode("");
       clearCart();
       await loadProducts();
     } catch (error) {
@@ -438,29 +533,122 @@ function PosPage() {
             <div className="space-y-4 border-t border-slate-200 p-5">
               <label className="block space-y-2">
                 <span className="text-sm font-bold text-[#0b1c30]">Khách hàng</span>
-                <select
-                  value="walk_in"
-                  disabled
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none"
-                >
-                  <option value="walk_in">Khách lẻ</option>
-                </select>
+                <div className="relative">
+                  <input
+                    value={selectedCustomer ? selectedCustomer.fullName : customerSearch}
+                    onChange={(e) => {
+                      setCustomerSearch(e.target.value);
+                      if (!selectedCustomer || e.target.value !== selectedCustomer.fullName) {
+                        void searchForCustomers(e.target.value);
+                        setShowCustomerList(true);
+                      }
+                    }}
+                    onFocus={() => {
+                      if (customerSearch) setShowCustomerList(true);
+                    }}
+                    placeholder="Tìm khách hàng..."
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                  />
+                  {selectedCustomer && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCustomer(null);
+                        setCustomerSearch("");
+                        setPointsUsed(0);
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <Icon name="close" className="text-lg" />
+                    </button>
+                  )}
+                  {showCustomerList && customers.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 z-10 mt-1 max-h-40 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+                      {customers.map((customer) => (
+                        <button
+                          key={customer.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedCustomer(customer);
+                            setCustomerSearch("");
+                            setShowCustomerList(false);
+                          }}
+                          className="w-full border-b border-slate-100 px-4 py-3 text-left text-sm hover:bg-orange-50 last:border-b-0"
+                        >
+                          <p className="font-semibold text-[#0b1c30]">{customer.fullName}</p>
+                          <p className="text-xs text-slate-500">
+                            {customer.phone} • {customer.loyaltyPoints} điểm
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {selectedCustomer && (
+                  <div className="rounded-lg bg-orange-50 p-3 text-xs">
+                    <p className="font-semibold text-[#f97316]">Điểm tích lũy: {selectedCustomer.loyaltyPoints}</p>
+                  </div>
+                )}
               </label>
 
               <div className="grid grid-cols-[1fr_auto] gap-2">
                 <input
-                  disabled
+                  value={promotionCode}
+                  onChange={(e) => {
+                    setPromotionCode(e.target.value);
+                    setPromoMessage("");
+                  }}
                   placeholder="Mã giảm giá"
-                  className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none disabled:bg-white disabled:text-slate-400"
+                  className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
                 />
                 <button
                   type="button"
-                  disabled
-                  className="h-11 rounded-xl border border-slate-200 px-4 text-sm font-bold text-slate-400"
+                  onClick={() => {
+                    void validatePromotion(promotionCode);
+                  }}
+                  disabled={!promotionCode.trim() || isValidatingPromo}
+                  className="h-11 rounded-xl border border-slate-200 px-4 text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
                 >
-                  Áp dụng
+                  {isValidatingPromo ? "..." : "Áp dụng"}
                 </button>
               </div>
+              {promoMessage && (
+                <p
+                  className={`text-xs ${
+                    promotion ? "text-green-600" : "text-red-600"
+                  }`}
+                >
+                  {promoMessage}
+                </p>
+              )}
+
+              {selectedCustomer && selectedCustomer.loyaltyPoints > 0 && (
+                <label className="block space-y-2">
+                  <span className="text-sm font-bold text-[#0b1c30]">Sử dụng điểm</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      max={selectedCustomer.loyaltyPoints}
+                      value={pointsUsed}
+                      onChange={(e) => {
+                        const value = Math.max(
+                          0,
+                          Math.min(
+                            parseInt(e.target.value) || 0,
+                            selectedCustomer.loyaltyPoints
+                          )
+                        );
+                        setPointsUsed(value);
+                      }}
+                      className="h-10 flex-1 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                    />
+                    <span className="text-sm font-semibold text-slate-600">
+                      = {formatCurrency(pointsValue)}
+                    </span>
+                  </div>
+                </label>
+              )}
 
               <label className="block space-y-2">
                 <span className="text-sm font-bold text-[#0b1c30]">Thanh toán</span>
@@ -494,15 +682,44 @@ function PosPage() {
                   <span>Tạm tính</span>
                   <span>{formatCurrency(subtotal)}</span>
                 </div>
-                <div className="flex justify-between text-slate-500">
-                  <span>Giảm giá</span>
-                  <span>{formatCurrency(0)}</span>
-                </div>
+                {discountAmount > 0 && (
+                  <div className="flex justify-between text-slate-500">
+                    <span>Giảm giá</span>
+                    <span>-{formatCurrency(discountAmount)}</span>
+                  </div>
+                )}
+                {pointsValue > 0 && (
+                  <div className="flex justify-between text-slate-500">
+                    <span>Dùng điểm</span>
+                    <span>-{formatCurrency(pointsValue)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-xl font-extrabold text-[#0b1c30]">
                   <span>Tổng cộng</span>
-                  <span className="text-blue-600">{formatCurrency(subtotal)}</span>
+                  <span className="text-blue-600">{formatCurrency(finalAmount)}</span>
                 </div>
               </div>
+
+              {paymentMethod === "cash" && finalAmount > 0 && (
+                <label className="block space-y-2">
+                  <span className="text-sm font-bold text-[#0b1c30]">Tiền khách đưa</span>
+                  <input
+                    type="number"
+                    min={finalAmount}
+                    value={cashPaid || finalAmount}
+                    onChange={(e) => {
+                      const value = Math.max(finalAmount, parseInt(e.target.value) || finalAmount);
+                      setCashPaid(value);
+                    }}
+                    className="h-11 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                  />
+                  {changeAmount > 0 && (
+                    <p className="text-xs text-slate-600">
+                      Tiền thừa: <span className="font-bold text-orange-600">{formatCurrency(changeAmount)}</span>
+                    </p>
+                  )}
+                </label>
+              )}
 
               <label className="block space-y-2">
                 <span className="sr-only">Ghi chú</span>
@@ -524,7 +741,7 @@ function PosPage() {
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0b1c30] px-6 py-4 font-extrabold text-white shadow-lg shadow-slate-200 transition-all hover:bg-[#132a45] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Icon name="credit_card" />
-                {isProcessing ? "Đang thanh toán..." : `Thanh toán ${formatCurrency(subtotal)}`}
+                {isProcessing ? "Đang thanh toán..." : `Thanh toán ${formatCurrency(finalAmount)}`}
               </button>
             </div>
           </div>
@@ -537,7 +754,7 @@ function PosPage() {
             <div>
               <p className="text-xs font-bold uppercase text-slate-400">Giỏ hàng</p>
               <p className="font-extrabold text-[#0b1c30]">
-                {cartItems.length} món · {formatCurrency(subtotal)}
+                {cartItems.length} món · {formatCurrency(finalAmount)}
               </p>
             </div>
             <button

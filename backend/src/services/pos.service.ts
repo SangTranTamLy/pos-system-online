@@ -50,11 +50,23 @@ export async function createPosOrderService(
 
   const items = normalizeItems(body.items);
 
+  console.log("POS Order Input:", {
+    customerId: body.customerId,
+    paymentMethod,
+    promotionCode: body.promotionCode,
+    pointsUsed: body.pointsUsed,
+    changeAmount: body.changeAmount,
+    itemsCount: items.length,
+  });
+
   return createPosOrderTransaction({
     customerId: body.customerId?.trim() || null,
     createdBy,
     paymentMethod,
     note: body.note?.trim() || null,
     items,
+    promotionCode: body.promotionCode?.trim() || null,
+    pointsUsed: body.pointsUsed ?? 0,
+    changeAmount: body.changeAmount ?? 0,
   });
 }

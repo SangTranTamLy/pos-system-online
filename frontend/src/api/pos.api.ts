@@ -10,6 +10,9 @@ export type CreatePosOrderPayload = {
     productId: string;
     quantity: number;
   }>;
+  promotionCode?: string | null;
+  pointsUsed?: number;
+  changeAmount?: number;
 };
 
 export type PosOrderDetail = {
@@ -36,6 +39,9 @@ export type PosOrderResult = {
   totalAmount: number;
   discountAmount: number;
   finalAmount: number;
+  pointsEarned: number;
+  pointsUsed: number;
+  changeAmount: number;
   note: string | null;
   details: PosOrderDetail[];
   payment: PosPayment;
@@ -88,4 +94,14 @@ export async function createPosOrder(payload: CreatePosOrderPayload) {
   });
 
   return handleResponse<PosOrderResult>(response);
+}
+
+export async function validatePromotionCode(code: string) {
+  const response = await fetch(`${API_BASE_URL}/pos/promotions/validate`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ code }),
+  });
+
+  return handleResponse<{ discountPercent?: number; discountFixed?: number }>(response);
 }
