@@ -153,7 +153,8 @@ function PosPage() {
   const [promoMessage, setPromoMessage] = useState("");
 
   const [pointsUsed, setPointsUsed] = useState(0);
-  const [cashPaid, setCashPaid] = useState(0);
+  // Tiền khách đưa: lưu dạng chuỗi để thu ngân tự nhập, không tự tăng theo giỏ hàng
+  const [cashPaid, setCashPaid] = useState("");
 
   const loadProducts = useCallback(async () => {
     try {
@@ -264,9 +265,11 @@ function PosPage() {
     [totalAfterDiscount, pointsValue]
   );
 
+  const cashPaidAmount = useMemo(() => Number(cashPaid) || 0, [cashPaid]);
+
   const changeAmount = useMemo(
-    () => Math.max(0, cashPaid - finalAmount),
-    [cashPaid, finalAmount]
+    () => Math.max(0, cashPaidAmount - finalAmount),
+    [cashPaidAmount, finalAmount]
   );
 
   const addToCart = (product: Product) => {
@@ -324,12 +327,17 @@ function PosPage() {
     setNote("");
     setErrorMessage("");
     setPointsUsed(0);
-    setCashPaid(0);
+    setCashPaid("");
   };
 
   const handleCheckout = async () => {
     if (cartItems.length === 0) {
       setErrorMessage("Vui lòng chọn ít nhất một sản phẩm");
+      return;
+    }
+
+    if (paymentMethod === "cash" && finalAmount > 0 && cashPaidAmount < finalAmount) {
+      setErrorMessage("Tiền khách đưa chưa đủ để thanh toán");
       return;
     }
 
@@ -535,18 +543,24 @@ function PosPage() {
                 <span className="text-sm font-bold text-[#0b1c30]">Khách hàng</span>
                 <div className="relative">
                   <input
-                    value={selectedCustomer ? selectedCustomer.fullName : customerSearch}
+                    value={
+                      selectedCustomer
+                        ? `${selectedCustomer.fullName} - ${selectedCustomer.phone}`
+                        : customerSearch
+                    }
                     onChange={(e) => {
-                      setCustomerSearch(e.target.value);
-                      if (!selectedCustomer || e.target.value !== selectedCustomer.fullName) {
-                        void searchForCustomers(e.target.value);
-                        setShowCustomerList(true);
+                      if (selectedCustomer) {
+                        setSelectedCustomer(null);
+                        setPointsUsed(0);
                       }
+                      setCustomerSearch(e.target.value);
+                      void searchForCustomers(e.target.value);
+                      setShowCustomerList(true);
                     }}
                     onFocus={() => {
                       if (customerSearch) setShowCustomerList(true);
                     }}
-                    placeholder="Tìm khách hàng..."
+                    placeholder="Nhập SĐT hoặc tên khách hàng để tích điểm..."
                     className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
                   />
                   {selectedCustomer && (
@@ -705,14 +719,28 @@ function PosPage() {
                   <span className="text-sm font-bold text-[#0b1c30]">Tiền khách đưa</span>
                   <input
                     type="number"
-                    min={finalAmount}
-                    value={cashPaid || finalAmount}
+                    min={0}
+                    value={cashPaid}
                     onChange={(e) => {
-                      const value = Math.max(finalAmount, parseInt(e.target.value) || finalAmount);
-                      setCashPaid(value);
+                      const rawValue = e.target.value;
+                      if (rawValue === "") {
+                        setCashPaid("");
+                        return;
+                      }
+                      const value = Math.max(0, parseInt(rawValue) || 0);
+                      setCashPaid(String(value));
                     }}
+                    placeholder="Nhập số tiền khách đưa..."
                     className="h-11 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
                   />
+                  {cashPaidAmount > 0 && cashPaidAmount < finalAmount && (
+                    <p className="text-xs text-red-600">
+                      Còn thiếu:{" "}
+                      <span className="font-bold">
+                        {formatCurrency(finalAmount - cashPaidAmount)}
+                      </span>
+                    </p>
+                  )}
                   {changeAmount > 0 && (
                     <p className="text-xs text-slate-600">
                       Tiền thừa: <span className="font-bold text-orange-600">{formatCurrency(changeAmount)}</span>
