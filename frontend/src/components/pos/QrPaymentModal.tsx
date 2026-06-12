@@ -100,7 +100,7 @@ function QrPaymentModal({
             <img
               src={buildQrImageUrl(amount, reference)}
               alt="Mã QR thanh toán"
-              className="aspect-square w-full object-contain"
+              className="block h-auto w-full"
             />
           </div>
 
