@@ -34,17 +34,31 @@ export async function searchCustomersController(req: Request, res: Response) {
     });
   }
 
-  const searchTerm = `%${query.trim()}%`;
+  const trimmedQuery = query.trim();
+  // Nếu nhập toàn số thì ưu tiên tìm theo số điện thoại để tích điểm nhanh tại quầy
+  const isPhoneQuery = /^[0-9+\s]+$/.test(trimmedQuery);
+  const phoneDigits = trimmedQuery.replace(/[\s+]/g, "");
+  const searchTerm = `%${trimmedQuery}%`;
 
   const [rows] = await db.execute<CustomerRow[]>(
-    `
-    SELECT id, full_name, phone, email, loyalty_points, total_spent
-    FROM customers
-    WHERE full_name LIKE ? OR phone LIKE ? OR email LIKE ?
-    ORDER BY created_at DESC
-    LIMIT 20
-    `,
-    [searchTerm, searchTerm, searchTerm]
+    isPhoneQuery
+      ? `
+      SELECT id, full_name, phone, email, loyalty_points, total_spent
+      FROM customers
+      WHERE phone LIKE ?
+      ORDER BY (phone = ?) DESC, created_at DESC
+      LIMIT 20
+      `
+      : `
+      SELECT id, full_name, phone, email, loyalty_points, total_spent
+      FROM customers
+      WHERE full_name LIKE ? OR phone LIKE ? OR email LIKE ?
+      ORDER BY created_at DESC
+      LIMIT 20
+      `,
+    isPhoneQuery
+      ? [`%${phoneDigits}%`, phoneDigits]
+      : [searchTerm, searchTerm, searchTerm]
   );
 
   return res.status(200).json({
