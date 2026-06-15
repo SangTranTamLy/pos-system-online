@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, Cell, Tooltip, XAxis, YAxis } from "recharts";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
@@ -326,15 +326,21 @@ function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [revenuePeriod, setRevenuePeriod] = useState<DashboardRevenuePeriod>("month");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
   useEffect(() => {
     let isActive = true;
 
-    async function loadDashboard() {
+    async function loadDashboard(silent = false) {
+      if (!silent) setIsLoading(true);
+      else setIsRefreshing(true);
       try {
         const response = await getDashboardSummary(revenuePeriod);
 
         if (isActive) {
           setDashboard(response.data);
+          setLastUpdated(new Date());
           setErrorMessage("");
         }
       } catch (error) {
@@ -346,16 +352,39 @@ function DashboardPage() {
       } finally {
         if (isActive) {
           setIsLoading(false);
+          setIsRefreshing(false);
         }
       }
     }
 
     void loadDashboard();
 
+    // Auto-refresh every 60 seconds
+    const interval = window.setInterval(() => {
+      void loadDashboard(true);
+    }, 60_000);
+
     return () => {
       isActive = false;
+      window.clearInterval(interval);
     };
   }, [revenuePeriod]);
+
+  function handleManualRefresh() {
+    setIsRefreshing(true);
+    getDashboardSummary(revenuePeriod)
+      .then((response) => {
+        setDashboard(response.data);
+        setLastUpdated(new Date());
+        setErrorMessage("");
+      })
+      .catch((error) => {
+        setErrorMessage(
+          error instanceof Error ? error.message : "Không tải được dữ liệu dashboard"
+        );
+      })
+      .finally(() => setIsRefreshing(false));
+  }
   const stats = dashboard?.stats;
 
   const realStatsCards: StatsCardData[] = [
@@ -476,14 +505,33 @@ function DashboardPage() {
         </div>
       ) : null}
 
-      <section className="mb-8">
-        <div className="mb-4 flex flex-col gap-1">
-          <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-lg font-bold text-[#0b1c30]">
-            Thao tác nhanh
-          </h2>
-          <p className="text-sm text-slate-500">
-            Chỉ hiển thị các chức năng phù hợp với đề tài hiện tại.
-          </p>
+      <section className="mb-6">
+        <div className="mb-2 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-lg font-bold text-[#0b1c30]">
+              Thao tác nhanh
+            </h2>
+            <p className="text-sm text-slate-500">
+              Chỉ hiển thị các chức năng phù hợp với đề tài hiện tại.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            {lastUpdated && (
+              <span className="text-xs text-slate-400">
+                Cập nhật: {lastUpdated.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={handleManualRefresh}
+              disabled={isRefreshing}
+              title="Làm mới dữ liệu"
+              className="flex items-center gap-1.5 border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:border-[#f97316] hover:text-[#f97316] disabled:opacity-50"
+            >
+              <Icon name="refresh" className={`text-base ${isRefreshing ? "animate-spin" : ""}`} />
+              {isRefreshing ? "Đang tải..." : "Làm mới"}
+            </button>
+          </div>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {quickActions.map((action) => (

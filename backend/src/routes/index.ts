@@ -6,6 +6,8 @@ import posRouter from "./pos.routes";
 import productRouter from "./product.routes";
 import dashboardRouter from "./dashboard.routes";
 import customersRouter from "./customers.routes";
+import promotionsRouter from "./promotions.routes";
+
 const apiRouter = Router();
 apiRouter.use("/dashboard", dashboardRouter);
 apiRouter.use("/auth", authRouter);
@@ -15,5 +17,6 @@ apiRouter.use("/pos", posRouter);
 apiRouter.use("/orders", orderRouter);
 apiRouter.use("/invoices", orderRouter);
 apiRouter.use("/customers", customersRouter);
+apiRouter.use("/promotions", promotionsRouter);
 
 export default apiRouter;

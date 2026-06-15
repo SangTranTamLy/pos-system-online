@@ -1,19 +1,331 @@
 import { randomUUID } from "crypto";
+import type { ResultSetHeader } from "mysql2";
 import type { PoolConnection, RowDataPacket } from "mysql2/promise";
+import { db } from "../config/database";
+import type {
+  Customer,
+  CustomerListQuery,
+  CustomerOrderSummary,
+} from "../types/customer.types";
 
 type CustomerRow = RowDataPacket & {
   id: string;
-  loyalty_points: number;
+  full_name: string;
+  phone: string;
+  email: string | null;
+  total_spent: string;
+  created_at: Date;
+  updated_at: Date;
+  order_count?: number | string;
+  last_order_at?: Date | null;
+};
+
+type PosCustomerRow = RowDataPacket & {
+  id: string;
   total_spent: string;
 };
+
+type CustomerOrderRow = RowDataPacket & {
+  id: string;
+  status: string;
+  final_amount: string;
+  payment_method: string | null;
+  created_at: Date;
+};
+
+function toIso(value: Date | null | undefined) {
+  return value ? value.toISOString() : null;
+}
+
+function mapCustomer(row: CustomerRow): Customer {
+  return {
+    id: row.id,
+    fullName: row.full_name,
+    phone: row.phone,
+    email: row.email,
+    totalSpent: Number(row.total_spent ?? 0),
+    orderCount: Number(row.order_count ?? 0),
+    lastOrderAt: toIso(row.last_order_at),
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapCustomerOrder(row: CustomerOrderRow): CustomerOrderSummary {
+  return {
+    id: row.id,
+    status: row.status,
+    finalAmount: Number(row.final_amount ?? 0),
+    paymentMethod: row.payment_method,
+    createdAt: row.created_at.toISOString(),
+  };
+}
+
+function clampLimit(limit: number | undefined) {
+  if (!Number.isFinite(limit)) return 100;
+  return Math.min(Math.max(Number(limit), 1), 200);
+}
+
+function clampOffset(offset: number | undefined) {
+  if (!Number.isFinite(offset)) return 0;
+  return Math.max(Number(offset), 0);
+}
+
+function buildCustomerSearch(query: CustomerListQuery) {
+  const search = query.q?.trim();
+
+  if (!search) {
+    return {
+      whereClause: "",
+      params: [] as Array<string | number>,
+    };
+  }
+
+  const term = `%${search}%`;
+
+  return {
+    whereClause: "WHERE c.full_name LIKE ? OR c.phone LIKE ? OR c.email LIKE ?",
+    params: [term, term, term] as Array<string | number>,
+  };
+}
+
+export async function findCustomers(
+  query: CustomerListQuery = {}
+): Promise<Customer[]> {
+  const { whereClause, params } = buildCustomerSearch(query);
+  const limit = clampLimit(query.limit);
+  const offset = clampOffset(query.offset);
+
+  const [rows] = await db.execute<CustomerRow[]>(
+    `
+    SELECT
+      c.id,
+      c.full_name,
+      c.phone,
+      c.email,
+      c.total_spent,
+      c.created_at,
+      c.updated_at,
+      COUNT(o.id) AS order_count,
+      MAX(o.created_at) AS last_order_at
+    FROM customers c
+    LEFT JOIN orders o ON o.customer_id = c.id
+    ${whereClause}
+    GROUP BY
+      c.id,
+      c.full_name,
+      c.phone,
+      c.email,
+      c.total_spent,
+      c.created_at,
+      c.updated_at
+    ORDER BY c.updated_at DESC, c.created_at DESC
+    LIMIT ? OFFSET ?
+    `,
+    [...params, limit, offset]
+  );
+
+  return rows.map(mapCustomer);
+}
+
+export async function countCustomers(
+  query: CustomerListQuery = {}
+): Promise<number> {
+  const { whereClause, params } = buildCustomerSearch(query);
+
+  const [rows] = await db.execute<(RowDataPacket & { total: number })[]>(
+    `
+    SELECT COUNT(*) AS total
+    FROM customers c
+    ${whereClause}
+    `,
+    params
+  );
+
+  return Number(rows[0]?.total ?? 0);
+}
+
+export async function findCustomerProfileById(
+  id: string
+): Promise<Customer | null> {
+  const [rows] = await db.execute<CustomerRow[]>(
+    `
+    SELECT
+      c.id,
+      c.full_name,
+      c.phone,
+      c.email,
+      c.total_spent,
+      c.created_at,
+      c.updated_at,
+      COUNT(o.id) AS order_count,
+      MAX(o.created_at) AS last_order_at
+    FROM customers c
+    LEFT JOIN orders o ON o.customer_id = c.id
+    WHERE c.id = ?
+    GROUP BY
+      c.id,
+      c.full_name,
+      c.phone,
+      c.email,
+      c.total_spent,
+      c.created_at,
+      c.updated_at
+    LIMIT 1
+    `,
+    [id]
+  );
+
+  return rows[0] ? mapCustomer(rows[0]) : null;
+}
+
+export async function findCustomerByPhone(
+  phone: string
+): Promise<Customer | null> {
+  const [rows] = await db.execute<CustomerRow[]>(
+    `
+    SELECT
+      c.id,
+      c.full_name,
+      c.phone,
+      c.email,
+      c.total_spent,
+      c.created_at,
+      c.updated_at,
+      COUNT(o.id) AS order_count,
+      MAX(o.created_at) AS last_order_at
+    FROM customers c
+    LEFT JOIN orders o ON o.customer_id = c.id
+    WHERE c.phone = ?
+    GROUP BY
+      c.id,
+      c.full_name,
+      c.phone,
+      c.email,
+      c.total_spent,
+      c.created_at,
+      c.updated_at
+    LIMIT 1
+    `,
+    [phone]
+  );
+
+  return rows[0] ? mapCustomer(rows[0]) : null;
+}
+
+export async function createCustomer(data: {
+  fullName: string;
+  phone: string;
+  email: string | null;
+  totalSpent: number;
+}): Promise<Customer> {
+  const id = randomUUID();
+
+  await db.execute<ResultSetHeader>(
+    `
+    INSERT INTO customers (
+      id,
+      full_name,
+      phone,
+      email,
+      total_spent
+    )
+    VALUES (?, ?, ?, ?, ?)
+    `,
+    [
+      id,
+      data.fullName,
+      data.phone,
+      data.email,
+      data.totalSpent,
+    ]
+  );
+
+  const customer = await findCustomerProfileById(id);
+
+  if (!customer) {
+    throw new Error("Create customer failed");
+  }
+
+  return customer;
+}
+
+export async function updateCustomer(
+  id: string,
+  data: {
+    fullName: string;
+    phone: string;
+    email: string | null;
+  }
+): Promise<Customer | null> {
+  await db.execute<ResultSetHeader>(
+    `
+    UPDATE customers
+    SET full_name = ?, phone = ?, email = ?
+    WHERE id = ?
+    `,
+    [data.fullName, data.phone, data.email, id]
+  );
+
+  return findCustomerProfileById(id);
+}
+
+export async function deleteCustomerById(id: string): Promise<boolean> {
+  const [result] = await db.execute<ResultSetHeader>(
+    `
+    DELETE FROM customers
+    WHERE id = ?
+    `,
+    [id]
+  );
+
+  return result.affectedRows > 0;
+}
+
+export async function countOrdersByCustomerId(id: string): Promise<number> {
+  const [rows] = await db.execute<(RowDataPacket & { total: number })[]>(
+    `
+    SELECT COUNT(*) AS total
+    FROM orders
+    WHERE customer_id = ?
+    `,
+    [id]
+  );
+
+  return Number(rows[0]?.total ?? 0);
+}
+
+export async function findCustomerOrders(
+  customerId: string,
+  limit = 50
+): Promise<CustomerOrderSummary[]> {
+  const [rows] = await db.execute<CustomerOrderRow[]>(
+    `
+    SELECT
+      o.id,
+      o.status,
+      o.final_amount,
+      p.payment_method,
+      o.created_at
+    FROM orders o
+    LEFT JOIN payments p ON p.order_id = o.id
+    WHERE o.customer_id = ?
+    ORDER BY o.created_at DESC
+    LIMIT ?
+    `,
+    [customerId, clampLimit(limit)]
+  );
+
+  return rows.map(mapCustomerOrder);
+}
 
 export async function findCustomerById(
   connection: PoolConnection,
   customerId: string
-): Promise<CustomerRow | null> {
-  const [rows] = await connection.execute<CustomerRow[]>(
+): Promise<PosCustomerRow | null> {
+  const [rows] = await connection.execute<PosCustomerRow[]>(
     `
-    SELECT id, loyalty_points, total_spent
+    SELECT id, total_spent
     FROM customers
     WHERE id = ?
     LIMIT 1
@@ -28,50 +340,15 @@ export async function findCustomerById(
 export async function updateCustomerAfterOrder(
   connection: PoolConnection,
   customerId: string,
-  finalAmount: number,
-  pointsEarned: number,
-  pointsUsed: number
+  finalAmount: number
 ): Promise<void> {
   await connection.execute(
     `
     UPDATE customers
     SET
-      loyalty_points = loyalty_points + ? - ?,
       total_spent = total_spent + ?
     WHERE id = ?
     `,
-    [pointsEarned, pointsUsed, finalAmount, customerId]
-  );
-}
-
-export async function recordPointsTransaction(
-  connection: PoolConnection,
-  customerId: string,
-  orderId: string,
-  points: number,
-  transactionType: "earn" | "redeem"
-): Promise<void> {
-  await connection.execute(
-    `
-    INSERT INTO customer_points (
-      id,
-      customer_id,
-      order_id,
-      points,
-      transaction_type,
-      note
-    )
-    VALUES (?, ?, ?, ?, ?, ?)
-    `,
-    [
-      randomUUID(),
-      customerId,
-      orderId,
-      points,
-      transactionType,
-      transactionType === "earn"
-        ? "Tích điểm từ đơn hàng"
-        : "Sử dụng điểm giảm giá",
-    ]
+    [finalAmount, customerId]
   );
 }

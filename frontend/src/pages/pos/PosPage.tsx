@@ -45,11 +45,6 @@ function normalizeText(value: string) {
   return value.trim().toLowerCase();
 }
 
-function createTransferReference() {
-  const randomPart = Math.floor(1000 + Math.random() * 9000);
-  return `ZTECH-${Date.now().toString().slice(-6)}-${randomPart}`;
-}
-
 function ProductCard({
   product,
   onAdd,
@@ -164,7 +159,6 @@ function PosPage() {
   const [cashPaid, setCashPaid] = useState("");
   const [showPaymentConfirmModal, setShowPaymentConfirmModal] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
-  const [transferReference, setTransferReference] = useState("");
 
   const loadProducts = useCallback(async () => {
     try {
@@ -263,7 +257,31 @@ function PosPage() {
     return Math.min(promotion.discountFixed || 0, subtotal);
   }, [subtotal, promotion]);
 
-  const pointsValue = useMemo(() => pointsUsed * 100, [pointsUsed]);
+  const loyaltyEligibleSubtotal = useMemo(
+    () =>
+      cartItems.reduce((total, item) => {
+        const isEligible =
+          item.product.requiresPreparation && !item.product.isStockReturnable;
+
+        return isEligible
+          ? total + item.product.salePrice * item.quantity
+          : total;
+      }, 0),
+    [cartItems]
+  );
+  const maxUsablePoints = useMemo(() => {
+    if (!selectedCustomer) return 0;
+
+    const maxPointsByEligibleAmount = Math.floor(loyaltyEligibleSubtotal / 100);
+
+    return Math.min(selectedCustomer.loyaltyPoints, maxPointsByEligibleAmount);
+  }, [selectedCustomer, loyaltyEligibleSubtotal]);
+
+  const effectivePointsUsed = Math.min(pointsUsed, maxUsablePoints);
+  const pointsValue = useMemo(
+    () => effectivePointsUsed * 100,
+    [effectivePointsUsed]
+  );
 
   const totalAfterDiscount = useMemo(
     () => subtotal - discountAmount,
@@ -282,10 +300,19 @@ function PosPage() {
     [cashPaidAmount, finalAmount]
   );
 
+  const qrTransferContent = useMemo(() => {
+    const productCodes = cartItems
+      .map((item) => `${item.product.sku}x${item.quantity}`)
+      .join(", ");
+
+    return productCodes
+      ? `Thanh toan don hang ${productCodes}`
+      : "Thanh toan don hang";
+  }, [cartItems]);
+
   const addToCart = (product: Product) => {
     setCompletedOrder(null);
     setErrorMessage("");
-    setTransferReference("");
 
     if (product.status === "out_of_stock" || product.stockQuantity <= 0) {
       setErrorMessage(`${product.name} đã hết hàng`);
@@ -313,7 +340,6 @@ function PosPage() {
   };
 
   const updateQuantity = (productId: string, quantity: number) => {
-    setTransferReference("");
     setCartItems((currentItems) =>
       currentItems
         .map((item) =>
@@ -329,7 +355,6 @@ function PosPage() {
   };
 
   const removeFromCart = (productId: string) => {
-    setTransferReference("");
     setCartItems((currentItems) =>
       currentItems.filter((item) => item.product.id !== productId)
     );
@@ -341,7 +366,6 @@ function PosPage() {
     setErrorMessage("");
     setPointsUsed(0);
     setCashPaid("");
-    setTransferReference("");
   };
 
   const submitOrder = async () => {
@@ -353,22 +377,21 @@ function PosPage() {
         customerId: selectedCustomer?.id || null,
         paymentMethod,
         note:
-          paymentMethod === "qr" && transferReference
-            ? `${note.trim() || "Bán tại quầy"} | Nội dung CK: ${transferReference}`
+          paymentMethod === "qr"
+            ? `${note.trim() || "Bán tại quầy"} | Nội dung CK: ${qrTransferContent}`
             : note.trim() || "Bán tại quầy",
         items: cartItems.map((item) => ({
           productId: item.product.id,
           quantity: item.quantity,
         })),
         promotionCode: promotion?.code || null,
-        pointsUsed,
+        pointsUsed: effectivePointsUsed,
         changeAmount,
       });
 
       setShowPaymentConfirmModal(false);
       setShowQrModal(false);
       setCompletedOrder(response.data);
-      setTransferReference("");
       setSelectedCustomer(null);
       setPromotion(null);
       setPromotionCode("");
@@ -393,7 +416,6 @@ function PosPage() {
     }
 
     setErrorMessage("");
-    setTransferReference((current) => current || createTransferReference());
     setShowPaymentConfirmModal(true);
   };
 
@@ -406,6 +428,8 @@ function PosPage() {
 
     await submitOrder();
   };
+
+  
 
   return (
     <AdminLayout
@@ -679,23 +703,27 @@ function PosPage() {
                     <input
                       type="number"
                       min="0"
-                      max={selectedCustomer.loyaltyPoints}
-                      value={pointsUsed}
+                      max={maxUsablePoints}
+                      value={effectivePointsUsed}
+                      disabled={maxUsablePoints === 0}
                       onChange={(e) => {
                         const value = Math.max(
                           0,
                           Math.min(
                             parseInt(e.target.value) || 0,
-                            selectedCustomer.loyaltyPoints
+                            maxUsablePoints
                           )
                         );
                         setPointsUsed(value);
                       }}
-                      className="h-10 flex-1 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                      className="h-10 flex-1 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
                     />
                     <span className="text-sm font-semibold text-slate-600">
                       = {formatCurrency(pointsValue)}
                     </span>
+                    <p className="text-xs text-slate-500">
+                      Tối đa dùng {maxUsablePoints} điểm cho sản phẩm pha chế.
+                    </p>
                   </div>
                 </label>
               )}
@@ -712,7 +740,6 @@ function PosPage() {
                         type="button"
                         onClick={() => {
                           setPaymentMethod(method.value);
-                          setTransferReference("");
                         }}
                         className={[
                           "flex h-20 flex-col items-center justify-center gap-1.5 rounded-xl border bg-white px-2 text-xs font-bold transition-all",
@@ -769,7 +796,7 @@ function PosPage() {
                       const value = Math.max(0, parseInt(rawValue) || 0);
                       setCashPaid(String(value));
                     }}
-                    placeholder="Nhập số tiền khách đưa..."
+                    placeholder="Nháº­p sá»‘ tiá»n khÃ¡ch Ä‘Æ°a..."
                     className="h-11 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
                   />
                   {cashPaidAmount > 0 && cashPaidAmount < finalAmount && (
@@ -873,7 +900,6 @@ function PosPage() {
           subtotal={subtotal}
           discountAmount={discountAmount}
           pointsValue={pointsValue}
-          transferReference={transferReference}
           isProcessing={isProcessing}
           onConfirm={() => {
             void submitOrder();

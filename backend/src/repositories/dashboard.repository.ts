@@ -1,4 +1,4 @@
-﻿import type { RowDataPacket } from "mysql2/promise";
+import type { RowDataPacket } from "mysql2/promise";
 import { db } from "../config/database";
 import type { DashboardRevenuePeriod } from "../types/dashboard.types";
 
@@ -13,11 +13,15 @@ export async function getDashboardStats() {
         SELECT
         (SELECT COALESCE(SUM(final_amount), 0)
         FROM orders
-        WHERE status = 'completed' AND DATE(created_at) = CURRENT_DATE()) AS todayRevenue,
+        WHERE status = 'completed'
+          AND DATE(created_at) = CURDATE()
+        ) AS todayRevenue,
 
         (SELECT COUNT(*)
         FROM orders
-        WHERE status = 'completed' AND DATE(created_at) = CURRENT_DATE()) AS todayOrders,
+        WHERE status = 'completed'
+          AND DATE(created_at) = CURDATE()
+        ) AS todayOrders,
 
         (SELECT COUNT(*)
         FROM categories
@@ -72,8 +76,8 @@ export async function getRevenueByPeriod(period: DashboardRevenuePeriod) {
             COALESCE(SUM(final_amount), 0) AS revenue
             FROM orders
             WHERE status = 'completed'
-            AND MONTH(created_at) = MONTH(CURRENT_DATE())
-            AND YEAR(created_at) = YEAR(CURRENT_DATE())
+            AND MONTH(created_at) = MONTH(CURDATE())
+            AND YEAR(created_at) = YEAR(CURDATE())
             GROUP BY DATE(created_at), DAY(created_at)
         ) AS revenue_by_day
         ORDER BY revenue_by_day.sort ASC

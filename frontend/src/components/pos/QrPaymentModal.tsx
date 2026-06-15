@@ -1,17 +1,18 @@
 import { Icon } from "../../layouts/AdminLayout";
-import qrFallback from "../../assets/qrtt.jpg";
 
-const MOMO_WALLET_NAME = "Momo";
-const MOMO_ACCOUNT_NO = "PSP2605210000000331";
-const MOMO_ACCOUNT_NAME = "CHAU THANH SANG";
-
-const MOMO_BANK_NAME = "Ví Momo";
+const WALLET_NAME = "MoMo";
+const ACCOUNT_NO = "PSP2605210000000331";
+const ACCOUNT_NAME = "CHAU THANH SANG";
+const PAYMENT_NAME = "Ví MoMo";
+const SEPAY_QR_URL =
+  "https://qr.sepay.vn/img?acc=PSP2605210000000331&bank=MoMo&holder=CHAU+THANH+SANG&template=qronly&showinfo=false";
 
 type QrPaymentModalProps = {
   amount: number;
   cartItems: Array<{
     product: {
       id: string;
+      sku: string;
       name: string;
       salePrice: number;
     };
@@ -20,7 +21,6 @@ type QrPaymentModalProps = {
   subtotal: number;
   discountAmount: number;
   pointsValue: number;
-  transferReference: string;
   isProcessing: boolean;
   onConfirm: () => void;
   onClose: () => void;
@@ -34,8 +34,13 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
-function buildQrImageUrl() {
-  return qrFallback;
+function buildSepayQrUrl(amount: number, description: string) {
+  const qrUrl = new URL(SEPAY_QR_URL);
+
+  qrUrl.searchParams.set("amount", String(Math.max(0, Math.round(amount))));
+  qrUrl.searchParams.set("des", description.trim());
+
+  return qrUrl.toString();
 }
 
 function QrPaymentModal({
@@ -44,7 +49,6 @@ function QrPaymentModal({
   subtotal,
   discountAmount,
   pointsValue,
-  transferReference,
   isProcessing,
   onConfirm,
   onClose,
@@ -53,9 +57,14 @@ function QrPaymentModal({
     void navigator.clipboard?.writeText(value);
   };
 
-  const transferContent = `${transferReference} | ${cartItems
-    .map((item) => `${item.product.name} x${item.quantity}`)
-    .join(", ")}`;
+  const productCodes = cartItems
+    .map((item) => `${item.product.sku}x${item.quantity}`)
+    .join(", ");
+
+  const transferContent = productCodes
+    ? `Thanh toan don hang ${productCodes}`
+    : "Thanh toan don hang";
+  const qrImageUrl = buildSepayQrUrl(amount, transferContent);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/60 p-4">
@@ -63,11 +72,8 @@ function QrPaymentModal({
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
           <div>
             <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-extrabold text-[#0b1c30]">
-              Thanh toán Momo
+              Thanh toán QR
             </h3>
-            <p className="mt-1 text-sm text-slate-500">
-              Sử dụng mã QR tĩnh và nội dung chuyển khoản tự động.
-            </p>
           </div>
           <button
             type="button"
@@ -80,118 +86,116 @@ function QrPaymentModal({
           </button>
         </div>
 
-        <div className="space-y-5 px-6 pb-6">
+        <div className="space-y-5 p-6">
           <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
             <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
               <div className="mx-auto w-fit rounded-xl border border-slate-200 bg-white p-3">
                 <img
-                  src={buildQrImageUrl()}
+                  src={qrImageUrl}
                   alt="Mã QR thanh toán"
-                  className="h-72 w-72 rounded-lg object-contain"
+                  className="h-80 w-80 rounded-lg object-contain"
                 />
               </div>
-              <div className="mx-auto mt-4 w-fit rounded-full border border-[#26a69a] bg-white px-4 py-1 text-xs font-extrabold uppercase text-[#00796b]">
-                {MOMO_WALLET_NAME}
+              <div className="mx-auto mt-4 w-fit rounded-full border border-orange-100 bg-white px-4 py-1 text-xs font-extrabold uppercase text-[#f97316]">
+                {WALLET_NAME}
               </div>
             </section>
 
             <section className="rounded-xl border border-slate-200 bg-white p-5">
               <div className="space-y-5">
-              <div className="border-b border-slate-100 pb-4">
-                <p className="text-xs font-extrabold uppercase text-slate-400">
-                  Ví nhận tiền
-                </p>
-                <p className="mt-2 text-lg font-extrabold text-[#0b1c30]">
-                  {MOMO_BANK_NAME}
-                </p>
-              </div>
-
-              <div className="border-b border-slate-100 pb-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-extrabold uppercase text-slate-400">
-                      Số tài khoản Momo
-                    </p>
-                    <p className="mt-2 text-lg font-extrabold text-[#0b1c30]">
-                      {MOMO_ACCOUNT_NO}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => copyText(MOMO_ACCOUNT_NO)}
-                    className="rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-[#f97316]"
-                    aria-label="Sao chép số tài khoản"
-                  >
-                    <Icon name="content_copy" />
-                  </button>
+                <div className="border-b border-slate-100 pb-4">
+                  <p className="text-xs font-extrabold uppercase text-slate-400">
+                    Hình thức nhận tiền
+                  </p>
+                  <p className="mt-2 text-lg font-extrabold text-[#0b1c30]">
+                    {PAYMENT_NAME}
+                  </p>
                 </div>
-              </div>
 
-              <div className="border-b border-slate-100 pb-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-extrabold uppercase text-slate-400">
-                      Tên người nhận
-                    </p>
-                    <p className="mt-2 text-lg font-extrabold text-[#0b1c30]">
-                      {MOMO_ACCOUNT_NAME}
-                    </p>
+                <div className="border-b border-slate-100 pb-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-extrabold uppercase text-slate-400">
+                        Tài khoản nhận
+                      </p>
+                      <p className="mt-2 text-lg font-extrabold text-[#0b1c30]">
+                        {ACCOUNT_NO}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => copyText(ACCOUNT_NO)}
+                      className="rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-[#f97316]"
+                      aria-label="Sao chép tài khoản nhận"
+                    >
+                      <Icon name="content_copy" />
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => copyText(MOMO_ACCOUNT_NAME)}
-                    className="rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-[#f97316]"
-                    aria-label="Sao chép chủ tài khoản"
-                  >
-                    <Icon name="content_copy" />
-                  </button>
                 </div>
-              </div>
 
-              <div className="border-b border-slate-100 pb-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-extrabold uppercase text-slate-400">
-                      Số tiền thanh toán
-                    </p>
-                    <p className="mt-2 text-2xl font-extrabold text-[#f97316]">
-                      {formatCurrency(amount)}
-                    </p>
+                <div className="border-b border-slate-100 pb-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-extrabold uppercase text-slate-400">
+                        Tên người nhận
+                      </p>
+                      <p className="mt-2 text-lg font-extrabold text-[#0b1c30]">
+                        {ACCOUNT_NAME}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => copyText(ACCOUNT_NAME)}
+                      className="rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-[#f97316]"
+                      aria-label="Sao chép tên người nhận"
+                    >
+                      <Icon name="content_copy" />
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => copyText(String(Math.round(amount)))}
-                    className="rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-[#f97316]"
-                    aria-label="Sao chép số tiền thanh toán"
-                  >
-                    <Icon name="content_copy" />
-                  </button>
                 </div>
-              </div>
 
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <div>
+                <div className="border-b border-slate-100 pb-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-extrabold uppercase text-slate-400">
+                        Số tiền thanh toán
+                      </p>
+                      <p className="mt-2 text-2xl font-extrabold text-[#f97316]">
+                        {formatCurrency(amount)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => copyText(String(Math.round(amount)))}
+                      className="rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-[#f97316]"
+                      aria-label="Sao chép số tiền thanh toán"
+                    >
+                      <Icon name="content_copy" />
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="mb-2 flex items-center justify-between gap-3">
                     <p className="text-xs font-extrabold uppercase text-slate-400">
                       Nội dung chuyển khoản
                     </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Nội dung này sẽ tự động kèm theo sản phẩm khi quét QR.
-                    </p>
+                    <button
+                      type="button"
+                      onClick={() => copyText(transferContent)}
+                      className="rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-[#f97316]"
+                      aria-label="Sao chép nội dung chuyển khoản"
+                    >
+                      <Icon name="content_copy" />
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => copyText(transferContent)}
-                    className="rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-[#f97316]"
-                    aria-label="Sao chép nội dung chuyển khoản"
-                  >
-                    <Icon name="content_copy" />
-                  </button>
+                  <p className="rounded-lg border border-orange-100 bg-orange-50 px-4 py-4 font-mono text-sm font-extrabold text-[#f97316]">
+                    {transferContent}
+                  </p>
+                  <p className="mt-2 text-xs font-semibold text-slate-500">
+                    Mã sản phẩm trong QR: {productCodes}
+                  </p>
                 </div>
-                <p className="rounded-lg border border-orange-100 bg-orange-50 px-4 py-4 font-mono text-sm font-extrabold text-[#f97316] whitespace-pre-wrap">
-                  {transferContent}
-                </p>
-              </div>
               </div>
             </section>
           </div>
@@ -199,7 +203,7 @@ function QrPaymentModal({
           <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
             <h4 className="mb-4 flex items-center gap-2 font-extrabold text-[#0b1c30]">
               <Icon name="receipt_long" />
-              Sản phẩm trong đơn Momo
+              Sản phẩm trong đơn
             </h4>
             <div className="divide-y divide-slate-200/80">
               {cartItems.map((item) => (
@@ -212,7 +216,8 @@ function QrPaymentModal({
                       {item.product.name}
                     </p>
                     <p className="mt-1 text-sm font-semibold text-slate-500">
-                      Số lượng: {item.quantity} x {formatCurrency(item.product.salePrice)}
+                      SKU: {item.product.sku} · {item.quantity} x{" "}
+                      {formatCurrency(item.product.salePrice)}
                     </p>
                   </div>
                   <p className="shrink-0 font-extrabold text-[#0b1c30]">
@@ -243,7 +248,9 @@ function QrPaymentModal({
               </div>
               <div className="flex justify-between gap-4">
                 <span className="text-slate-600">Phương thức</span>
-                <span className="font-extrabold text-[#0b1c30]">Chuyển khoản</span>
+                <span className="font-extrabold text-[#0b1c30]">
+                  Chuyển khoản
+                </span>
               </div>
             </div>
           </section>

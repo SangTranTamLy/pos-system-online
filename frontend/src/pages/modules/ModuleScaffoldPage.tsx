@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 
 type ModuleKey =
@@ -387,10 +387,6 @@ export function CustomersPage() {
 
 export function InvoicesPage() {
   return <ModuleScaffoldPage moduleKey="invoices" />;
-}
-
-export function PromotionsPage() {
-  return <ModuleScaffoldPage moduleKey="promotions" />;
 }
 
 export function EmployeesPage() {

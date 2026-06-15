@@ -6,6 +6,8 @@ export type Product = {
   id: string;
   categoryId: string;
   categoryName?: string;
+  requiresPreparation: boolean;
+  isStockReturnable: boolean;
   sku: string;
   name: string;
   importPrice: number;
@@ -22,6 +24,8 @@ export type CreateProductPayload = {
   categoryId: string;
   sku: string;
   name: string;
+  requiresPreparation?: boolean;
+  isStockReturnable?: boolean;
   importPrice?: number;
   salePrice: number;
   stockQuantity?: number;

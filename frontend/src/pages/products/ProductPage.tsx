@@ -597,7 +597,7 @@ function ProductPage() {
                   <td className="px-6 py-4">
                     <p className="font-bold text-[#0b1c30]">{product.name}</p>
                     <p className="mt-1 max-w-[220px] truncate text-xs text-slate-400">
-                      {product.description || "ChÆ°a cÃ³ mÃ´ táº£"}
+                      {product.description || "Chưa có mô tả"}
                     </p>
                   </td>
                   <td className="px-6 py-4 text-slate-600">
@@ -723,7 +723,7 @@ function ProductPage() {
                     setFormState((current) => ({ ...current, name: event.target.value }))
                   }
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
-                  placeholder="VD: BÃ¡nh mÃ¬ thá»‹t"
+                  placeholder="VD: Bánh mì thịt"
                 />
               </label>
 
@@ -743,7 +743,7 @@ function ProductPage() {
               </label>
 
               <label className="space-y-2">
-                <span className="block text-sm font-semibold text-[#0b1c30]">Danh má»¥c</span>
+                <span className="block text-sm font-semibold text-[#0b1c30]">Danh mục</span>
                 <select
                   required
                   value={formState.categoryId}
@@ -832,7 +832,7 @@ function ProductPage() {
               ) : null}
 
               <label className="space-y-2 sm:col-span-2">
-                <span className="block text-sm font-semibold text-[#0b1c30]">MÃ´ táº£</span>
+                <span className="block text-sm font-semibold text-[#0b1c30]">Mô tả</span>
                 <textarea
                   rows={3}
                   value={formState.description}

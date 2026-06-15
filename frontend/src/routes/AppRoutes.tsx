@@ -6,11 +6,11 @@ import CategoryPage from "../pages/categories/CategoryPage";
 import ProductPage from "../pages/products/ProductPage";
 import PosPage from "../pages/pos/PosPage";
 import InvoicePage from "../pages/invoices/InvoicePage";
+import CustomerPage from "../pages/customers/CustomerPage";
+import PromotionsPage from "../pages/promotions/PromotionsPage";
 import {
   AuditLogsPage,
-  CustomersPage,
   EmployeesPage,
-  PromotionsPage,
   ReportsPage,
   SettingsPage,
   ShiftsPage,
@@ -28,7 +28,7 @@ function AppRoutes() {
         <Route path="/products" element={<ProductPage />} />
         <Route path="/categories" element={<CategoryPage />} />
         <Route path="/stock" element={<StockPage />} />
-        <Route path="/customers" element={<CustomersPage />} />
+        <Route path="/customers" element={<CustomerPage />} />
         <Route path="/invoices" element={<InvoicePage />} />
         <Route path="/promotions" element={<PromotionsPage />} />
         <Route path="/employees" element={<EmployeesPage />} />
