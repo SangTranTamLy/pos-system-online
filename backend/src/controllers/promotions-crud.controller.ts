@@ -1,5 +1,4 @@
 import type { Request, Response } from "express";
-import type { ParamsDictionary } from "express-serve-static-core";
 import { ApiError } from "../utils/apiError";
 import {
   findAllPromotions,
@@ -11,8 +10,6 @@ import {
   deletePromotion,
 } from "../repositories/promotions-crud.repository";
 
-type IdParams = ParamsDictionary & { id: string };
-
 // GET /api/promotions
 export async function listPromotionsController(_req: Request, res: Response) {
   const promotions = await findAllPromotions();
@@ -21,7 +18,7 @@ export async function listPromotionsController(_req: Request, res: Response) {
 
 // GET /api/promotions/:id
 export async function getPromotionController(
-  req: Request<IdParams>,
+  req: Request,
   res: Response
 ) {
   const id = String(req.params.id);
@@ -75,7 +72,7 @@ export async function createPromotionController(req: Request, res: Response) {
 
 // PUT /api/promotions/:id
 export async function updatePromotionController(
-  req: Request<IdParams>,
+  req: Request,
   res: Response
 ) {
   const id = String(req.params.id);
@@ -100,7 +97,7 @@ export async function updatePromotionController(
 
 // PATCH /api/promotions/:id/toggle
 export async function togglePromotionController(
-  req: Request<IdParams>,
+  req: Request,
   res: Response
 ) {
   const id = String(req.params.id);
@@ -113,7 +110,7 @@ export async function togglePromotionController(
 
 // DELETE /api/promotions/:id
 export async function deletePromotionController(
-  req: Request<IdParams>,
+  req: Request,
   res: Response
 ) {
   const id = String(req.params.id);

@@ -29,6 +29,8 @@ app.get("/health", async (_req, res) => {
       data: rows,
     });
   } catch (error) {
+    console.error("MYSQL ERROR:", error);
+
     return res.status(500).json({
       success: false,
       message: "MySQL kết nối thất bại.",
