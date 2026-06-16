@@ -51,8 +51,6 @@ export type OrderPayment = {
 export type OrderDetail = OrderListItem & {
   promotionId: string | null;
   note: string | null;
-  pointsUsed: number;
-  pointsEarned: number;
   details: OrderDetailItem[];
   payments: OrderPayment[];
 };

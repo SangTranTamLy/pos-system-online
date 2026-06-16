@@ -5,7 +5,6 @@ export type Customer = {
   fullName: string;
   phone: string;
   email: string | null;
-  loyaltyPoints: number;
   totalSpent: number;
   orderCount: number;
   lastOrderAt: string | null;
@@ -28,16 +27,6 @@ export type CustomerPayload = {
   fullName: string;
   phone: string;
   email?: string | null;
-};
-
-export type CustomerPointTransaction = {
-  id: string;
-  customerId: string;
-  orderId: string | null;
-  points: number;
-  transactionType: "earn" | "redeem" | "adjust";
-  note: string | null;
-  createdAt: string;
 };
 
 export type CustomerOrderSummary = {
@@ -147,15 +136,6 @@ export async function deleteCustomer(id: string) {
   });
 
   return handleResponse<Customer>(response);
-}
-
-export async function getCustomerPoints(id: string) {
-  const response = await fetch(`${API_BASE_URL}/customers/${id}/points`, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
-
-  return handleResponse<CustomerPointTransaction[]>(response);
 }
 
 export async function getCustomerOrders(id: string) {

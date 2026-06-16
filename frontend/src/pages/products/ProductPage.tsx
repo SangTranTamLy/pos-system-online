@@ -1,4 +1,4 @@
-﻿import {
+import {
   useCallback,
   useEffect,
   useMemo,
@@ -49,7 +49,7 @@ function formatCurrency(value: number) {
 }
 
 function normalizeText(value: string) {
-  return value.trim().toLowerCase();
+  return value.trim().toLowerCase().normalize("NFC");
 }
 
 function escapeCsvValue(value: string | number | null | undefined) {
@@ -139,6 +139,7 @@ function ProductPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [showToast, setShowToast] = useState(false);
   const [formState, setFormState] = useState<ProductFormState>(defaultFormState);
+  const [imageSource, setImageSource] = useState<"file" | "url">("file");
 
   const loadData = useCallback(async () => {
     try {
@@ -249,6 +250,7 @@ function ProductPage() {
       ...defaultFormState,
       categoryId: categories[0]?.id ?? "",
     });
+    setImageSource("file");
     setIsModalOpen(true);
   };
 
@@ -264,12 +266,17 @@ function ProductPage() {
       description: product.description ?? "",
       imageUrl: product.imageUrl ?? "",
     });
+    const hasExternalImage = product.imageUrl && 
+      product.imageUrl.trim().startsWith("http") && 
+      !product.imageUrl.includes("/uploads/products/");
+    setImageSource(hasExternalImage ? "url" : "file");
     setIsModalOpen(true);
   };
 
   const closeModal = () => {
     setEditingProduct(null);
     setFormState(defaultFormState);
+    setImageSource("file");
     setIsModalOpen(false);
   };
 
@@ -422,7 +429,10 @@ function ProductPage() {
         );
 
         if (!category) {
-          throw new Error(`Không tìm thấy danh mục: ${categoryNameOrId}`);
+          const validCategoryNames = categories.map((c) => `"${c.name}"`).join(", ");
+          throw new Error(
+            `Không tìm thấy danh mục: "${categoryNameOrId}". Các danh mục hợp lệ trong hệ thống: ${validCategoryNames}. Vui lòng kiểm tra lại chính tả hoặc mã hóa (encoding) của file CSV.`
+          );
         }
 
         await createProduct({
@@ -463,7 +473,7 @@ function ProductPage() {
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row">
-          <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 font-bold text-slate-700 transition-colors hover:bg-slate-50">
+          <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50">
             <Icon name="upload_file" />
             Nhập Excel
             <input
@@ -478,7 +488,7 @@ function ProductPage() {
           <button
             type="button"
             onClick={handleExportProducts}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 font-bold text-slate-700 transition-colors hover:bg-slate-50"
+            className="inline-flex h-10 items-center justify-center gap-2 border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
           >
             <Icon name="download" />
               Xuất danh sách
@@ -486,7 +496,7 @@ function ProductPage() {
           <button
             type="button"
             onClick={openCreateModal}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#f97316] px-6 py-3 font-bold text-white shadow-lg shadow-orange-100 transition-all hover:brightness-110 active:translate-y-px"
+            className="inline-flex h-10 items-center justify-center gap-2 bg-[#f97316] px-4 text-sm font-bold text-white transition-colors hover:bg-[#ea580c]"
           >
             <Icon name="add" />
             Thêm sản phẩm
@@ -806,28 +816,82 @@ function ProductPage() {
                 />
               </label>
 
-              <label className="space-y-2">
+              <div className="space-y-2">
                 <span className="block text-sm font-semibold text-[#0b1c30]">Ảnh sản phẩm</span>
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/gif"
-                  onChange={(event) => {
-                    void handleImageFileChange(event);
-                  }}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
-                />
-                <p className="text-xs text-slate-500">
-                  {isUploadingImage ? "Đang tải ảnh..." : "Chọn ảnh có sẵn trên máy."}
-                </p>
-              </label>
+                <div className="flex rounded-xl bg-slate-100 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setImageSource("file")}
+                    className={`flex-1 rounded-lg py-1.5 text-xs font-bold transition-all duration-200 cursor-pointer ${
+                      imageSource === "file"
+                        ? "bg-white text-[#f97316] shadow-sm"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    Tải từ máy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setImageSource("url")}
+                    className={`flex-1 rounded-lg py-1.5 text-xs font-bold transition-all duration-200 cursor-pointer ${
+                      imageSource === "url"
+                        ? "bg-white text-[#f97316] shadow-sm"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    Nhập link ảnh
+                  </button>
+                </div>
+
+                {imageSource === "file" ? (
+                  <div className="space-y-1">
+                    <input
+                      key="file-input"
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      onChange={(event) => {
+                        void handleImageFileChange(event);
+                      }}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100 file:mr-3 file:rounded-lg file:border-0 file:bg-orange-50 file:px-2.5 file:py-1 file:text-xs file:font-bold file:text-[#f97316] file:hover:bg-orange-100 cursor-pointer"
+                    />
+                    <p className="text-[11px] text-slate-500">
+                      {isUploadingImage ? "Đang tải ảnh lên..." : "Chọn ảnh định dạng JPG, PNG, WEBP, GIF."}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <input
+                      key="url-input"
+                      type="url"
+                      value={formState.imageUrl}
+                      onChange={(event) =>
+                        setFormState((current) => ({ ...current, imageUrl: event.target.value }))
+                      }
+                      placeholder="Nhập link ảnh (https://...)"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                    />
+                    <p className="text-[11px] text-slate-500">
+                      Nhập đường dẫn trực tiếp đến hình ảnh trên internet.
+                    </p>
+                  </div>
+                )}
+              </div>
 
               {formState.imageUrl.trim() ? (
-                <div className="overflow-hidden rounded-xl border border-slate-200 sm:col-span-2">
+                <div className="relative overflow-hidden rounded-xl border border-slate-200 sm:col-span-2 group">
                   <img
                     src={formState.imageUrl}
                     alt="Ảnh xem trước"
-                    className="h-44 w-full object-cover"
+                    className="h-44 w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setFormState((current) => ({ ...current, imageUrl: "" }))}
+                    className="absolute top-3 right-3 flex items-center gap-1.5 rounded-lg bg-red-600/90 hover:bg-red-600 px-3 py-1.5 text-xs font-bold text-white shadow-lg backdrop-blur-sm transition-all duration-200 cursor-pointer"
+                  >
+                    <Icon name="delete" className="text-sm" />
+                    Xóa ảnh
+                  </button>
                 </div>
               ) : null}
 
@@ -848,13 +912,13 @@ function ProductPage() {
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="flex-1 rounded-xl border border-slate-300 px-6 py-3 font-bold text-slate-600 transition-colors hover:bg-slate-50"
+                  className="flex h-10 flex-1 items-center justify-center border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 rounded-xl bg-[#f97316] px-6 py-3 font-bold text-white shadow-lg shadow-orange-100 transition-all hover:brightness-110 active:translate-y-px"
+                  className="flex h-10 flex-1 items-center justify-center bg-[#f97316] px-4 text-sm font-bold text-white transition-colors hover:bg-[#ea580c]"
                 >
                   {editingProduct ? "Lưu thay đổi" : "Lưu sản phẩm"}
                 </button>

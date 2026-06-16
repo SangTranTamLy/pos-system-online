@@ -14,8 +14,9 @@ import {
   ReportsPage,
   SettingsPage,
   ShiftsPage,
-  StockPage,
 } from "../pages/modules/ModuleScaffoldPage";
+import { StockPage } from "../pages/inventory/StockPage";
+
 function AppRoutes() {
   return (
     <Routes>
@@ -27,7 +28,7 @@ function AppRoutes() {
         <Route path="/pos" element={<PosPage />} />
         <Route path="/products" element={<ProductPage />} />
         <Route path="/categories" element={<CategoryPage />} />
-        <Route path="/stock" element={<StockPage />} />
+        <Route path="/stock/*" element={<StockPage />} />
         <Route path="/customers" element={<CustomerPage />} />
         <Route path="/invoices" element={<InvoicePage />} />
         <Route path="/promotions" element={<PromotionsPage />} />

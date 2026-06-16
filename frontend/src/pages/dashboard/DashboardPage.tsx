@@ -526,7 +526,7 @@ function DashboardPage() {
               onClick={handleManualRefresh}
               disabled={isRefreshing}
               title="Làm mới dữ liệu"
-              className="flex items-center gap-1.5 border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:border-[#f97316] hover:text-[#f97316] disabled:opacity-50"
+              className="inline-flex h-10 items-center justify-center gap-2 border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition-colors hover:border-[#f97316] hover:text-[#f97316] disabled:opacity-50"
             >
               <Icon name="refresh" className={`text-base ${isRefreshing ? "animate-spin" : ""}`} />
               {isRefreshing ? "Đang tải..." : "Làm mới"}

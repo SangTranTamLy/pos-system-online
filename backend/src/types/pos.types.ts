@@ -11,7 +11,6 @@ export type CreatePosOrderBody = {
   note?: string | null;
   items?: CreatePosOrderItemBody[];
   promotionCode?: string | null;
-  pointsUsed?: number;
   changeAmount?: number;
 };
 
@@ -24,6 +23,8 @@ export type PosOrderDetail = {
   id: string;
   productId: string;
   productName: string;
+  categoryId?: string | null;
+  categoryName?: string | null;
   quantity: number;
   unitPrice: number;
   lineTotal: number;
@@ -36,6 +37,14 @@ export type PosPayment = {
   paymentStatus: "paid";
 };
 
+export type PosAppliedPromotion = {
+  id: string;
+  code: string | null;
+  name: string;
+  ruleType: string;
+  discountAmount: number;
+};
+
 export type PosOrderResult = {
   id: string;
   customerId: string | null;
@@ -44,10 +53,9 @@ export type PosOrderResult = {
   totalAmount: number;
   discountAmount: number;
   finalAmount: number;
-  pointsEarned: number;
-  pointsUsed: number;
   changeAmount: number;
   note: string | null;
+  appliedPromotion: PosAppliedPromotion | null;
   details: PosOrderDetail[];
   payment: PosPayment;
 };

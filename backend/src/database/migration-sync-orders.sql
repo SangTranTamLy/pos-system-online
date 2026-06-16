@@ -32,8 +32,6 @@ DELIMITER ;
 CALL add_column_if_missing('orders', 'promotion_id', '`promotion_id` CHAR(36) NULL');
 CALL add_column_if_missing('orders', 'discount_amount', '`discount_amount` DECIMAL(12, 2) NOT NULL DEFAULT 0');
 CALL add_column_if_missing('orders', 'final_amount', '`final_amount` DECIMAL(12, 2) NOT NULL DEFAULT 0');
-CALL add_column_if_missing('orders', 'points_used', '`points_used` INT NOT NULL DEFAULT 0');
-CALL add_column_if_missing('orders', 'points_earned', '`points_earned` INT NOT NULL DEFAULT 0');
 CALL add_column_if_missing('orders', 'cancelled_by', '`cancelled_by` CHAR(36) NULL');
 CALL add_column_if_missing('orders', 'cancelled_at', '`cancelled_at` DATETIME NULL');
 CALL add_column_if_missing('orders', 'cancel_reason', '`cancel_reason` TEXT NULL');

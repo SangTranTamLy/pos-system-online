@@ -313,7 +313,7 @@ function CategoryPage() {
           <button
             type="button"
             onClick={openCreateModal}
-            className="flex items-center justify-center gap-2 rounded-lg bg-[#f97316] px-6 py-2.5 font-bold text-white shadow-md transition-all hover:brightness-110 active:translate-y-px"
+            className="inline-flex h-10 items-center justify-center gap-2 bg-[#f97316] px-4 text-sm font-bold text-white transition-colors hover:bg-[#ea580c]"
           >
             <Icon name="add" />
             Thêm danh mục
@@ -599,13 +599,13 @@ function CategoryPage() {
                 <button
                   type="button"
                   onClick={handleModalClose}
-                  className="flex-1 rounded-lg border border-slate-300 px-6 py-3 font-bold text-slate-600 transition-colors hover:bg-slate-50"
+                  className="flex h-10 flex-1 items-center justify-center border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 rounded-lg bg-[#f97316] px-6 py-3 font-bold text-white shadow-lg transition-all hover:brightness-110 active:translate-y-px"
+                  className="flex h-10 flex-1 items-center justify-center bg-[#f97316] px-4 text-sm font-bold text-white transition-colors hover:bg-[#ea580c]"
                 >
                   {editingCategory ? "Lưu thay đổi" : "Lưu danh mục"}
                 </button>

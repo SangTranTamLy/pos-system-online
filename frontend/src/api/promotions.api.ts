@@ -20,6 +20,8 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 export type Promotion = {
   id: string;
+  productId: string;
+  productName: string;
   code: string;
   name: string;
   discountType: "percent" | "fixed";
@@ -32,6 +34,7 @@ export type Promotion = {
 };
 
 export type PromotionFormData = {
+  productId: string;
   code: string;
   name: string;
   discountType: "percent" | "fixed";
@@ -55,6 +58,7 @@ export async function createPromotion(
     method: "POST",
     headers: getAuthHeaders(),
     body: JSON.stringify({
+      productId: data.productId,
       code: data.code,
       name: data.name,
       discountType: data.discountType,
@@ -74,6 +78,7 @@ export async function updatePromotion(
     method: "PUT",
     headers: getAuthHeaders(),
     body: JSON.stringify({
+      productId: data.productId,
       code: data.code,
       name: data.name,
       discountType: data.discountType,

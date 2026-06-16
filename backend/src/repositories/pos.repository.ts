@@ -9,8 +9,7 @@ import type {
 } from "../types/pos.types";
 import { ApiError } from "../utils/apiError";
 import {
-  calculateDiscount,
-  findPromotionByCode,
+  calculateBestPosPromotion,
 } from "./promotions.repository";
 import {
   findCustomerById,
@@ -19,6 +18,8 @@ import {
 
 type ProductForSaleRow = RowDataPacket & {
   id: string;
+  category_id: string;
+  category_name: string;
   name: string;
   sale_price: string;
   stock_quantity: number;
@@ -32,7 +33,6 @@ type CreatePosOrderTransactionData = {
   note: string | null;
   items: NormalizedPosOrderItem[];
   promotionCode?: string | null;
-  pointsUsed?: number;
   changeAmount?: number;
 };
 
@@ -43,13 +43,16 @@ async function findProductForUpdate(
   const [rows] = await connection.execute<ProductForSaleRow[]>(
     `
     SELECT
-      id,
-      name,
-      sale_price,
-      stock_quantity,
-      status
+      products.id,
+      products.category_id,
+      categories.name AS category_name,
+      products.name,
+      products.sale_price,
+      products.stock_quantity,
+      products.status
     FROM products
-    WHERE id = ?
+    JOIN categories ON categories.id = products.category_id
+    WHERE products.id = ?
     LIMIT 1
     FOR UPDATE
     `,
@@ -96,12 +99,13 @@ export async function createPosOrderTransaction(
 
       const unitPrice = Number(product.sale_price);
       const lineTotal = unitPrice * item.quantity;
-      const detailId = randomUUID();
 
       details.push({
-        id: detailId,
+        id: randomUUID(),
         productId: product.id,
         productName: product.name,
+        categoryId: product.category_id,
+        categoryName: product.category_name,
         quantity: item.quantity,
         unitPrice,
         lineTotal,
@@ -115,16 +119,21 @@ export async function createPosOrderTransaction(
 
     let discountAmount = 0;
     let promotionId: string | null = null;
+    const appliedPromotion = await calculateBestPosPromotion(
+      connection,
+      details,
+      totalAmount,
+      data.promotionCode
+    );
 
-    if (data.promotionCode) {
-      const promotion = await findPromotionByCode(connection, data.promotionCode);
+    if (data.promotionCode && !appliedPromotion) {
+      throw new ApiError(400, "Ma khuyen mai khong hop le hoac khong phu hop don hang");
+    }
 
-      if (!promotion) {
-        throw new ApiError(400, "Ma khuyen mai khong hop le hoac da het han");
-      }
-
-      promotionId = promotion.id;
-      discountAmount = calculateDiscount(totalAmount, promotion);
+    if (appliedPromotion) {
+      discountAmount = appliedPromotion.discountAmount;
+      promotionId =
+        appliedPromotion.ruleType === "product_code" ? appliedPromotion.id : null;
     }
 
     discountAmount = Math.min(discountAmount, totalAmount);
@@ -239,6 +248,8 @@ export async function createPosOrderTransaction(
 
     await connection.commit();
 
+    const changeAmount = data.changeAmount ?? 0;
+
     return {
       id: orderId,
       customerId: data.customerId,
@@ -247,10 +258,17 @@ export async function createPosOrderTransaction(
       totalAmount,
       discountAmount,
       finalAmount,
-      pointsEarned: 0,
-      pointsUsed: data.pointsUsed ?? 0,
-      changeAmount: data.changeAmount ?? 0,
+      changeAmount,
       note: data.note,
+      appliedPromotion: appliedPromotion
+        ? {
+            id: appliedPromotion.id,
+            code: appliedPromotion.code,
+            name: appliedPromotion.name,
+            ruleType: appliedPromotion.ruleType,
+            discountAmount,
+          }
+        : null,
       details,
       payment: {
         id: paymentId,

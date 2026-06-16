@@ -59,16 +59,15 @@ CREATE TABLE IF NOT EXISTS customers (
   full_name VARCHAR(120) NOT NULL,
   phone VARCHAR(30) NOT NULL UNIQUE,
   email VARCHAR(255),
-  loyalty_points INT NOT NULL DEFAULT 0,
   total_spent DECIMAL(12, 2) NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT chk_customers_loyalty_points CHECK (loyalty_points >= 0),
   CONSTRAINT chk_customers_total_spent CHECK (total_spent >= 0)
 );
 
 CREATE TABLE IF NOT EXISTS promotions (
   id CHAR(36) PRIMARY KEY,
+  product_id CHAR(36) NOT NULL,
   code VARCHAR(80) NOT NULL UNIQUE,
   name VARCHAR(160) NOT NULL,
   discount_type VARCHAR(30) NOT NULL,
@@ -78,8 +77,33 @@ CREATE TABLE IF NOT EXISTS promotions (
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_promotions_product_id FOREIGN KEY (product_id) REFERENCES products(id),
   CONSTRAINT chk_promotions_discount_value CHECK (discount_value >= 0),
   CONSTRAINT chk_promotions_discount_type CHECK (discount_type IN ('percent', 'fixed'))
+);
+
+CREATE TABLE IF NOT EXISTS promotion_rules (
+  id CHAR(36) PRIMARY KEY,
+  code VARCHAR(80) UNIQUE,
+  name VARCHAR(160) NOT NULL,
+  rule_type VARCHAR(40) NOT NULL,
+  discount_type VARCHAR(40) NOT NULL,
+  discount_value DECIMAL(12, 2) NOT NULL DEFAULT 0,
+  min_order_amount DECIMAL(12, 2),
+  start_time TIME,
+  end_time TIME,
+  days_of_week VARCHAR(40),
+  priority INT NOT NULL DEFAULT 50,
+  config JSON,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  starts_at DATETIME,
+  ends_at DATETIME,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT chk_promotion_rules_discount_value CHECK (discount_value >= 0),
+  CONSTRAINT chk_promotion_rules_min_order_amount CHECK (min_order_amount IS NULL OR min_order_amount >= 0),
+  CONSTRAINT chk_promotion_rules_type CHECK (rule_type IN ('combo_fixed', 'time_window', 'invoice_threshold', 'code', 'bundle_special_price', 'day_of_week')),
+  CONSTRAINT chk_promotion_rules_discount_type CHECK (discount_type IN ('percent', 'fixed', 'special_price', 'buy_x_get_y'))
 );
 
 CREATE TABLE IF NOT EXISTS orders (
@@ -91,8 +115,6 @@ CREATE TABLE IF NOT EXISTS orders (
   total_amount DECIMAL(12, 2) NOT NULL DEFAULT 0,
   discount_amount DECIMAL(12, 2) NOT NULL DEFAULT 0,
   final_amount DECIMAL(12, 2) NOT NULL DEFAULT 0,
-  points_used INT NOT NULL DEFAULT 0,
-  points_earned INT NOT NULL DEFAULT 0,
   note TEXT,
   cancelled_by CHAR(36),
   cancelled_at DATETIME,
@@ -106,8 +128,6 @@ CREATE TABLE IF NOT EXISTS orders (
   CONSTRAINT chk_orders_total_amount CHECK (total_amount >= 0),
   CONSTRAINT chk_orders_discount_amount CHECK (discount_amount >= 0),
   CONSTRAINT chk_orders_final_amount CHECK (final_amount >= 0),
-  CONSTRAINT chk_orders_points_used CHECK (points_used >= 0),
-  CONSTRAINT chk_orders_points_earned CHECK (points_earned >= 0),
   CONSTRAINT chk_orders_status CHECK (status IN ('completed', 'cancelled', 'refunded'))
 );
 
@@ -155,22 +175,6 @@ CREATE TABLE IF NOT EXISTS stock_transactions (
   CONSTRAINT chk_stock_transactions_type CHECK (transaction_type IN ('import', 'export', 'adjustment'))
 );
 
-CREATE TABLE IF NOT EXISTS customer_points (
-  id CHAR(36) PRIMARY KEY,
-  customer_id CHAR(36) NOT NULL,
-  order_id CHAR(36),
-  points INT NOT NULL,
-  transaction_type VARCHAR(30) NOT NULL,
-  note TEXT,
-  cancelled_by CHAR(36),
-  cancelled_at DATETIME,
-  cancel_reason TEXT,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_customer_points_customer_id FOREIGN KEY (customer_id) REFERENCES customers(id),
-  CONSTRAINT fk_customer_points_order_id FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL,
-  CONSTRAINT chk_customer_points_type CHECK (transaction_type IN ('earn', 'redeem', 'adjust'))
-);
-
 CREATE TABLE IF NOT EXISTS audit_logs (
   id CHAR(36) PRIMARY KEY,
   user_id CHAR(36),
@@ -196,20 +200,55 @@ CREATE TABLE IF NOT EXISTS waste_transactions (
   CONSTRAINT fk_waste_transactions_created_by FOREIGN KEY (created_by) REFERENCES users(id),
   CONSTRAINT chk_waste_transactions_quantity CHECK (quantity > 0)
 );
-CREATE INDEX idx_users_role_id ON users(role_id);
-CREATE INDEX idx_products_category_id ON products(category_id);
-CREATE INDEX idx_products_status ON products(status);
-CREATE INDEX idx_customers_phone ON customers(phone);
-CREATE INDEX idx_orders_customer_id ON orders(customer_id);
-CREATE INDEX idx_orders_created_by ON orders(created_by);
-CREATE INDEX idx_orders_status ON orders(status);
-CREATE INDEX idx_order_details_order_id ON order_details(order_id);
-CREATE INDEX idx_order_details_product_id ON order_details(product_id);
-CREATE INDEX idx_payments_order_id ON payments(order_id);
-CREATE INDEX idx_stock_transactions_product_id ON stock_transactions(product_id);
-CREATE INDEX idx_stock_transactions_created_by ON stock_transactions(created_by);
-CREATE INDEX idx_customer_points_customer_id ON customer_points(customer_id);
-CREATE INDEX idx_customer_points_order_id ON customer_points(order_id);
-CREATE INDEX idx_audit_logs_user_id ON audit_logs(user_id);
-CREATE INDEX idx_waste_transactions_order_id ON waste_transactions(order_id);
-CREATE INDEX idx_waste_transactions_product_id ON waste_transactions(product_id);
+DROP PROCEDURE IF EXISTS create_index_if_missing;
+
+DELIMITER //
+CREATE PROCEDURE create_index_if_missing(
+  IN table_name_in VARCHAR(64),
+  IN index_name_in VARCHAR(64),
+  IN index_columns_in TEXT
+)
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = table_name_in
+      AND INDEX_NAME = index_name_in
+  ) THEN
+    SET @sql = CONCAT(
+      'CREATE INDEX `',
+      index_name_in,
+      '` ON `',
+      table_name_in,
+      '` (',
+      index_columns_in,
+      ')'
+    );
+    PREPARE stmt FROM @sql;
+    EXECUTE stmt;
+    DEALLOCATE PREPARE stmt;
+  END IF;
+END//
+DELIMITER ;
+
+CALL create_index_if_missing('users', 'idx_users_role_id', 'role_id');
+CALL create_index_if_missing('products', 'idx_products_category_id', 'category_id');
+CALL create_index_if_missing('products', 'idx_products_status', 'status');
+CALL create_index_if_missing('customers', 'idx_customers_phone', 'phone');
+CALL create_index_if_missing('promotions', 'idx_promotions_product_id', 'product_id');
+CALL create_index_if_missing('promotion_rules', 'idx_promotion_rules_code', 'code');
+CALL create_index_if_missing('promotion_rules', 'idx_promotion_rules_active', 'is_active');
+CALL create_index_if_missing('orders', 'idx_orders_customer_id', 'customer_id');
+CALL create_index_if_missing('orders', 'idx_orders_created_by', 'created_by');
+CALL create_index_if_missing('orders', 'idx_orders_status', 'status');
+CALL create_index_if_missing('order_details', 'idx_order_details_order_id', 'order_id');
+CALL create_index_if_missing('order_details', 'idx_order_details_product_id', 'product_id');
+CALL create_index_if_missing('payments', 'idx_payments_order_id', 'order_id');
+CALL create_index_if_missing('stock_transactions', 'idx_stock_transactions_product_id', 'product_id');
+CALL create_index_if_missing('stock_transactions', 'idx_stock_transactions_created_by', 'created_by');
+CALL create_index_if_missing('audit_logs', 'idx_audit_logs_user_id', 'user_id');
+CALL create_index_if_missing('waste_transactions', 'idx_waste_transactions_order_id', 'order_id');
+CALL create_index_if_missing('waste_transactions', 'idx_waste_transactions_product_id', 'product_id');
+
+DROP PROCEDURE IF EXISTS create_index_if_missing;

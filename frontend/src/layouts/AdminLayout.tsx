@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 type MenuItem = {
@@ -7,6 +7,12 @@ type MenuItem = {
   path: string;
   group: "main" | "system";
   disabled?: boolean;
+  children?: Array<{
+    label: string;
+    icon: string;
+    path: string;
+    disabled?: boolean;
+  }>;
 };
 
 type AuthUser = {
@@ -26,7 +32,7 @@ const menuItems: MenuItem[] = [
   { label: "Bán hàng (POS)", icon: "point_of_sale", path: "/pos", group: "main" },
   { label: "Sản phẩm", icon: "package_2", path: "/products", group: "main" },
   { label: "Danh mục", icon: "sell", path: "/categories", group: "main" },
-  { label: "Kho hàng", icon: "delivery_truck_bolt", path: "/stock", group: "main" },
+  { label: "Kho hàng", icon: "inventory_2", path: "/stock", group: "main" },
   { label: "Khách hàng", icon: "group", path: "/customers", group: "main" },
   { label: "Hóa đơn", icon: "receipt_long", path: "/invoices", group: "main" },
   { label: "Khuyến mãi", icon: "redeem", path: "/promotions", group: "main" },
@@ -136,10 +142,82 @@ function SidebarItem({
 }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const hasChildren = Boolean(item.children?.length);
   const isActive =
     !item.disabled &&
     (location.pathname === item.path ||
       (item.path !== "/dashboard" && location.pathname.startsWith(item.path)));
+
+  const [isOpen, setIsOpen] = useState(() => isActive);
+
+  useEffect(() => {
+    if (isActive) {
+      setIsOpen(true);
+    }
+  }, [isActive, location.pathname]);
+
+  if (hasChildren) {
+    return (
+      <div className="space-y-1">
+        <button
+          type="button"
+          onClick={() => {
+            if (!item.disabled) {
+              setIsOpen(!isOpen);
+            }
+          }}
+          disabled={item.disabled}
+          className={[
+            "flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left transition-all duration-200",
+            isActive
+              ? "bg-orange-50 font-bold text-[#f97316]"
+              : item.disabled
+                ? "cursor-not-allowed font-medium text-slate-400 opacity-70"
+                : "font-medium text-slate-600 hover:bg-orange-50 hover:text-[#f97316]",
+          ].join(" ")}
+        >
+          <Icon name={item.icon} className="text-[20px]" />
+          <span className="flex-1">{item.label}</span>
+          <Icon
+            name={isOpen ? "expand_less" : "expand_more"}
+            className={["ml-auto transition-transform duration-200 text-slate-400", isActive ? "text-[#f97316] font-bold" : ""].join(" ")}
+          />
+        </button>
+
+        {isOpen && (
+          <div className="relative ml-6 pl-3.5 before:absolute before:left-0 before:top-2 before:bottom-2 before:w-[1.5px] before:bg-slate-200">
+            <div className="flex flex-col gap-1">
+              {item.children?.map((child) => {
+                const isChildActive = location.pathname === child.path;
+                return (
+                  <button
+                    key={child.label}
+                    type="button"
+                    onClick={() => {
+                      if (!child.disabled) {
+                        navigate(child.path);
+                        onNavigate?.();
+                      }
+                    }}
+                    disabled={child.disabled}
+                    className={[
+                      "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] font-semibold transition-all duration-200",
+                      isChildActive
+                        ? "text-[#f97316] font-bold bg-orange-50/50"
+                        : "text-slate-500 hover:bg-orange-50/30 hover:text-[#f97316]",
+                    ].join(" ")}
+                  >
+                    <Icon name={child.icon} className="text-[16px]" />
+                    <span>{child.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <button

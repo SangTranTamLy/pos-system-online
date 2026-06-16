@@ -31,8 +31,6 @@ type OrderListRow = RowDataPacket & {
 type OrderDetailRow = OrderListRow & {
   promotion_id: string | null;
   note: string | null;
-  points_used: number;
-  points_earned: number;
 };
 
 type OrderItemRow = RowDataPacket & {
@@ -88,8 +86,6 @@ function mapOrderDetail(row: OrderDetailRow): Omit<OrderDetail, "details" | "pay
     ...mapOrderListItem(row),
     promotionId: row.promotion_id,
     note: row.note,
-    pointsUsed: row.points_used,
-    pointsEarned: row.points_earned,
   };
 }
 
@@ -213,8 +209,6 @@ export async function findOrderById(
       o.discount_amount,
       o.final_amount,
 
-      0 AS points_used,
-      0 AS points_earned,
       NULL AS note,
 
       p.payment_method,

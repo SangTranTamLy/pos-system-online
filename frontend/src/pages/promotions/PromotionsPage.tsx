@@ -9,6 +9,7 @@ import {
   togglePromotion,
   updatePromotion,
 } from "../../api/promotions.api";
+import { getProducts, type Product } from "../../api/product.api";
 
 // ─── Helpers ──────────────────────────────────────────────────
 function formatDate(iso: string | null) {
@@ -108,7 +109,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
       <button
         type="button"
         onClick={onAdd}
-        className="flex items-center gap-2 bg-[#f97316] px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+        className="hidden"
       >
         <Icon name="add" />
         Tạo khuyến mãi
@@ -120,11 +121,13 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
 // ─── Modal Form ───────────────────────────────────────────────
 type ModalProps = {
   editing: Promotion | null;
+  products: Product[];
   onClose: () => void;
   onSaved: (p: Promotion) => void;
 };
 
 const EMPTY_FORM: PromotionFormData = {
+  productId: "",
   code: "",
   name: "",
   discountType: "percent",
@@ -134,10 +137,11 @@ const EMPTY_FORM: PromotionFormData = {
   isActive: true,
 };
 
-function PromotionModal({ editing, onClose, onSaved }: ModalProps) {
+function PromotionModal({ editing, products, onClose, onSaved }: ModalProps) {
   const [form, setForm] = useState<PromotionFormData>(() =>
     editing
       ? {
+          productId: editing.productId,
           code: editing.code,
           name: editing.name,
           discountType: editing.discountType,
@@ -146,7 +150,7 @@ function PromotionModal({ editing, onClose, onSaved }: ModalProps) {
           endAt: toInputDate(editing.endAt),
           isActive: editing.isActive,
         }
-      : EMPTY_FORM
+      : { ...EMPTY_FORM, productId: products[0]?.id ?? "" }
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -215,6 +219,25 @@ function PromotionModal({ editing, onClose, onSaved }: ModalProps) {
               {error}
             </div>
           )}
+
+          <div>
+            <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-600">
+              San pham ap dung <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={form.productId}
+              onChange={(e) => setField("productId", e.target.value)}
+              required
+              className="w-full border border-slate-300 bg-white px-3 py-2.5 text-sm text-[#0b1c30] outline-none transition-colors focus:border-[#f97316] focus:ring-1 focus:ring-[#f97316]"
+            >
+              <option value="">Chon san pham</option>
+              {products.map((product) => (
+                <option key={product.id} value={product.id}>
+                  {product.name} - {product.sku}
+                </option>
+              ))}
+            </select>
+          </div>
 
           {/* Code */}
           <div>
@@ -346,14 +369,14 @@ function PromotionModal({ editing, onClose, onSaved }: ModalProps) {
             <button
               type="button"
               onClick={onClose}
-              className="border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+              className="inline-flex h-10 items-center justify-center border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
             >
               Huỷ
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex items-center gap-2 bg-[#f97316] px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+              className="inline-flex h-10 items-center justify-center gap-2 bg-[#f97316] px-4 text-sm font-bold text-white transition-colors hover:bg-[#ea580c] disabled:opacity-60"
             >
               {loading && (
                 <Icon name="progress_activity" className="animate-spin text-base" />
@@ -424,7 +447,7 @@ function DeleteConfirm({
           <button
             type="button"
             onClick={onClose}
-            className="border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+            className="inline-flex h-10 items-center justify-center border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
           >
             Huỷ
           </button>
@@ -432,7 +455,7 @@ function DeleteConfirm({
             type="button"
             onClick={handleDelete}
             disabled={loading}
-            className="flex items-center gap-2 bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+            className="inline-flex h-10 items-center justify-center gap-2 bg-red-600 px-4 text-sm font-bold text-white transition-colors hover:bg-red-700 disabled:opacity-60"
           >
             {loading && (
               <Icon name="progress_activity" className="animate-spin text-base" />
@@ -454,12 +477,17 @@ export default function PromotionsPage() {
   const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null);
   const [deletingPromotion, setDeletingPromotion] = useState<Promotion | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchPromotions();
+      const [data, productResponse] = await Promise.all([
+        fetchPromotions(),
+        getProducts(),
+      ]);
       setPromotions(data);
+      setProducts(productResponse.data);
     } catch {
       // ignore
     } finally {
@@ -476,7 +504,9 @@ export default function PromotionsPage() {
     if (!q) return promotions;
     return promotions.filter(
       (p) =>
-        p.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)
+        p.code.toLowerCase().includes(q) ||
+        p.name.toLowerCase().includes(q) ||
+        p.productName.toLowerCase().includes(q)
     );
   }, [promotions, search]);
 
@@ -540,7 +570,7 @@ export default function PromotionsPage() {
   return (
     <AdminLayout title="Khuyến mãi" subtitle="Quản lý mã giảm giá và chương trình ưu đãi tại quầy">
       {/* ── Header ── */}
-      <div className="mb-6 flex items-center justify-between gap-4">
+      <div className="mb-6">
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-[#f97316]">
             Ưu đãi bán hàng
@@ -553,7 +583,7 @@ export default function PromotionsPage() {
           type="button"
           id="btn-add-promotion"
           onClick={openAdd}
-          className="flex items-center gap-2 bg-[#f97316] px-5 py-2.5 text-sm font-bold text-white transition-opacity hover:opacity-90"
+          className="hidden"
         >
           <Icon name="add" />
           Tạo khuyến mãi
@@ -605,7 +635,15 @@ export default function PromotionsPage() {
               className="w-full border border-slate-200 bg-slate-50 py-2 pl-9 pr-4 text-sm text-[#0b1c30] outline-none transition-colors focus:border-[#f97316] focus:bg-white"
             />
           </div>
-          <span className="text-xs text-slate-400">
+          <button
+            type="button"
+            onClick={openAdd}
+            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 bg-[#f97316] px-4 text-sm font-bold text-white transition-colors hover:bg-[#ea580c]"
+          >
+            <Icon name="add" />
+            Tạo khuyến mãi
+          </button>
+          <span className="hidden">
             {filtered.length} kết quả
           </span>
         </div>
@@ -764,6 +802,7 @@ export default function PromotionsPage() {
       {showModal && (
         <PromotionModal
           editing={editingPromotion}
+          products={products}
           onClose={() => setShowModal(false)}
           onSaved={handleSaved}
         />

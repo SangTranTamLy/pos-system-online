@@ -67,24 +67,24 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
   },
   customers: {
     title: "Khách hàng",
-    subtitle: "Quản lý khách thân thiết, điểm tích lũy và lịch sử mua hàng.",
+    subtitle: "Quản lý thông tin khách hàng và lịch sử mua hàng.",
     eyebrow: "Chăm sóc khách hàng",
     heroTitle: "Hồ sơ khách hàng",
     heroDescription:
-      "Chuẩn bị màn hình khách hàng để sau này kết nối bảng customers và customer_points.",
+      "Chuẩn bị màn hình khách hàng để sau này kết nối bảng customers và orders.",
     primaryAction: "Thêm khách hàng",
     searchPlaceholder: "Tìm tên, số điện thoại hoặc email...",
     emptyText: "Chưa có khách hàng phù hợp.",
     stats: [
       { label: "Tổng khách", value: "0", icon: "group", tone: "bg-green-50 text-green-600" },
       { label: "Khách mới", value: "0", icon: "person_add", tone: "bg-orange-50 text-[#f97316]" },
-      { label: "Điểm đã phát", value: "0", icon: "stars", tone: "bg-amber-50 text-amber-600" },
+      { label: "Hóa đơn", value: "0", icon: "receipt_long", tone: "bg-amber-50 text-amber-600" },
       { label: "Doanh thu khách", value: "0 đ", icon: "payments", tone: "bg-slate-50 text-slate-600" },
     ],
     rows: [
-      { id: "cus-1", title: "Khách lẻ", subtitle: "Chưa lưu số điện thoại", value: "0 điểm", status: "Mặc định", statusClassName: "bg-slate-100 text-slate-600" },
+      { id: "cus-1", title: "Khách lẻ", subtitle: "Chưa lưu số điện thoại", value: "0 đ", status: "Mặc định", statusClassName: "bg-slate-100 text-slate-600" },
     ],
-    nextSteps: ["CRUD customers", "Tích điểm từ đơn POS", "Tra cứu lịch sử mua hàng"],
+    nextSteps: ["CRUD customers", "Liên kết orders", "Tra cứu lịch sử mua hàng"],
   },
   invoices: {
     title: "Hóa đơn",
@@ -283,7 +283,7 @@ function ModuleScaffoldPage({ moduleKey }: { moduleKey: ModuleKey }) {
         </div>
         <button
           type="button"
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#f97316] px-6 py-3 font-bold text-white shadow-lg shadow-orange-100 transition-all hover:brightness-110 active:translate-y-px"
+          className="inline-flex h-10 items-center justify-center gap-2 bg-[#f97316] px-4 text-sm font-bold text-white transition-colors hover:bg-[#ea580c]"
         >
           <Icon name="add" />
           {config.primaryAction}

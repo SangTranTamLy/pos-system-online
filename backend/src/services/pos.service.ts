@@ -54,7 +54,6 @@ export async function createPosOrderService(
     customerId: body.customerId,
     paymentMethod,
     promotionCode: body.promotionCode,
-    pointsUsed: body.pointsUsed,
     changeAmount: body.changeAmount,
     itemsCount: items.length,
   });
@@ -66,7 +65,6 @@ export async function createPosOrderService(
     note: body.note?.trim() || null,
     items,
     promotionCode: body.promotionCode?.trim() || null,
-    pointsUsed: body.pointsUsed ?? 0,
     changeAmount: body.changeAmount ?? 0,
   });
 }

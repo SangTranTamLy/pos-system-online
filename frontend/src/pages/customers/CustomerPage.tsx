@@ -3,12 +3,10 @@ import {
   createCustomer,
   deleteCustomer,
   getCustomerOrders,
-  getCustomerPoints,
   getCustomers,
   updateCustomer,
   type Customer,
   type CustomerOrderSummary,
-  type CustomerPointTransaction,
 } from "../../api/customers.api";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 
@@ -71,7 +69,6 @@ function CustomerPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [customerPoints, setCustomerPoints] = useState<CustomerPointTransaction[]>([]);
   const [customerOrders, setCustomerOrders] = useState<CustomerOrderSummary[]>([]);
   const [formState, setFormState] = useState<CustomerFormState>(defaultFormState);
 
@@ -105,10 +102,6 @@ function CustomerPage() {
   }, [successMessage]);
 
   const stats = useMemo(() => {
-    const totalPoints = customers.reduce(
-      (sum, customer) => sum + customer.loyaltyPoints,
-      0
-    );
     const totalSpent = customers.reduce(
       (sum, customer) => sum + customer.totalSpent,
       0
@@ -134,12 +127,6 @@ function CustomerPage() {
         value: String(newCustomers),
         icon: "person_add",
         tone: "bg-orange-50 text-[#f97316]",
-      },
-      {
-        label: "Diem dang co",
-        value: String(totalPoints),
-        icon: "stars",
-        tone: "bg-amber-50 text-amber-600",
       },
       {
         label: "Doanh thu khach",
@@ -232,11 +219,7 @@ function CustomerPage() {
     try {
       setSelectedCustomer(customer);
       setErrorMessage("");
-      const [pointsResponse, ordersResponse] = await Promise.all([
-        getCustomerPoints(customer.id),
-        getCustomerOrders(customer.id),
-      ]);
-      setCustomerPoints(pointsResponse.data);
+      const ordersResponse = await getCustomerOrders(customer.id);
       setCustomerOrders(ordersResponse.data);
     } catch (error) {
       setErrorMessage(
@@ -281,7 +264,7 @@ function CustomerPage() {
             </div>
             <button
               type="submit"
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
+              className="inline-flex h-10 items-center justify-center gap-2 border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
             >
               <Icon name="search" className="text-lg" />
               Tim
@@ -291,7 +274,7 @@ function CustomerPage() {
           <button
             type="button"
             onClick={openCreateModal}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#f97316] px-6 py-2.5 font-bold text-white shadow-md transition-all hover:brightness-110 active:translate-y-px"
+            className="inline-flex h-10 items-center justify-center gap-2 bg-[#f97316] px-4 text-sm font-bold text-white transition-colors hover:bg-[#ea580c]"
           >
             <Icon name="add" />
             Them khach hang
@@ -322,7 +305,6 @@ function CustomerPage() {
               <tr>
                 <th className="px-6 py-3">Khach hang</th>
                 <th className="px-6 py-3">Lien he</th>
-                <th className="px-6 py-3 text-right">Diem</th>
                 <th className="px-6 py-3 text-right">Tong chi</th>
                 <th className="px-6 py-3 text-center">Hoa don</th>
                 <th className="px-6 py-3 text-right">Thao tac</th>
@@ -342,9 +324,6 @@ function CustomerPage() {
                     <p className="mt-1 text-xs text-slate-400">
                       {customer.email || "Chua co email"}
                     </p>
-                  </td>
-                  <td className="px-6 py-4 text-right font-bold text-[#0b1c30]">
-                    {customer.loyaltyPoints}
                   </td>
                   <td className="px-6 py-4 text-right font-bold text-[#0b1c30]">
                     {formatCurrency(customer.totalSpent)}
@@ -445,55 +424,28 @@ function CustomerPage() {
 
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <p className="mb-4 text-xs font-bold uppercase tracking-widest text-[#f97316]">
-              Lich su diem va mua hang
+              Lich su mua hang
             </p>
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <div>
-                <h4 className="mb-2 font-bold text-[#0b1c30]">Diem tich luy</h4>
-                <div className="space-y-2">
-                  {customerPoints.slice(0, 5).map((point) => (
-                    <div key={point.id} className="rounded-lg bg-slate-50 p-3 text-sm">
-                      <div className="flex justify-between gap-3">
-                        <span className="font-semibold text-slate-700">
-                          {point.transactionType}
-                        </span>
-                        <span className="font-bold text-[#0b1c30]">{point.points}</span>
-                      </div>
-                      <p className="mt-1 text-xs text-slate-400">{formatDate(point.createdAt)}</p>
-                    </div>
-                  ))}
-                  {customerPoints.length === 0 ? (
-                    <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">
-                      Chua co lich su diem.
-                    </p>
-                  ) : null}
+            <div className="space-y-2">
+              {customerOrders.slice(0, 8).map((order) => (
+                <div key={order.id} className="rounded-lg bg-slate-50 p-3 text-sm">
+                  <div className="flex justify-between gap-3">
+                    <span className="font-semibold text-slate-700">
+                      #{order.id.slice(0, 8)}
+                    </span>
+                    <span className="font-bold text-[#0b1c30]">
+                      {formatCurrency(order.finalAmount)}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-400">{formatDate(order.createdAt)}</p>
                 </div>
+              ))}
+              {customerOrders.length === 0 ? (
+                <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">
+                  Chua co hoa don.
+                </p>
+              ) : null}
               </div>
-
-              <div>
-                <h4 className="mb-2 font-bold text-[#0b1c30]">Hoa don gan day</h4>
-                <div className="space-y-2">
-                  {customerOrders.slice(0, 5).map((order) => (
-                    <div key={order.id} className="rounded-lg bg-slate-50 p-3 text-sm">
-                      <div className="flex justify-between gap-3">
-                        <span className="font-semibold text-slate-700">
-                          #{order.id.slice(0, 8)}
-                        </span>
-                        <span className="font-bold text-[#0b1c30]">
-                          {formatCurrency(order.finalAmount)}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs text-slate-400">{formatDate(order.createdAt)}</p>
-                    </div>
-                  ))}
-                  {customerOrders.length === 0 ? (
-                    <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">
-                      Chua co hoa don.
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-            </div>
           </div>
         </section>
       ) : null}
@@ -578,14 +530,14 @@ function CustomerPage() {
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="flex-1 rounded-lg border border-slate-300 px-6 py-3 font-bold text-slate-600 transition-colors hover:bg-slate-50"
+                  className="flex h-10 flex-1 items-center justify-center border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
                 >
                   Huy
                 </button>
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="flex-1 rounded-lg bg-[#f97316] px-6 py-3 font-bold text-white shadow-lg transition-all hover:brightness-110 disabled:opacity-60"
+                  className="flex h-10 flex-1 items-center justify-center bg-[#f97316] px-4 text-sm font-bold text-white transition-colors hover:bg-[#ea580c] disabled:opacity-60"
                 >
                   {isSaving ? "Dang luu..." : editingCustomer ? "Luu thay doi" : "Them moi"}
                 </button>
