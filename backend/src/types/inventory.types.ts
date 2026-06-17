@@ -17,8 +17,44 @@ export interface CreateSupplierBody {
   address?: string;
 }
 
+export type UpdateSupplierBody = CreateSupplierBody;
+
+export interface Material {
+  id: string;
+  name: string;
+  sku: string;
+  category: string;
+  unit: string;
+  supplierId?: string | null;
+  supplierName?: string | null;
+  stockQuantity: number;
+  importPrice: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateMaterialBody {
+  name: string;
+  sku?: string;
+  category?: string;
+  unit: string;
+  supplierId?: string | null;
+  stockQuantity?: number;
+  importPrice?: number;
+  isActive?: boolean;
+}
+
+export type UpdateMaterialBody = CreateMaterialBody;
+
 export interface GoodsReceiptItem {
   productId: string;
+  quantity: number;
+  unitPrice: number;
+}
+
+export interface GoodsReceiptMaterialItem {
+  materialId: string;
   quantity: number;
   unitPrice: number;
 }
@@ -26,7 +62,7 @@ export interface GoodsReceiptItem {
 export interface CreateGoodsReceiptBody {
   supplierId: string | null;
   note?: string;
-  items?: GoodsReceiptItem[];
+  materialItems?: GoodsReceiptMaterialItem[];
   totalAmount?: number;
   createdAt?: string;
 }
@@ -36,6 +72,17 @@ export interface GoodsReceiptDetail {
   receiptId: string;
   productId: string;
   productName: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+}
+
+export interface GoodsReceiptMaterialDetail {
+  id: string;
+  receiptId: string;
+  materialId: string;
+  materialName: string;
+  unit: string;
   quantity: number;
   unitPrice: number;
   lineTotal: number;
@@ -51,4 +98,5 @@ export interface GoodsReceipt {
   totalAmount: number;
   createdAt: Date;
   details?: GoodsReceiptDetail[];
+  materialDetails?: GoodsReceiptMaterialDetail[];
 }

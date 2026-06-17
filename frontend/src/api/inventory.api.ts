@@ -10,6 +10,32 @@ export type Supplier = {
   debt?: number; // local mock or computed
 };
 
+export type Material = {
+  id: string;
+  name: string;
+  sku: string;
+  category: string;
+  unit: string;
+  supplierId?: string | null;
+  supplierName?: string | null;
+  stockQuantity: number;
+  importPrice: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type GoodsReceiptMaterialDetail = {
+  id: string;
+  receiptId: string;
+  materialId: string;
+  materialName: string;
+  unit: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+};
+
 export type GoodsReceiptDetail = {
   id: string;
   receiptId: string;
@@ -30,6 +56,7 @@ export type GoodsReceipt = {
   totalAmount: number;
   createdAt: string;
   details: GoodsReceiptDetail[];
+  materialDetails?: GoodsReceiptMaterialDetail[];
 };
 
 type ApiResponse<T> = {
@@ -94,6 +121,57 @@ export async function createSupplier(payload: {
   return handleResponse<Supplier>(response);
 }
 
+export async function updateSupplier(
+  id: string,
+  payload: {
+    name: string;
+    contactName?: string;
+    phone: string;
+    email?: string;
+    address?: string;
+  }
+) {
+  const response = await fetch(`${API_BASE_URL}/inventory/suppliers/${id}`, {
+    method: "PUT",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<Supplier>(response);
+}
+
+export async function deleteSupplier(id: string) {
+  const response = await fetch(`${API_BASE_URL}/inventory/suppliers/${id}`, {
+    method: "DELETE",
+    headers: getAuthHeaders(),
+  });
+  return handleResponse<Supplier>(response);
+}
+
+export async function fetchMaterials() {
+  const response = await fetch(`${API_BASE_URL}/inventory/materials`, {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+  return handleResponse<Material[]>(response);
+}
+
+export async function createMaterial(payload: {
+  name: string;
+  sku?: string;
+  category?: string;
+  unit: string;
+  supplierId?: string | null;
+  importPrice?: number;
+  isActive?: boolean;
+}) {
+  const response = await fetch(`${API_BASE_URL}/inventory/materials`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<Material>(response);
+}
+
 export async function fetchGoodsReceipts() {
   const response = await fetch(`${API_BASE_URL}/inventory/receipts`, {
     method: "GET",
@@ -105,8 +183,8 @@ export async function fetchGoodsReceipts() {
 export async function createGoodsReceipt(payload: {
   supplierId: string | null;
   note?: string;
-  items?: Array<{
-    productId: string;
+  materialItems?: Array<{
+    materialId: string;
     quantity: number;
     unitPrice: number;
   }>;
@@ -131,5 +209,33 @@ export async function adjustStock(payload: {
     headers: getAuthHeaders(),
     body: JSON.stringify(payload),
   });
-  return handleResponse<any>(response);
+  return handleResponse<unknown>(response);
+}
+
+export async function updateMaterial(
+  id: string,
+  payload: {
+    name: string;
+    sku?: string;
+    category?: string;
+    unit: string;
+    supplierId?: string | null;
+    importPrice?: number;
+    isActive?: boolean;
+  }
+) {
+  const response = await fetch(`${API_BASE_URL}/inventory/materials/${id}`, {
+    method: "PUT",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<Material>(response);
+}
+
+export async function deleteMaterial(id: string) {
+  const response = await fetch(`${API_BASE_URL}/inventory/materials/${id}`, {
+    method: "DELETE",
+    headers: getAuthHeaders(),
+  });
+  return handleResponse<Material>(response);
 }

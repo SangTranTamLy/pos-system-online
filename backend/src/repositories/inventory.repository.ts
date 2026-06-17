@@ -4,21 +4,47 @@ import { db } from "../config/database";
 import type {
   Supplier,
   CreateSupplierBody,
+  UpdateSupplierBody,
+  Material,
+  CreateMaterialBody,
+  UpdateMaterialBody,
   CreateGoodsReceiptBody,
   GoodsReceipt,
   GoodsReceiptDetail,
+  GoodsReceiptMaterialDetail,
 } from "../types/inventory.types";
 import { ApiError } from "../utils/apiError";
 
 type SupplierRow = RowDataPacket & Supplier;
+type MaterialRow = RowDataPacket & Material;
 type GoodsReceiptRow = RowDataPacket & GoodsReceipt;
 type GoodsReceiptDetailRow = RowDataPacket & GoodsReceiptDetail;
+type GoodsReceiptMaterialDetailRow = RowDataPacket & GoodsReceiptMaterialDetail;
+
+type SupplierDbRow = SupplierRow & {
+  contact_name?: string | null;
+  created_at?: Date;
+  updated_at?: Date;
+};
+
+function mapSupplier(row: SupplierDbRow): Supplier {
+  return {
+    id: row.id,
+    name: row.name,
+    contactName: row.contactName ?? row.contact_name ?? null,
+    phone: row.phone,
+    email: row.email ?? null,
+    address: row.address ?? null,
+    createdAt: row.createdAt ?? row.created_at ?? new Date(),
+    updatedAt: row.updatedAt ?? row.updated_at ?? new Date(),
+  };
+}
 
 export async function findAllSuppliers(): Promise<Supplier[]> {
   const [rows] = await db.execute<SupplierRow[]>(
     "SELECT * FROM suppliers ORDER BY name ASC"
   );
-  return rows;
+  return rows.map((row) => mapSupplier(row));
 }
 
 export async function createSupplier(
@@ -49,7 +75,248 @@ export async function createSupplier(
     throw new ApiError(500, "Không tạo được nhà cung cấp");
   }
 
-  return rows[0];
+  return mapSupplier(rows[0]);
+}
+
+export async function updateSupplier(
+  id: string,
+  data: UpdateSupplierBody
+): Promise<Supplier> {
+  const [result] = await db.execute<ResultSetHeader>(
+    `
+    UPDATE suppliers
+    SET name = ?, contact_name = ?, phone = ?, email = ?, address = ?
+    WHERE id = ?
+    `,
+    [
+      data.name.trim(),
+      data.contactName?.trim() || null,
+      data.phone.trim(),
+      data.email?.trim() || null,
+      data.address?.trim() || null,
+      id,
+    ]
+  );
+
+  if (result.affectedRows === 0) {
+    throw new ApiError(404, "Không tìm thấy nhà cung cấp");
+  }
+
+  const [rows] = await db.execute<SupplierRow[]>(
+    "SELECT * FROM suppliers WHERE id = ? LIMIT 1",
+    [id]
+  );
+
+  if (!rows[0]) {
+    throw new ApiError(404, "Không tìm thấy nhà cung cấp");
+  }
+
+  return mapSupplier(rows[0]);
+}
+
+export async function deleteSupplier(id: string): Promise<Supplier> {
+  const [rows] = await db.execute<SupplierRow[]>(
+    "SELECT * FROM suppliers WHERE id = ? LIMIT 1",
+    [id]
+  );
+
+  if (!rows[0]) {
+    throw new ApiError(404, "Không tìm thấy nhà cung cấp");
+  }
+
+  const supplier = mapSupplier(rows[0]);
+  await db.execute("DELETE FROM suppliers WHERE id = ?", [id]);
+
+  return supplier;
+}
+
+function mapMaterial(row: MaterialRow): Material {
+  return {
+    id: row.id,
+    name: row.name,
+    sku: row.sku,
+    category: row.category ?? "Khac",
+    unit: row.unit,
+    supplierId: row.supplierId ?? row.supplier_id ?? null,
+    supplierName: row.supplierName ?? row.supplier_name ?? null,
+    stockQuantity: Number(row.stockQuantity ?? row.stock_quantity ?? 0),
+    importPrice: Number(row.importPrice ?? row.import_price ?? 0),
+    isActive: Boolean(row.isActive ?? row.is_active ?? true),
+    createdAt: row.createdAt ?? row.created_at,
+    updatedAt: row.updatedAt ?? row.updated_at,
+  } as Material;
+}
+
+export async function findAllMaterials(): Promise<Material[]> {
+  const [rows] = await db.execute<MaterialRow[]>(
+    `
+    SELECT
+      raw_materials.id,
+      raw_materials.name,
+      raw_materials.sku,
+      raw_materials.category,
+      raw_materials.unit,
+      raw_materials.supplier_id AS supplierId,
+      suppliers.name AS supplierName,
+      stock_quantity AS stockQuantity,
+      import_price AS importPrice,
+      is_active AS isActive,
+      raw_materials.created_at AS createdAt,
+      raw_materials.updated_at AS updatedAt
+    FROM raw_materials
+    LEFT JOIN suppliers ON suppliers.id = raw_materials.supplier_id
+    ORDER BY name ASC
+    `
+  );
+
+  return rows.map(mapMaterial);
+}
+
+export async function createMaterial(data: CreateMaterialBody): Promise<Material> {
+  const id = randomUUID();
+  const sku =
+    data.sku?.trim() ||
+    `NL-${Date.now().toString(36).toUpperCase()}-${Math.random()
+      .toString(36)
+      .slice(2, 6)
+      .toUpperCase()}`;
+
+  await db.execute(
+    `
+    INSERT INTO raw_materials (id, name, sku, category, unit, supplier_id, stock_quantity, import_price, is_active)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    [
+      id,
+      data.name.trim(),
+      sku,
+      data.category?.trim() || "Khac",
+      data.unit.trim(),
+      data.supplierId || null,
+      Number(data.stockQuantity ?? 0),
+      Number(data.importPrice ?? 0),
+      data.isActive ?? true,
+    ]
+  );
+
+  const [rows] = await db.execute<MaterialRow[]>(
+    `
+    SELECT
+      raw_materials.id,
+      raw_materials.name,
+      raw_materials.sku,
+      raw_materials.category,
+      raw_materials.unit,
+      raw_materials.supplier_id AS supplierId,
+      suppliers.name AS supplierName,
+      stock_quantity AS stockQuantity,
+      import_price AS importPrice,
+      is_active AS isActive,
+      raw_materials.created_at AS createdAt,
+      raw_materials.updated_at AS updatedAt
+    FROM raw_materials
+    LEFT JOIN suppliers ON suppliers.id = raw_materials.supplier_id
+    WHERE id = ?
+    LIMIT 1
+    `,
+    [id]
+  );
+
+  if (!rows[0]) {
+    throw new ApiError(500, "Khong tao duoc nguyen lieu");
+  }
+
+  return mapMaterial(rows[0]);
+}
+
+export async function updateMaterial(
+  id: string,
+  data: UpdateMaterialBody
+): Promise<Material> {
+  const [result] = await db.execute<ResultSetHeader>(
+    `
+    UPDATE raw_materials
+    SET name = ?, sku = ?, category = ?, unit = ?, supplier_id = ?, import_price = ?, is_active = ?
+    WHERE id = ?
+    `,
+    [
+      data.name.trim(),
+      data.sku?.trim() || null,
+      data.category?.trim() || "Khac",
+      data.unit.trim(),
+      data.supplierId || null,
+      Number(data.importPrice ?? 0),
+      data.isActive ?? true,
+      id,
+    ]
+  );
+
+  if (result.affectedRows === 0) {
+    throw new ApiError(404, "Không tìm thấy nguyên liệu");
+  }
+
+  const [rows] = await db.execute<MaterialRow[]>(
+    `
+    SELECT
+      raw_materials.id,
+      raw_materials.name,
+      raw_materials.sku,
+      raw_materials.category,
+      raw_materials.unit,
+      raw_materials.supplier_id AS supplierId,
+      suppliers.name AS supplierName,
+      stock_quantity AS stockQuantity,
+      import_price AS importPrice,
+      is_active AS isActive,
+      raw_materials.created_at AS createdAt,
+      raw_materials.updated_at AS updatedAt
+    FROM raw_materials
+    LEFT JOIN suppliers ON suppliers.id = raw_materials.supplier_id
+    WHERE raw_materials.id = ?
+    LIMIT 1
+    `,
+    [id]
+  );
+
+  if (!rows[0]) {
+    throw new ApiError(404, "Không tìm thấy nguyên liệu");
+  }
+
+  return mapMaterial(rows[0]);
+}
+
+export async function deleteMaterial(id: string): Promise<Material> {
+  const [rows] = await db.execute<MaterialRow[]>(
+    `
+    SELECT
+      raw_materials.id,
+      raw_materials.name,
+      raw_materials.sku,
+      raw_materials.category,
+      raw_materials.unit,
+      raw_materials.supplier_id AS supplierId,
+      suppliers.name AS supplierName,
+      stock_quantity AS stockQuantity,
+      import_price AS importPrice,
+      is_active AS isActive,
+      raw_materials.created_at AS createdAt,
+      raw_materials.updated_at AS updatedAt
+    FROM raw_materials
+    LEFT JOIN suppliers ON suppliers.id = raw_materials.supplier_id
+    WHERE raw_materials.id = ?
+    LIMIT 1
+    `,
+    [id]
+  );
+
+  if (!rows[0]) {
+    throw new ApiError(404, "Không tìm thấy nguyên liệu");
+  }
+
+  const material = mapMaterial(rows[0]);
+  await db.execute("DELETE FROM raw_materials WHERE id = ?", [id]);
+
+  return material;
 }
 
 export async function findAllGoodsReceipts(): Promise<GoodsReceipt[]> {
@@ -96,6 +363,30 @@ export async function findGoodsReceiptDetail(
   return rows;
 }
 
+export async function findGoodsReceiptMaterialDetail(
+  receiptId: string
+): Promise<GoodsReceiptMaterialDetail[]> {
+  const [rows] = await db.execute<GoodsReceiptMaterialDetailRow[]>(
+    `
+    SELECT
+      goods_receipt_material_details.id,
+      goods_receipt_material_details.receipt_id AS receiptId,
+      goods_receipt_material_details.material_id AS materialId,
+      raw_materials.name AS materialName,
+      raw_materials.unit,
+      goods_receipt_material_details.quantity,
+      goods_receipt_material_details.unit_price AS unitPrice,
+      goods_receipt_material_details.line_total AS lineTotal
+    FROM goods_receipt_material_details
+    JOIN raw_materials ON raw_materials.id = goods_receipt_material_details.material_id
+    WHERE goods_receipt_material_details.receipt_id = ?
+    `,
+    [receiptId]
+  );
+
+  return rows;
+}
+
 export async function createGoodsReceiptTransaction(
   data: CreateGoodsReceiptBody,
   createdBy: string
@@ -117,90 +408,58 @@ export async function createGoodsReceiptTransaction(
     }
 
     const receiptId = randomUUID();
-    let totalAmount = data.totalAmount || 0;
-    const detailsList: any[] = [];
+    let totalAmount = 0;
+    const materialDetailsList: GoodsReceiptMaterialDetail[] = [];
 
-    // 2. Loop through products if items are provided (for backward compatibility / updates)
-    if (Array.isArray(data.items) && data.items.length > 0) {
-      totalAmount = 0;
-      for (const item of data.items) {
-        const productId = item.productId.trim();
-        const quantity = Number(item.quantity);
-        const unitPrice = Number(item.unitPrice);
-
-        if (!productId || quantity <= 0 || unitPrice < 0) {
-          throw new ApiError(400, "Thông tin sản phẩm nhập kho không hợp lệ");
-        }
-
-        // Check product existence
-        const [products] = await connection.execute<RowDataPacket[]>(
-          "SELECT id, name, stock_quantity, status FROM products WHERE id = ? LIMIT 1 FOR UPDATE",
-          [productId]
-        );
-
-        const product = products[0];
-        if (!product) {
-          throw new ApiError(404, `Không tìm thấy sản phẩm với ID ${productId}`);
-        }
-
-        const lineTotal = quantity * unitPrice;
-        totalAmount += lineTotal;
-
-        const detailId = randomUUID();
-        // Insert detail
-        await connection.execute(
-          `
-          INSERT INTO goods_receipt_details (id, receipt_id, product_id, quantity, unit_price, line_total)
-          VALUES (?, ?, ?, ?, ?, ?)
-          `,
-          [detailId, receiptId, productId, quantity, unitPrice, lineTotal]
-        );
-
-        // Update stock level on product
-        await connection.execute(
-          `
-          UPDATE products
-          SET
-            stock_quantity = stock_quantity + ?,
-            status = CASE
-              WHEN status = 'out_of_stock' AND stock_quantity + ? > 0 THEN 'active'
-              ELSE status
-            END
-          WHERE id = ?
-          `,
-          [quantity, quantity, productId]
-        );
-
-        // Log stock transaction
-        await connection.execute(
-          `
-          INSERT INTO stock_transactions (id, product_id, created_by, transaction_type, quantity, note)
-          VALUES (?, ?, ?, 'import', ?, ?)
-          `,
-          [
-            randomUUID(),
-            productId,
-            createdBy,
-            quantity,
-            `Nhập kho - Phiếu nhập ${receiptId}`,
-          ]
-        );
-
-        detailsList.push({
-          id: detailId,
-          receiptId,
-          productId,
-          productName: product.name,
-          quantity,
-          unitPrice,
-          lineTotal,
-        });
-      }
+    if (!Array.isArray(data.materialItems) || data.materialItems.length === 0) {
+      throw new ApiError(400, "Vui long chon it nhat mot nguyen lieu nhap kho");
     }
 
+    for (const item of data.materialItems) {
+      const materialId = item.materialId.trim();
+      const quantity = Number(item.quantity);
+      const unitPrice = Number(item.unitPrice);
+
+      if (!materialId || quantity <= 0 || unitPrice < 0) {
+        throw new ApiError(400, "Thong tin nguyen lieu nhap kho khong hop le");
+      }
+
+      const [materials] = await connection.execute<RowDataPacket[]>(
+        "SELECT id, name, unit FROM raw_materials WHERE id = ? AND is_active = TRUE LIMIT 1",
+        [materialId]
+      );
+
+      const material = materials[0];
+      if (!material) {
+        throw new ApiError(404, `Khong tim thay nguyen lieu voi ID ${materialId}`);
+      }
+
+      const lineTotal = quantity * unitPrice;
+      totalAmount += lineTotal;
+      const detailId = randomUUID();
+
+      await connection.execute(
+        `
+        INSERT INTO goods_receipt_material_details (id, receipt_id, material_id, quantity, unit_price, line_total)
+        VALUES (?, ?, ?, ?, ?, ?)
+        `,
+        [detailId, receiptId, materialId, quantity, unitPrice, lineTotal]
+      );
+
+      materialDetailsList.push({
+        id: detailId,
+        receiptId,
+        materialId,
+        materialName: material.name,
+        unit: material.unit,
+        quantity,
+        unitPrice,
+        lineTotal,
+      });
+    }
     const receiptDate = data.createdAt ? new Date(data.createdAt) : new Date();
 
-    // 3. Create goods receipt header
+    // 4. Create goods receipt header
     await connection.execute(
       `
       INSERT INTO goods_receipts (id, supplier_id, created_by, note, total_amount, created_at)
@@ -244,7 +503,8 @@ export async function createGoodsReceiptTransaction(
       note: data.note?.trim() || null,
       totalAmount,
       createdAt: new Date(),
-      details: detailsList,
+      details: [],
+      materialDetails: materialDetailsList,
     };
   } catch (error) {
     await connection.rollback();
