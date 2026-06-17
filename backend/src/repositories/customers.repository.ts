@@ -12,12 +12,12 @@ type CustomerRow = RowDataPacket & {
   id: string;
   full_name: string;
   phone: string;
-  email: string | null;
+  address: string | null;
   total_spent: string;
-  created_at: Date;
-  updated_at: Date;
   order_count?: number | string;
   last_order_at?: Date | null;
+  created_at: Date;
+  updated_at: Date;
 };
 
 type PosCustomerRow = RowDataPacket & {
@@ -42,7 +42,7 @@ function mapCustomer(row: CustomerRow): Customer {
     id: row.id,
     fullName: row.full_name,
     phone: row.phone,
-    email: row.email,
+    address: row.address,
     totalSpent: Number(row.total_spent ?? 0),
     orderCount: Number(row.order_count ?? 0),
     lastOrderAt: toIso(row.last_order_at),
@@ -63,12 +63,12 @@ function mapCustomerOrder(row: CustomerOrderRow): CustomerOrderSummary {
 
 function clampLimit(limit: number | undefined) {
   if (!Number.isFinite(limit)) return 100;
-  return Math.min(Math.max(Number(limit), 1), 200);
+  return Math.trunc(Math.min(Math.max(Number(limit), 1), 200));
 }
 
 function clampOffset(offset: number | undefined) {
   if (!Number.isFinite(offset)) return 0;
-  return Math.max(Number(offset), 0);
+  return Math.trunc(Math.max(Number(offset), 0));
 }
 
 function buildCustomerSearch(query: CustomerListQuery) {
@@ -84,7 +84,7 @@ function buildCustomerSearch(query: CustomerListQuery) {
   const term = `%${search}%`;
 
   return {
-    whereClause: "WHERE c.full_name LIKE ? OR c.phone LIKE ? OR c.email LIKE ?",
+    whereClause: "WHERE c.full_name LIKE ? OR c.phone LIKE ? OR c.address LIKE ?",
     params: [term, term, term] as Array<string | number>,
   };
 }
@@ -102,27 +102,28 @@ export async function findCustomers(
       c.id,
       c.full_name,
       c.phone,
-      c.email,
+      c.address,
       c.total_spent,
-      c.created_at,
-      c.updated_at,
-      COUNT(o.id) AS order_count,
-      MAX(o.created_at) AS last_order_at
-    FROM customers c
-    LEFT JOIN orders o ON o.customer_id = c.id
-    ${whereClause}
-    GROUP BY
-      c.id,
-      c.full_name,
-      c.phone,
-      c.email,
-      c.total_spent,
+      COALESCE(o.order_count, 0) AS order_count,
+      o.last_order_at,
       c.created_at,
       c.updated_at
-    ORDER BY c.updated_at DESC, c.created_at DESC
-    LIMIT ? OFFSET ?
+    FROM customers c
+    LEFT JOIN (
+      SELECT
+        customer_id,
+        COUNT(*) AS order_count,
+        MAX(created_at) AS last_order_at
+      FROM orders
+      WHERE customer_id IS NOT NULL
+        AND status = 'completed'
+      GROUP BY customer_id
+    ) o ON o.customer_id = c.id
+    ${whereClause}
+    ORDER BY c.total_spent DESC, c.updated_at DESC, c.created_at DESC
+    LIMIT ${limit} OFFSET ${offset}
     `,
-    [...params, limit, offset]
+    params
   );
 
   return rows.map(mapCustomer);
@@ -154,23 +155,24 @@ export async function findCustomerProfileById(
       c.id,
       c.full_name,
       c.phone,
-      c.email,
+      c.address,
       c.total_spent,
-      c.created_at,
-      c.updated_at,
-      COUNT(o.id) AS order_count,
-      MAX(o.created_at) AS last_order_at
-    FROM customers c
-    LEFT JOIN orders o ON o.customer_id = c.id
-    WHERE c.id = ?
-    GROUP BY
-      c.id,
-      c.full_name,
-      c.phone,
-      c.email,
-      c.total_spent,
+      COALESCE(o.order_count, 0) AS order_count,
+      o.last_order_at,
       c.created_at,
       c.updated_at
+    FROM customers c
+    LEFT JOIN (
+      SELECT
+        customer_id,
+        COUNT(*) AS order_count,
+        MAX(created_at) AS last_order_at
+      FROM orders
+      WHERE customer_id IS NOT NULL
+        AND status = 'completed'
+      GROUP BY customer_id
+    ) o ON o.customer_id = c.id
+    WHERE c.id = ?
     LIMIT 1
     `,
     [id]
@@ -188,23 +190,24 @@ export async function findCustomerByPhone(
       c.id,
       c.full_name,
       c.phone,
-      c.email,
+      c.address,
       c.total_spent,
-      c.created_at,
-      c.updated_at,
-      COUNT(o.id) AS order_count,
-      MAX(o.created_at) AS last_order_at
-    FROM customers c
-    LEFT JOIN orders o ON o.customer_id = c.id
-    WHERE c.phone = ?
-    GROUP BY
-      c.id,
-      c.full_name,
-      c.phone,
-      c.email,
-      c.total_spent,
+      COALESCE(o.order_count, 0) AS order_count,
+      o.last_order_at,
       c.created_at,
       c.updated_at
+    FROM customers c
+    LEFT JOIN (
+      SELECT
+        customer_id,
+        COUNT(*) AS order_count,
+        MAX(created_at) AS last_order_at
+      FROM orders
+      WHERE customer_id IS NOT NULL
+        AND status = 'completed'
+      GROUP BY customer_id
+    ) o ON o.customer_id = c.id
+    WHERE c.phone = ?
     LIMIT 1
     `,
     [phone]
@@ -216,7 +219,7 @@ export async function findCustomerByPhone(
 export async function createCustomer(data: {
   fullName: string;
   phone: string;
-  email: string | null;
+  address: string | null;
   totalSpent: number;
 }): Promise<Customer> {
   const id = randomUUID();
@@ -227,7 +230,7 @@ export async function createCustomer(data: {
       id,
       full_name,
       phone,
-      email,
+      address,
       total_spent
     )
     VALUES (?, ?, ?, ?, ?)
@@ -236,7 +239,7 @@ export async function createCustomer(data: {
       id,
       data.fullName,
       data.phone,
-      data.email,
+      data.address,
       data.totalSpent,
     ]
   );
@@ -255,16 +258,16 @@ export async function updateCustomer(
   data: {
     fullName: string;
     phone: string;
-    email: string | null;
+    address: string | null;
   }
 ): Promise<Customer | null> {
   await db.execute<ResultSetHeader>(
     `
     UPDATE customers
-    SET full_name = ?, phone = ?, email = ?
+    SET full_name = ?, phone = ?, address = ?
     WHERE id = ?
     `,
-    [data.fullName, data.phone, data.email, id]
+    [data.fullName, data.phone, data.address, id]
   );
 
   return findCustomerProfileById(id);
@@ -311,9 +314,9 @@ export async function findCustomerOrders(
     LEFT JOIN payments p ON p.order_id = o.id
     WHERE o.customer_id = ?
     ORDER BY o.created_at DESC
-    LIMIT ?
+    LIMIT ${clampLimit(limit)}
     `,
-    [customerId, clampLimit(limit)]
+    [customerId]
   );
 
   return rows.map(mapCustomerOrder);
@@ -342,13 +345,30 @@ export async function updateCustomerAfterOrder(
   customerId: string,
   finalAmount: number
 ): Promise<void> {
-  await connection.execute(
-    `
-    UPDATE customers
-    SET
-      total_spent = total_spent + ?
-    WHERE id = ?
-    `,
-    [finalAmount, customerId]
-  );
+  try {
+    await connection.execute(
+      `
+      UPDATE customers
+      SET
+        total_spent = total_spent + ?,
+        order_count = order_count + 1,
+        last_order_at = NOW()
+      WHERE id = ?
+      `,
+      [finalAmount, customerId]
+    );
+  } catch (error) {
+    if ((error as { code?: string }).code !== "ER_BAD_FIELD_ERROR") {
+      throw error;
+    }
+
+    await connection.execute(
+      `
+      UPDATE customers
+      SET total_spent = total_spent + ?
+      WHERE id = ?
+      `,
+      [finalAmount, customerId]
+    );
+  }
 }

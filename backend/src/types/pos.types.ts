@@ -7,6 +7,7 @@ export type CreatePosOrderItemBody = {
 
 export type CreatePosOrderBody = {
   customerId?: string | null;
+  customerPhone?: string | null;
   paymentMethod?: PosPaymentMethod;
   note?: string | null;
   items?: CreatePosOrderItemBody[];

@@ -95,7 +95,7 @@ export async function previewPromotionController(req: Request, res: Response) {
     );
 
     if (code && !appliedPromotion) {
-      throw new ApiError(400, "Ma khuyen mai khong hop le hoac khong phu hop don hang");
+      throw new ApiError(400, "Mã khuyến mãi không hợp lệ hoặc không phù hợp với đơn hàng.");
     }
 
     const discountAmount = appliedPromotion?.discountAmount ?? 0;
@@ -103,8 +103,8 @@ export async function previewPromotionController(req: Request, res: Response) {
     return res.status(200).json({
       success: true,
       message: appliedPromotion
-        ? `Dang ap dung "${appliedPromotion.name}"`
-        : "Chua co khuyen mai phu hop",
+        ? `Đang áp dụng "${appliedPromotion.name}"`
+        : "Chưa có khuyến mãi phù hợp.",
       data: {
         subtotal,
         discountAmount,

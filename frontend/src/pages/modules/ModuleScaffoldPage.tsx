@@ -146,7 +146,7 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
       { label: "Vai trò", value: "1", icon: "admin_panel_settings", tone: "bg-slate-50 text-slate-600" },
     ],
     rows: [
-      { id: "emp-1", title: "Administrator", subtitle: "admin@example.com", value: "ADMIN", status: "Hoạt động", statusClassName: "bg-green-50 text-green-600" },
+      { id: "emp-1", title: "Quản trị viên", subtitle: "admin@example.com", value: "ADMIN", status: "Hoạt động", statusClassName: "bg-green-50 text-green-600" },
     ],
     nextSteps: ["CRUD users", "Reset mật khẩu", "Phân quyền theo roles"],
   },
@@ -172,7 +172,7 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
     nextSteps: ["Thiết kế bảng shifts", "Mở/đóng ca", "Báo cáo tiền mặt cuối ca"],
   },
   auditLogs: {
-    title: "Audit Log",
+    title: "Nhật ký hệ thống",
     subtitle: "Theo dõi lịch sử thao tác quan trọng trong hệ thống.",
     eyebrow: "Nhật ký hệ thống",
     heroTitle: "Lịch sử thao tác",
@@ -188,7 +188,7 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
       { label: "Người dùng", value: "0", icon: "person", tone: "bg-slate-50 text-slate-600" },
     ],
     rows: [
-      { id: "log-1", title: "Đăng nhập hệ thống", subtitle: "Administrator", value: "Vừa xong", status: "Info", statusClassName: "bg-slate-100 text-slate-600" },
+      { id: "log-1", title: "Đăng nhập hệ thống", subtitle: "", value: "Vừa xong", status: "Info", statusClassName: "bg-slate-100 text-slate-600" },
     ],
     nextSteps: ["Ghi log trong service", "API phân trang audit_logs", "Bộ lọc theo entity/action"],
   },

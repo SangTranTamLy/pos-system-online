@@ -21,12 +21,12 @@ function normalizeName(value: string | undefined) {
 }
 
 function normalizePhone(value: string | undefined) {
-  return value?.replace(/\s+/g, "").trim() ?? "";
+  return value?.replace(/\D/g, "").trim() ?? "";
 }
 
-function normalizeEmail(value: string | null | undefined) {
-  const email = value?.trim();
-  return email ? email.toLowerCase() : null;
+function normalizeAddress(value: string | null | undefined) {
+  const address = value?.trim();
+  return address || null;
 }
 
 function normalizeMoney(value: number | undefined) {
@@ -34,27 +34,23 @@ function normalizeMoney(value: number | undefined) {
   const amount = Number(value);
 
   if (!Number.isFinite(amount) || amount < 0) {
-    throw new ApiError(400, "Tong chi tieu khong hop le");
+    throw new ApiError(400, "Tổng chi tiêu không hợp lệ.");
   }
 
   return amount;
 }
 
-function validateCustomerBase(fullName: string, phone: string, email: string | null) {
+function validateCustomerBase(fullName: string, phone: string) {
   if (!fullName) {
-    throw new ApiError(400, "Ten khach hang la bat buoc");
+    throw new ApiError(400, "Vui lòng nhập tên khách hàng.");
   }
 
   if (!phone) {
-    throw new ApiError(400, "So dien thoai la bat buoc");
+    throw new ApiError(400, "Vui lòng nhập số điện thoại.");
   }
 
-  if (!/^[0-9+()-]{8,20}$/.test(phone)) {
-    throw new ApiError(400, "So dien thoai khong hop le");
-  }
-
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    throw new ApiError(400, "Email khong hop le");
+  if (!/^[0-9]{10}$/.test(phone)) {
+    throw new ApiError(400, "Số điện thoại phải gồm đúng 10 chữ số.");
   }
 }
 
@@ -106,7 +102,7 @@ export async function getCustomerService(id: string) {
   const customer = await findCustomerProfileById(id);
 
   if (!customer) {
-    throw new ApiError(404, "Khong tim thay khach hang");
+    throw new ApiError(404, "Không tìm thấy khách hàng.");
   }
 
   return customer;
@@ -115,20 +111,20 @@ export async function getCustomerService(id: string) {
 export async function createCustomerService(body: CreateCustomerBody) {
   const fullName = normalizeName(body.fullName);
   const phone = normalizePhone(body.phone);
-  const email = normalizeEmail(body.email);
+  const address = normalizeAddress(body.address);
 
-  validateCustomerBase(fullName, phone, email);
+  validateCustomerBase(fullName, phone);
 
   const existingCustomer = await findCustomerByPhone(phone);
 
   if (existingCustomer) {
-    throw new ApiError(409, "So dien thoai da ton tai");
+    throw new ApiError(409, "Số điện thoại này đã được dùng cho khách hàng khác.");
   }
 
   return createCustomer({
     fullName,
     phone,
-    email,
+    address,
     totalSpent: normalizeMoney(body.totalSpent),
   });
 }
@@ -140,24 +136,24 @@ export async function updateCustomerService(
   const currentCustomer = await getCustomerService(id);
   const fullName = normalizeName(body.fullName);
   const phone = normalizePhone(body.phone);
-  const email = normalizeEmail(body.email);
+  const address = normalizeAddress(body.address);
 
-  validateCustomerBase(fullName, phone, email);
+  validateCustomerBase(fullName, phone);
 
   const existingCustomer = await findCustomerByPhone(phone);
 
   if (existingCustomer && existingCustomer.id !== currentCustomer.id) {
-    throw new ApiError(409, "So dien thoai da ton tai");
+    throw new ApiError(409, "Số điện thoại này đã được dùng cho khách hàng khác.");
   }
 
   const updatedCustomer = await updateCustomer(id, {
     fullName,
     phone,
-    email,
+    address,
   });
 
   if (!updatedCustomer) {
-    throw new ApiError(404, "Khong tim thay khach hang");
+    throw new ApiError(404, "Không tìm thấy khách hàng.");
   }
 
   return updatedCustomer;
@@ -170,14 +166,14 @@ export async function deleteCustomerService(id: string) {
   if (orderCount > 0) {
     throw new ApiError(
       409,
-      "Khong the xoa khach hang da co hoa don. Hay giu lai de bao toan lich su ban hang."
+      "Không thể xóa khách hàng đã có hóa đơn. Vui lòng giữ lại hồ sơ để bảo toàn lịch sử mua hàng."
     );
   }
 
   const deleted = await deleteCustomerById(id);
 
   if (!deleted) {
-    throw new ApiError(404, "Khong tim thay khach hang");
+    throw new ApiError(404, "Không tìm thấy khách hàng.");
   }
 
   return currentCustomer;

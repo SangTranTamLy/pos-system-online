@@ -75,7 +75,7 @@ export async function createPosOrderTransaction(
       customer = await findCustomerById(connection, data.customerId);
 
       if (!customer) {
-        throw new ApiError(404, "Khong tim thay khach hang");
+        throw new ApiError(404, "Không tìm thấy khách hàng.");
       }
     }
 
@@ -86,15 +86,15 @@ export async function createPosOrderTransaction(
       const product = await findProductForUpdate(connection, item.productId);
 
       if (!product) {
-        throw new ApiError(404, "Khong tim thay san pham");
+        throw new ApiError(404, "Không tìm thấy sản phẩm.");
       }
 
       if (product.status !== "active") {
-        throw new ApiError(409, `San pham "${product.name}" khong dang ban`);
+        throw new ApiError(409, `Sản phẩm "${product.name}" hiện không bán.`);
       }
 
       if (product.stock_quantity < item.quantity) {
-        throw new ApiError(409, `San pham "${product.name}" khong du ton kho`);
+        throw new ApiError(409, `Sản phẩm "${product.name}" không đủ tồn kho.`);
       }
 
       const unitPrice = Number(product.sale_price);
@@ -127,7 +127,7 @@ export async function createPosOrderTransaction(
     );
 
     if (data.promotionCode && !appliedPromotion) {
-      throw new ApiError(400, "Ma khuyen mai khong hop le hoac khong phu hop don hang");
+      throw new ApiError(400, "Mã khuyến mãi không hợp lệ hoặc không phù hợp với đơn hàng.");
     }
 
     if (appliedPromotion) {
@@ -220,7 +220,7 @@ export async function createPosOrderTransaction(
           detail.productId,
           data.createdBy,
           detail.quantity,
-          `Ban hang tai quay - don ${orderId}`,
+          `Bán hàng tại quầy - đơn ${orderId}`,
         ]
       );
     }

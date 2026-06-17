@@ -28,7 +28,7 @@ type AdminLayoutProps = {
 };
 
 const menuItems: MenuItem[] = [
-  { label: "Dashboard", icon: "dashboard", path: "/dashboard", group: "main" },
+  { label: "Tổng quan", icon: "dashboard", path: "/dashboard", group: "main" },
   { label: "Bán hàng (POS)", icon: "point_of_sale", path: "/pos", group: "main" },
   { label: "Sản phẩm", icon: "package_2", path: "/products", group: "main" },
   { label: "Danh mục", icon: "sell", path: "/categories", group: "main" },
@@ -38,8 +38,8 @@ const menuItems: MenuItem[] = [
   { label: "Khuyến mãi", icon: "redeem", path: "/promotions", group: "main" },
   { label: "Nhân viên", icon: "badge", path: "/employees", group: "system" },
   { label: "Ca làm", icon: "work_history", path: "/shifts", group: "system" },
-  { label: "Audit Log", icon: "history", path: "/audit-logs", group: "system" },
   { label: "Báo cáo", icon: "analytics", path: "/reports", group: "system" },
+  { label: "Nhật ký hệ thống", icon: "history", path: "/audit-logs", group: "system" },
   { label: "Cấu hình hệ thống", icon: "settings", path: "/settings", group: "system" },
 ];
 

@@ -19,7 +19,7 @@ export async function listPromotionsController(_req: Request, res: Response) {
 export async function getPromotionController(req: Request, res: Response) {
   const id = String(req.params.id);
   const promotion = await findPromotionById(id);
-  if (!promotion) throw new ApiError(404, "Khong tim thay khuyen mai");
+  if (!promotion) throw new ApiError(404, "Không tìm thấy khuyến mãi.");
   return res.json({ success: true, data: promotion });
 }
 
@@ -32,23 +32,23 @@ function validatePromotionBody(body: Record<string, unknown>) {
   const startAt = body.startAt ? String(body.startAt) : null;
   const endAt = body.endAt ? String(body.endAt) : null;
 
-  if (!productId) throw new ApiError(400, "San pham ap dung la bat buoc");
-  if (!code) throw new ApiError(400, "Ma khuyen mai la bat buoc");
+  if (!productId) throw new ApiError(400, "Vui lòng chọn sản phẩm áp dụng.");
+  if (!code) throw new ApiError(400, "Vui lòng nhập mã khuyến mãi.");
   if (!/^[A-Z0-9_-]{2,30}$/.test(code)) {
     throw new ApiError(
       400,
-      "Ma khuyen mai chi gom chu hoa, so, _ va - (2-30 ky tu)"
+      "Mã khuyến mãi chỉ gồm chữ hoa, số, _ và - (2-30 ký tự)."
     );
   }
-  if (!name) throw new ApiError(400, "Ten khuyen mai la bat buoc");
+  if (!name) throw new ApiError(400, "Vui lòng nhập tên khuyến mãi.");
   if (!["percent", "fixed"].includes(discountType)) {
-    throw new ApiError(400, "Loai giam gia khong hop le");
+    throw new ApiError(400, "Loại giảm giá không hợp lệ.");
   }
   if (!Number.isFinite(discountValue) || discountValue <= 0) {
     throw new ApiError(400, "Gia tri giam phai lon hon 0");
   }
   if (discountType === "percent" && discountValue > 100) {
-    throw new ApiError(400, "Giam theo % khong duoc vuot qua 100");
+    throw new ApiError(400, "Giảm theo % không được vượt quá 100.");
   }
 
   return {
@@ -64,7 +64,7 @@ function validatePromotionBody(body: Record<string, unknown>) {
 
 async function ensurePromotionProductExists(productId: string) {
   const product = await findProductById(productId);
-  if (!product) throw new ApiError(404, "Khong tim thay san pham ap dung");
+  if (!product) throw new ApiError(404, "Không tìm thấy sản phẩm áp dụng.");
 }
 
 export async function createPromotionController(req: Request, res: Response) {
@@ -73,7 +73,7 @@ export async function createPromotionController(req: Request, res: Response) {
   await ensurePromotionProductExists(data.productId);
 
   const existing = await findPromotionByCode(data.code);
-  if (existing) throw new ApiError(409, "Ma khuyen mai da ton tai");
+  if (existing) throw new ApiError(409, "Mã khuyến mãi đã tồn tại.");
 
   const promotion = await createPromotion(data);
   return res.status(201).json({ success: true, data: promotion });
@@ -84,19 +84,19 @@ export async function updatePromotionController(req: Request, res: Response) {
   const body = req.body as Record<string, unknown>;
 
   const existing = await findPromotionById(id);
-  if (!existing) throw new ApiError(404, "Khong tim thay khuyen mai");
+  if (!existing) throw new ApiError(404, "Không tìm thấy khuyến mãi.");
 
   const data = validatePromotionBody(body);
   await ensurePromotionProductExists(data.productId);
 
   const duplicateCode = await findPromotionByCode(data.code, id);
-  if (duplicateCode) throw new ApiError(409, "Ma khuyen mai da ton tai");
+  if (duplicateCode) throw new ApiError(409, "Mã khuyến mãi đã tồn tại.");
 
   const isActive =
     typeof body.isActive === "boolean" ? body.isActive : existing.isActive;
 
   const updated = await updatePromotion(id, { ...data, isActive });
-  if (!updated) throw new ApiError(404, "Khong tim thay khuyen mai");
+  if (!updated) throw new ApiError(404, "Không tìm thấy khuyến mãi.");
 
   return res.json({ success: true, data: updated });
 }
@@ -104,7 +104,7 @@ export async function updatePromotionController(req: Request, res: Response) {
 export async function togglePromotionController(req: Request, res: Response) {
   const id = String(req.params.id);
   const existing = await findPromotionById(id);
-  if (!existing) throw new ApiError(404, "Khong tim thay khuyen mai");
+  if (!existing) throw new ApiError(404, "Không tìm thấy khuyến mãi.");
 
   const updated = await togglePromotion(id, !existing.isActive);
   return res.json({ success: true, data: updated });
@@ -113,8 +113,8 @@ export async function togglePromotionController(req: Request, res: Response) {
 export async function deletePromotionController(req: Request, res: Response) {
   const id = String(req.params.id);
   const existing = await findPromotionById(id);
-  if (!existing) throw new ApiError(404, "Khong tim thay khuyen mai");
+  if (!existing) throw new ApiError(404, "Không tìm thấy khuyến mãi.");
 
   await deletePromotion(id);
-  return res.json({ success: true, message: "Da xoa khuyen mai" });
+  return res.json({ success: true, message: "Đã xóa khuyến mãi." });
 }

@@ -31,9 +31,9 @@ function formatCurrency(value: number) {
 }
 
 function getPaymentMethodLabel(method: PosPaymentMethod) {
-  if (method === "qr") return "Chuyen khoan";
-  if (method === "card") return "The ngan hang";
-  return "Tien mat";
+  if (method === "qr") return "Chuyển khoản";
+  if (method === "card") return "Thẻ ngân hàng";
+  return "Tiền mặt";
 }
 
 export default function PaymentConfirmModal({
@@ -52,10 +52,10 @@ export default function PaymentConfirmModal({
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
           <div>
             <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-2xl font-extrabold text-[#0b1c30]">
-              Xac nhan thanh toan
+              Xác nhận thanh toán
             </h3>
             <p className="mt-1 text-sm text-slate-500">
-              Don hang se duoc ghi nhan vao he thong MySQL.
+              Đơn hàng sẽ được ghi nhận vào hệ thống.
             </p>
           </div>
           <button
@@ -63,7 +63,7 @@ export default function PaymentConfirmModal({
             onClick={onClose}
             disabled={isProcessing}
             className="rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
-            aria-label="Dong"
+            aria-label="Đóng"
           >
             <Icon name="close" className="text-2xl" />
           </button>
@@ -73,7 +73,7 @@ export default function PaymentConfirmModal({
           <section className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
             <div className="mb-4 flex items-center gap-3 text-lg font-extrabold text-[#0b1c30]">
               <Icon name="receipt_long" />
-              <span>Chi tiet don hang</span>
+              <span>Chi tiết đơn hàng</span>
             </div>
             <div className="divide-y divide-slate-200/80">
               {cartItems.map((item) => (
@@ -110,7 +110,7 @@ export default function PaymentConfirmModal({
                 <span>{formatCurrency(0)}</span>
               </div>
               <div className="flex justify-between gap-4 text-xl font-extrabold text-[#0b1c30]">
-                <span>Tong thanh toan</span>
+                <span>Tổng thanh toán</span>
                 <span className="text-[#f97316]">{formatCurrency(finalAmount)}</span>
               </div>
               <div className="flex justify-between gap-4 text-sm text-slate-600">
@@ -123,7 +123,7 @@ export default function PaymentConfirmModal({
           </section>
 
           <div className="rounded-2xl border border-orange-100 bg-orange-50 p-4 text-sm font-semibold text-[#92400e]">
-            <p>Nhan "Xac nhan" de ghi nhan thanh toan va tao hoa don ban hang.</p>
+            <p>Nhấn "Xác nhận" để ghi nhận thanh toán và tạo hóa đơn bán hàng.</p>
           </div>
 
           <div className="flex justify-end gap-4">
@@ -143,10 +143,10 @@ export default function PaymentConfirmModal({
             >
               <Icon name="check_circle" />
               {paymentMethod === "qr"
-                ? "Tiep tuc chuyen khoan"
+                ? "Tiếp tục chuyển khoản"
                 : isProcessing
-                  ? "Dang xac nhan..."
-                  : "Xac nhan da nhan thanh toan"}
+                  ? "Đang xác nhận..."
+                  : "Xác nhận đã nhận thanh toán"}
             </button>
           </div>
         </div>

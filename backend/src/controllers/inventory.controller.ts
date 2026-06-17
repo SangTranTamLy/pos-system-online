@@ -16,6 +16,18 @@ import {
 } from "../repositories/inventory.repository";
 import { ApiError } from "../utils/apiError";
 
+function validateSupplierPhone(phone: unknown) {
+  const normalizedPhone = String(phone || "").trim();
+
+  if (!normalizedPhone) {
+    throw new ApiError(400, "Vui lòng nhập số điện thoại nhà cung cấp.");
+  }
+
+  if (!/^\d{10}$/.test(normalizedPhone)) {
+    throw new ApiError(400, "Số điện thoại nhà cung cấp phải gồm đúng 10 chữ số.");
+  }
+}
+
 export async function getSuppliersController(req: Request, res: Response) {
   const data = await findAllSuppliers();
   return res.json({
@@ -27,19 +39,17 @@ export async function getSuppliersController(req: Request, res: Response) {
 export async function createSupplierController(req: Request, res: Response) {
   const { name, phone } = req.body;
 
-  if (!name || !name.trim()) {
-    throw new ApiError(400, "Vui long nhap ten nha cung cap");
+  if (!String(name || "").trim()) {
+    throw new ApiError(400, "Vui lòng nhập tên nhà cung cấp.");
   }
 
-  if (!phone || !phone.trim()) {
-    throw new ApiError(400, "Vui long nhap so dien thoai nha cung cap");
-  }
+  validateSupplierPhone(phone);
 
   const supplier = await createSupplier(req.body);
 
   return res.status(201).json({
     success: true,
-    message: "Them nha cung cap thanh cong",
+    message: "Đã thêm nhà cung cấp mới.",
     data: supplier,
   });
 }
@@ -49,22 +59,20 @@ export async function updateSupplierController(req: Request, res: Response) {
   const { name, phone } = req.body;
 
   if (!id || !id.trim()) {
-    throw new ApiError(400, "Thieu ma nha cung cap");
+    throw new ApiError(400, "Thiếu mã nhà cung cấp.");
   }
 
-  if (!name || !name.trim()) {
-    throw new ApiError(400, "Vui long nhap ten nha cung cap");
+  if (!String(name || "").trim()) {
+    throw new ApiError(400, "Vui lòng nhập tên nhà cung cấp.");
   }
 
-  if (!phone || !phone.trim()) {
-    throw new ApiError(400, "Vui long nhap so dien thoai nha cung cap");
-  }
+  validateSupplierPhone(phone);
 
   const supplier = await updateSupplier(id, req.body);
 
   return res.json({
     success: true,
-    message: "Cap nhat nha cung cap thanh cong",
+    message: "Đã cập nhật nhà cung cấp.",
     data: supplier,
   });
 }
@@ -73,14 +81,14 @@ export async function deleteSupplierController(req: Request, res: Response) {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
 
   if (!id || !id.trim()) {
-    throw new ApiError(400, "Thieu ma nha cung cap");
+    throw new ApiError(400, "Thiếu mã nhà cung cấp.");
   }
 
   const supplier = await deleteSupplier(id);
 
   return res.json({
     success: true,
-    message: "Xoa nha cung cap thanh cong",
+    message: "Đã xóa nhà cung cấp.",
     data: supplier,
   });
 }
@@ -97,18 +105,18 @@ export async function createMaterialController(req: Request, res: Response) {
   const { name, unit } = req.body;
 
   if (!name || !name.trim()) {
-    throw new ApiError(400, "Vui long nhap ten nguyen lieu");
+    throw new ApiError(400, "Vui lòng nhập tên nguyên liệu.");
   }
 
   if (!unit || !unit.trim()) {
-    throw new ApiError(400, "Vui long nhap don vi tinh nguyen lieu");
+    throw new ApiError(400, "Vui lòng nhập đơn vị tính nguyên liệu.");
   }
 
   const material = await createMaterial(req.body);
 
   return res.status(201).json({
     success: true,
-    message: "Them nguyen lieu thanh cong",
+    message: "Đã thêm nguyên liệu mới.",
     data: material,
   });
 }
@@ -176,37 +184,37 @@ export async function getGoodsReceiptsController(req: Request, res: Response) {
 
 export async function createGoodsReceiptController(req: Request, res: Response) {
   if (!req.user) {
-    throw new ApiError(401, "Chua xac thuc");
+    throw new ApiError(401, "Phiên đăng nhập chưa được xác thực.");
   }
 
   const { materialItems } = req.body;
 
   if (!Array.isArray(materialItems) || materialItems.length === 0) {
-    throw new ApiError(400, "Vui long chon it nhat mot nguyen lieu de nhap kho");
+    throw new ApiError(400, "Vui lòng chọn ít nhất một nguyên liệu để nhập kho.");
   }
 
   const receipt = await createGoodsReceiptTransaction(req.body, req.user.id);
 
   return res.status(201).json({
     success: true,
-    message: "Tao phieu nhap kho thanh cong",
+    message: "Đã tạo phiếu nhập kho.",
     data: receipt,
   });
 }
 
 export async function createStockAdjustmentController(req: Request, res: Response) {
   if (!req.user) {
-    throw new ApiError(401, "Chua xac thuc");
+    throw new ApiError(401, "Phiên đăng nhập chưa được xác thực.");
   }
 
   const { productId, newQuantity, note } = req.body;
 
   if (!productId || productId.trim() === "") {
-    throw new ApiError(400, "Vui long chon san pham can dieu chinh");
+    throw new ApiError(400, "Vui lòng chọn sản phẩm cần điều chỉnh.");
   }
 
   if (typeof newQuantity !== "number" || newQuantity < 0) {
-    throw new ApiError(400, "So luong dieu chinh khong hop le");
+    throw new ApiError(400, "Số lượng điều chỉnh không hợp lệ.");
   }
 
   const result = await createStockAdjustmentTransaction(
@@ -218,7 +226,7 @@ export async function createStockAdjustmentController(req: Request, res: Respons
 
   return res.status(200).json({
     success: true,
-    message: "Dieu chinh ton kho thanh cong",
+    message: "Đã điều chỉnh tồn kho.",
     data: result,
   });
 }

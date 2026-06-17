@@ -13,13 +13,13 @@ import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 type CustomerFormState = {
   fullName: string;
   phone: string;
-  email: string;
+  address: string;
 };
 
 const defaultFormState: CustomerFormState = {
   fullName: "",
   phone: "",
-  email: "",
+  address: "",
 };
 
 function formatCurrency(value: number) {
@@ -31,7 +31,7 @@ function formatCurrency(value: number) {
 }
 
 function formatDate(value: string | null) {
-  if (!value) return "Chua co";
+  if (!value) return "Chưa có";
   return new Date(value).toLocaleDateString("vi-VN");
 }
 
@@ -80,7 +80,7 @@ function CustomerPage() {
       setCustomers(response.data);
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "Khong tai duoc danh sach khach hang"
+        error instanceof Error ? error.message : "Không tải được danh sách khách hàng. Vui lòng thử lại."
       );
     } finally {
       setIsLoading(false);
@@ -117,25 +117,34 @@ function CustomerPage() {
 
     return [
       {
-        label: "Tong khach",
+        label: "Tổng khách",
         value: String(customers.length),
         icon: "group",
         tone: "bg-green-50 text-green-600",
       },
       {
-        label: "Khach moi thang nay",
+        label: "Khách mới tháng này",
         value: String(newCustomers),
         icon: "person_add",
         tone: "bg-orange-50 text-[#f97316]",
       },
       {
-        label: "Doanh thu khach",
+        label: "Doanh thu khách",
         value: formatCurrency(totalSpent),
         icon: "payments",
         tone: "bg-blue-50 text-blue-600",
       },
     ];
   }, [customers]);
+
+  const topVipCustomers = useMemo(
+    () =>
+      [...customers]
+        .filter((customer) => customer.totalSpent > 0)
+        .sort((first, second) => second.totalSpent - first.totalSpent)
+        .slice(0, 10),
+    [customers]
+  );
 
   const openCreateModal = () => {
     setEditingCustomer(null);
@@ -149,7 +158,7 @@ function CustomerPage() {
     setFormState({
       fullName: customer.fullName,
       phone: customer.phone,
-      email: customer.email ?? "",
+      address: customer.address ?? "",
     });
     setErrorMessage("");
     setIsModalOpen(true);
@@ -170,23 +179,28 @@ function CustomerPage() {
 
       const payload = {
         fullName: formState.fullName.trim(),
-        phone: formState.phone.trim(),
-        email: formState.email.trim() || null,
+        phone: formState.phone.replace(/\D/g, ""),
+        address: formState.address.trim() || null,
       };
+
+      if (!/^[0-9]{10}$/.test(payload.phone)) {
+        setErrorMessage("Số điện thoại phải gồm đúng 10 chữ số.");
+        return;
+      }
 
       if (editingCustomer) {
         await updateCustomer(editingCustomer.id, payload);
-        setSuccessMessage("Da cap nhat khach hang");
+        setSuccessMessage("Đã lưu thay đổi. Hồ sơ khách hàng đã được cập nhật.");
       } else {
         await createCustomer(payload);
-        setSuccessMessage("Da them khach hang");
+        setSuccessMessage("Đã thêm khách hàng mới vào danh sách.");
       }
 
       closeModal();
       await loadCustomers(search);
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "Luu khach hang that bai"
+        error instanceof Error ? error.message : "Chưa lưu được khách hàng. Vui lòng kiểm tra lại thông tin."
       );
     } finally {
       setIsSaving(false);
@@ -195,7 +209,7 @@ function CustomerPage() {
 
   const handleDelete = async (customer: Customer) => {
     const confirmed = window.confirm(
-      `Ban co chac muon xoa khach hang "${customer.fullName}" khong?`
+      `Bạn có chắc chắn muốn xóa khách hàng "${customer.fullName}" không?`
     );
 
     if (!confirmed) return;
@@ -203,14 +217,14 @@ function CustomerPage() {
     try {
       setErrorMessage("");
       await deleteCustomer(customer.id);
-      setSuccessMessage("Da xoa khach hang");
+      setSuccessMessage("Đã xóa khách hàng khỏi danh sách.");
       if (selectedCustomer?.id === customer.id) {
         setSelectedCustomer(null);
       }
       await loadCustomers(search);
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "Xoa khach hang that bai"
+        error instanceof Error ? error.message : "Chưa xóa được khách hàng. Vui lòng thử lại."
       );
     }
   };
@@ -223,7 +237,7 @@ function CustomerPage() {
       setCustomerOrders(ordersResponse.data);
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "Khong tai duoc chi tiet khach hang"
+        error instanceof Error ? error.message : "Không tải được chi tiết khách hàng. Vui lòng thử lại."
       );
     }
   };
@@ -235,8 +249,8 @@ function CustomerPage() {
 
   return (
     <AdminLayout
-      title="Khach hang"
-      subtitle="Quan ly ho so, diem tich luy va lich su mua hang."
+      title="Khách hàng"
+      subtitle="Quản lý hồ sơ khách quen và lịch sử mua hàng."
     >
       <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((stat) => (
@@ -258,7 +272,7 @@ function CustomerPage() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Tim ten, so dien thoai hoac email..."
+                placeholder="Tìm tên, số điện thoại hoặc địa chỉ..."
                 className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pr-4 pl-10 text-sm outline-none transition-all focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
               />
             </div>
@@ -267,7 +281,7 @@ function CustomerPage() {
               className="inline-flex h-10 items-center justify-center gap-2 border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
             >
               <Icon name="search" className="text-lg" />
-              Tim
+              Tìm
             </button>
           </form>
 
@@ -277,7 +291,7 @@ function CustomerPage() {
             className="inline-flex h-10 items-center justify-center gap-2 bg-[#f97316] px-4 text-sm font-bold text-white transition-colors hover:bg-[#ea580c]"
           >
             <Icon name="add" />
-            Them khach hang
+            Thêm khách hàng
           </button>
         </div>
 
@@ -295,7 +309,7 @@ function CustomerPage() {
 
         {isLoading ? (
           <div className="p-6 text-sm font-medium text-slate-500">
-            Dang tai khach hang...
+            Đang tải khách hàng...
           </div>
         ) : null}
 
@@ -303,11 +317,12 @@ function CustomerPage() {
           <table className="w-full min-w-[920px] text-left text-sm">
             <thead className="bg-slate-50 font-semibold text-slate-500">
               <tr>
-                <th className="px-6 py-3">Khach hang</th>
-                <th className="px-6 py-3">Lien he</th>
-                <th className="px-6 py-3 text-right">Tong chi</th>
-                <th className="px-6 py-3 text-center">Hoa don</th>
-                <th className="px-6 py-3 text-right">Thao tac</th>
+                <th className="px-6 py-3">Tên</th>
+                <th className="px-6 py-3">SĐT</th>
+                <th className="px-6 py-3 text-right">Tổng chi tiêu</th>
+                <th className="px-6 py-3 text-center">Số hóa đơn</th>
+                <th className="px-6 py-3">Lần mua cuối</th>
+                <th className="px-6 py-3 text-right">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -316,14 +331,11 @@ function CustomerPage() {
                   <td className="px-6 py-4">
                     <p className="font-bold text-[#0b1c30]">{customer.fullName}</p>
                     <p className="mt-1 text-xs text-slate-400">
-                      Tao ngay {formatDate(customer.createdAt)}
+                      {customer.address || "Chưa có địa chỉ"}
                     </p>
                   </td>
-                  <td className="px-6 py-4">
-                    <p className="font-semibold text-slate-700">{customer.phone}</p>
-                    <p className="mt-1 text-xs text-slate-400">
-                      {customer.email || "Chua co email"}
-                    </p>
+                  <td className="px-6 py-4 font-semibold text-slate-700">
+                    {customer.phone}
                   </td>
                   <td className="px-6 py-4 text-right font-bold text-[#0b1c30]">
                     {formatCurrency(customer.totalSpent)}
@@ -333,6 +345,9 @@ function CustomerPage() {
                       {customer.orderCount}
                     </span>
                   </td>
+                  <td className="px-6 py-4 font-semibold text-slate-600">
+                    {formatDate(customer.lastOrderAt)}
+                  </td>
                   <td className="space-x-2 px-6 py-4 text-right">
                     <button
                       type="button"
@@ -340,7 +355,7 @@ function CustomerPage() {
                         void handleViewDetails(customer);
                       }}
                       className="rounded-lg p-2 text-blue-600 transition-colors hover:bg-blue-50"
-                      title="Xem chi tiet"
+                      title="Xem chi tiết"
                     >
                       <Icon name="visibility" className="text-xl" />
                     </button>
@@ -348,7 +363,7 @@ function CustomerPage() {
                       type="button"
                       onClick={() => openEditModal(customer)}
                       className="rounded-lg p-2 text-[#f97316] transition-colors hover:bg-orange-50"
-                      title="Sua khach hang"
+                      title="Sửa khách hàng"
                     >
                       <Icon name="edit" className="text-xl" />
                     </button>
@@ -358,7 +373,7 @@ function CustomerPage() {
                         void handleDelete(customer);
                       }}
                       className="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50"
-                      title="Xoa khach hang"
+                      title="Xóa khách hàng"
                     >
                       <Icon name="delete" className="text-xl" />
                     </button>
@@ -371,22 +386,58 @@ function CustomerPage() {
 
         {!isLoading && customers.length === 0 ? (
           <div className="p-8 text-center text-sm font-semibold text-slate-400">
-            Khong co khach hang phu hop.
+            Không có khách hàng phù hợp.
           </div>
         ) : null}
       </section>
 
-      {selectedCustomer ? (
-        <section className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-[#f97316]">
-                  Chi tiet khach hang
+      {topVipCustomers.length > 0 ? (
+        <section className="mt-6 border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-[#f97316]">
+                Khách VIP
+              </p>
+              <h3 className="mt-1 text-xl font-bold text-[#0b1c30]">
+                Top 10 khách chi tiêu nhiều nhất
+              </h3>
+            </div>
+          </div>
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+            {topVipCustomers.map((customer, index) => (
+              <button
+                key={customer.id}
+                type="button"
+                onClick={() => {
+                  void handleViewDetails(customer);
+                }}
+                className="border border-slate-200 bg-slate-50 p-3 text-left hover:border-[#f97316]"
+              >
+                <p className="text-xs font-bold text-[#f97316]">#{index + 1}</p>
+                <p className="mt-1 truncate font-bold text-[#0b1c30]">
+                  {customer.fullName}
                 </p>
-                <h3 className="mt-1 text-xl font-bold text-[#0b1c30]">
+                <p className="text-xs text-slate-500">{customer.phone}</p>
+                <p className="mt-2 text-sm font-extrabold text-[#0b1c30]">
+                  {formatCurrency(customer.totalSpent)}
+                </p>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {selectedCustomer ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(11,28,48,0.45)] p-4">
+          <div className="w-full max-w-4xl overflow-hidden border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-start justify-between border-b border-slate-200 bg-white px-6 py-5">
+              <div>
+                <h3 className="text-xl font-bold text-[#0b1c30]">
                   {selectedCustomer.fullName}
                 </h3>
+                <p className="mt-1 text-sm font-semibold text-slate-500">
+                  SĐT: {selectedCustomer.phone}
+                </p>
               </div>
               <button
                 type="button"
@@ -396,58 +447,63 @@ function CustomerPage() {
                 <Icon name="close" />
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="rounded-lg bg-slate-50 p-4">
-                <p className="text-xs font-semibold text-slate-500">So dien thoai</p>
-                <p className="mt-1 font-bold text-[#0b1c30]">{selectedCustomer.phone}</p>
+
+            <div className="max-h-[75vh] overflow-y-auto p-6">
+              <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div className="bg-slate-50 p-4">
+                  <p className="text-xs font-semibold text-slate-500">Tổng chi tiêu</p>
+                  <p className="mt-1 text-lg font-bold text-[#0b1c30]">
+                    {formatCurrency(selectedCustomer.totalSpent)}
+                  </p>
+                </div>
+                <div className="bg-slate-50 p-4">
+                  <p className="text-xs font-semibold text-slate-500">Tổng hóa đơn</p>
+                  <p className="mt-1 text-lg font-bold text-[#0b1c30]">
+                    {selectedCustomer.orderCount}
+                  </p>
+                </div>
+                <div className="bg-slate-50 p-4">
+                  <p className="text-xs font-semibold text-slate-500">Lần mua gần nhất</p>
+                  <p className="mt-1 text-lg font-bold text-[#0b1c30]">
+                    {formatDate(selectedCustomer.lastOrderAt)}
+                  </p>
+                </div>
               </div>
-              <div className="rounded-lg bg-slate-50 p-4">
-                <p className="text-xs font-semibold text-slate-500">Email</p>
-                <p className="mt-1 font-bold text-[#0b1c30]">
-                  {selectedCustomer.email || "Chua co"}
-                </p>
-              </div>
-              <div className="rounded-lg bg-slate-50 p-4">
-                <p className="text-xs font-semibold text-slate-500">Lan mua gan nhat</p>
-                <p className="mt-1 font-bold text-[#0b1c30]">
-                  {formatDate(selectedCustomer.lastOrderAt)}
-                </p>
-              </div>
-              <div className="rounded-lg bg-slate-50 p-4">
-                <p className="text-xs font-semibold text-slate-500">Tong chi tieu</p>
-                <p className="mt-1 font-bold text-[#0b1c30]">
-                  {formatCurrency(selectedCustomer.totalSpent)}
-                </p>
+
+              <div className="overflow-x-auto border border-slate-200">
+                <table className="w-full min-w-[560px] text-left text-sm">
+                  <thead className="bg-slate-50 font-semibold text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3">Mã hóa đơn</th>
+                      <th className="px-4 py-3">Ngày</th>
+                      <th className="px-4 py-3 text-right">Tổng tiền</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {customerOrders.map((order) => (
+                      <tr key={order.id}>
+                        <td className="px-4 py-3 font-bold text-[#0b1c30]">
+                          HD{order.id.slice(0, 6).toUpperCase()}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">
+                          {formatDate(order.createdAt)}
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold text-[#0b1c30]">
+                          {formatCurrency(order.finalAmount)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {customerOrders.length === 0 ? (
+                  <p className="bg-slate-50 p-4 text-sm text-slate-500">
+                    Chưa có hóa đơn.
+                  </p>
+                ) : null}
               </div>
             </div>
           </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <p className="mb-4 text-xs font-bold uppercase tracking-widest text-[#f97316]">
-              Lich su mua hang
-            </p>
-            <div className="space-y-2">
-              {customerOrders.slice(0, 8).map((order) => (
-                <div key={order.id} className="rounded-lg bg-slate-50 p-3 text-sm">
-                  <div className="flex justify-between gap-3">
-                    <span className="font-semibold text-slate-700">
-                      #{order.id.slice(0, 8)}
-                    </span>
-                    <span className="font-bold text-[#0b1c30]">
-                      {formatCurrency(order.finalAmount)}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-400">{formatDate(order.createdAt)}</p>
-                </div>
-              ))}
-              {customerOrders.length === 0 ? (
-                <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">
-                  Chua co hoa don.
-                </p>
-              ) : null}
-              </div>
-          </div>
-        </section>
+        </div>
       ) : null}
 
       {isModalOpen ? (
@@ -459,7 +515,7 @@ function CustomerPage() {
                   <Icon name="person" />
                 </span>
                 <h3 className="text-xl font-bold text-[#0b1c30]">
-                  {editingCustomer ? "Sua khach hang" : "Them khach hang"}
+                  {editingCustomer ? "Sửa khách hàng" : "Thêm khách hàng"}
                 </h3>
               </div>
               <button
@@ -474,7 +530,7 @@ function CustomerPage() {
             <form className="space-y-5 p-6" onSubmit={handleSubmit}>
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-[#0b1c30]">
-                  Ten khach hang <span className="text-red-600">*</span>
+                  Tên khách hàng <span className="text-red-600">*</span>
                 </label>
                 <input
                   required
@@ -486,21 +542,25 @@ function CustomerPage() {
                     }))
                   }
                   className="w-full rounded-lg border border-slate-200 px-4 py-3 text-sm outline-none transition-all focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
-                  placeholder="VD: Nguyen Van A"
+                  placeholder="VD: Nguyễn Văn A"
                 />
               </div>
 
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-[#0b1c30]">
-                  So dien thoai <span className="text-red-600">*</span>
+                  Số điện thoại <span className="text-red-600">*</span>
                 </label>
                 <input
                   required
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={10}
+                  pattern="[0-9]{10}"
                   value={formState.phone}
                   onChange={(event) =>
                     setFormState((current) => ({
                       ...current,
-                      phone: event.target.value,
+                      phone: event.target.value.replace(/\D/g, "").slice(0, 10),
                     }))
                   }
                   className="w-full rounded-lg border border-slate-200 px-4 py-3 text-sm outline-none transition-all focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
@@ -510,19 +570,19 @@ function CustomerPage() {
 
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-[#0b1c30]">
-                  Email
+                  Địa chỉ
                 </label>
-                <input
-                  type="email"
-                  value={formState.email}
+                <textarea
+                  rows={3}
+                  value={formState.address}
                   onChange={(event) =>
                     setFormState((current) => ({
                       ...current,
-                      email: event.target.value,
+                      address: event.target.value,
                     }))
                   }
-                  className="w-full rounded-lg border border-slate-200 px-4 py-3 text-sm outline-none transition-all focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
-                  placeholder="VD: khach@example.com"
+                  className="w-full resize-none rounded-lg border border-slate-200 px-4 py-3 text-sm outline-none transition-all focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                  placeholder="VD: Quan 1, TP. Ho Chi Minh"
                 />
               </div>
 
@@ -532,14 +592,14 @@ function CustomerPage() {
                   onClick={closeModal}
                   className="flex h-10 flex-1 items-center justify-center border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
                 >
-                  Huy
+                  Hủy
                 </button>
                 <button
                   type="submit"
                   disabled={isSaving}
                   className="flex h-10 flex-1 items-center justify-center bg-[#f97316] px-4 text-sm font-bold text-white transition-colors hover:bg-[#ea580c] disabled:opacity-60"
                 >
-                  {isSaving ? "Dang luu..." : editingCustomer ? "Luu thay doi" : "Them moi"}
+                  {isSaving ? "Đang lưu..." : editingCustomer ? "Lưu thay đổi" : "Thêm mới"}
                 </button>
               </div>
             </form>

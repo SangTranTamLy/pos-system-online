@@ -1,7 +1,7 @@
 USE pos_system;
 
 INSERT INTO roles (id, name, description)
-VALUES ('00000000-0000-0000-0000-000000000001', 'admin', 'System administrator')
+VALUES ('00000000-0000-0000-0000-000000000001', 'admin', 'Quản trị viên')
 ON DUPLICATE KEY UPDATE
   name = VALUES(name),
   description = VALUES(description);
@@ -16,7 +16,7 @@ INSERT INTO users (
 )
 VALUES (
   '00000000-0000-0000-0000-000000000101',
-  'Administrator',
+  'Quản trị viên',
   'admin@example.com',
   '$2b$10$9tUFu9TM1ge5iv3Uluug4OuIyrVetVSvdhHQDTRD9uWltV1wpRXBG',
   '00000000-0000-0000-0000-000000000001',

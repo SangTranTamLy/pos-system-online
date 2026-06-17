@@ -4,7 +4,7 @@ export type Customer = {
   id: string;
   fullName: string;
   phone: string;
-  email: string | null;
+  address: string | null;
   totalSpent: number;
   orderCount: number;
   lastOrderAt: string | null;
@@ -26,7 +26,7 @@ type ApiResponse<T> = {
 export type CustomerPayload = {
   fullName: string;
   phone: string;
-  email?: string | null;
+  address?: string | null;
 };
 
 export type CustomerOrderSummary = {

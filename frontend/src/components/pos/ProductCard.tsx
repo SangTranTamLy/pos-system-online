@@ -61,7 +61,7 @@ export default function ProductCard({ product, onAdd }: ProductCardProps) {
                 : "bg-orange-50 text-[#f97316]",
             ].join(" ")}
           >
-            {isUnavailable ? "Het hang" : `Con ${product.stockQuantity}`}
+            {isUnavailable ? "Hết hàng" : `Còn ${product.stockQuantity}`}
           </span>
         </div>
 
@@ -82,7 +82,7 @@ export default function ProductCard({ product, onAdd }: ProductCardProps) {
                 ? "cursor-not-allowed bg-slate-100 text-slate-400"
                 : "cursor-pointer bg-orange-50 text-[#f97316]",
             ].join(" ")}
-            aria-label={`Them ${product.name} vao gio`}
+            aria-label={`Thêm ${product.name} vào giỏ`}
           >
             <Icon name="add" />
           </button>

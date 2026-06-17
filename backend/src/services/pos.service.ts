@@ -1,4 +1,5 @@
 import { createPosOrderTransaction } from "../repositories/pos.repository";
+import { findCustomerByPhone } from "../repositories/customers.repository";
 import type {
   CreatePosOrderBody,
   NormalizedPosOrderItem,
@@ -49,9 +50,17 @@ export async function createPosOrderService(
   }
 
   const items = normalizeItems(body.items);
+  let customerId = body.customerId?.trim() || null;
+  const customerPhone = body.customerPhone?.replace(/\s+/g, "").trim();
+
+  if (!customerId && customerPhone) {
+    const customer = await findCustomerByPhone(customerPhone);
+    customerId = customer?.id ?? null;
+  }
 
   console.log("POS Order Input:", {
-    customerId: body.customerId,
+    customerId,
+    customerPhone,
     paymentMethod,
     promotionCode: body.promotionCode,
     changeAmount: body.changeAmount,
@@ -59,7 +68,7 @@ export async function createPosOrderService(
   });
 
   return createPosOrderTransaction({
-    customerId: body.customerId?.trim() || null,
+    customerId,
     createdBy,
     paymentMethod,
     note: body.note?.trim() || null,

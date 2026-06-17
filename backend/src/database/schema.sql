@@ -57,12 +57,16 @@ CREATE TABLE IF NOT EXISTS products (
 CREATE TABLE IF NOT EXISTS customers (
   id CHAR(36) PRIMARY KEY,
   full_name VARCHAR(120) NOT NULL,
-  phone VARCHAR(30) NOT NULL UNIQUE,
-  email VARCHAR(255),
+  phone VARCHAR(10) NOT NULL UNIQUE,
+  address VARCHAR(255),
   total_spent DECIMAL(12, 2) NOT NULL DEFAULT 0,
+  order_count INT NOT NULL DEFAULT 0,
+  last_order_at DATETIME NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT chk_customers_total_spent CHECK (total_spent >= 0)
+  CONSTRAINT chk_customers_total_spent CHECK (total_spent >= 0),
+  CONSTRAINT chk_customers_order_count CHECK (order_count >= 0),
+  CONSTRAINT chk_customers_phone_10_digits CHECK (phone REGEXP '^[0-9]{10}$')
 );
 
 CREATE TABLE IF NOT EXISTS promotions (

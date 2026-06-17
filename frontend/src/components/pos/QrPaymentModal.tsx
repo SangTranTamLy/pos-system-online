@@ -60,8 +60,8 @@ function QrPaymentModal({
     .join(", ");
 
   const transferContent = productCodes
-    ? `Thanh toan don hang ${productCodes}`
-    : "Thanh toan don hang";
+    ? `Thanh toán đơn hàng ${productCodes}`
+    : "Thanh toán đơn hàng";
   const qrImageUrl = buildSepayQrUrl(amount, transferContent);
 
   return (
@@ -70,7 +70,7 @@ function QrPaymentModal({
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
           <div>
             <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-extrabold text-[#0b1c30]">
-              Thanh toan QR
+              Thanh toán QR
             </h3>
           </div>
           <button
@@ -78,7 +78,7 @@ function QrPaymentModal({
             onClick={onClose}
             disabled={isProcessing}
             className="rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
-            aria-label="Dong"
+            aria-label="Đóng"
           >
             <Icon name="close" className="text-2xl" />
           </button>
@@ -90,7 +90,7 @@ function QrPaymentModal({
               <div className="mx-auto w-fit rounded-xl border border-slate-200 bg-white p-3">
                 <img
                   src={qrImageUrl}
-                  alt="Ma QR thanh toan"
+                  alt="Mã QR thanh toán"
                   className="h-80 w-80 rounded-lg object-contain"
                 />
               </div>
@@ -103,7 +103,7 @@ function QrPaymentModal({
               <div className="space-y-5">
                 <div className="border-b border-slate-100 pb-4">
                   <p className="text-xs font-extrabold uppercase text-slate-400">
-                    Hinh thuc nhan tien
+                    Hình thức nhận tiền
                   </p>
                   <p className="mt-2 text-lg font-extrabold text-[#0b1c30]">
                     {PAYMENT_NAME}
@@ -114,7 +114,7 @@ function QrPaymentModal({
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-xs font-extrabold uppercase text-slate-400">
-                        Tai khoan nhan
+                        Tài khoản nhận
                       </p>
                       <p className="mt-2 text-lg font-extrabold text-[#0b1c30]">
                         {ACCOUNT_NO}
@@ -134,7 +134,7 @@ function QrPaymentModal({
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-xs font-extrabold uppercase text-slate-400">
-                        Ten nguoi nhan
+                        Tên người nhận
                       </p>
                       <p className="mt-2 text-lg font-extrabold text-[#0b1c30]">
                         {ACCOUNT_NAME}
@@ -154,7 +154,7 @@ function QrPaymentModal({
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-xs font-extrabold uppercase text-slate-400">
-                        So tien thanh toan
+                        Số tiền thanh toán
                       </p>
                       <p className="mt-2 text-2xl font-extrabold text-[#f97316]">
                         {formatCurrency(amount)}
@@ -173,7 +173,7 @@ function QrPaymentModal({
                 <div>
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <p className="text-xs font-extrabold uppercase text-slate-400">
-                      Noi dung chuyen khoan
+                      Nội dung chuyển khoản
                     </p>
                     <button
                       type="button"
@@ -187,7 +187,7 @@ function QrPaymentModal({
                     {transferContent}
                   </p>
                   <p className="mt-2 text-xs font-semibold text-slate-500">
-                    Ma san pham trong QR: {productCodes}
+                    Mã sản phẩm trong QR: {productCodes}
                   </p>
                 </div>
               </div>
@@ -209,12 +209,12 @@ function QrPaymentModal({
                 <span>{formatCurrency(0)}</span>
               </div>
               <div className="flex justify-between gap-4 text-xl font-extrabold text-[#0b1c30]">
-                <span>Tong cong</span>
+                <span>Tổng cộng</span>
                 <span className="text-[#f97316]">{formatCurrency(amount)}</span>
               </div>
               <div className="flex justify-between gap-4">
                 <span className="text-slate-600">Phuong thuc</span>
-                <span className="font-extrabold text-[#0b1c30]">Chuyen khoan</span>
+                <span className="font-extrabold text-[#0b1c30]">Chuyển khoản</span>
               </div>
             </div>
           </section>
@@ -226,7 +226,7 @@ function QrPaymentModal({
               disabled={isProcessing}
               className="rounded-xl border border-slate-200 bg-white px-6 py-3 font-extrabold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Quay lai xac nhan
+              Quay lại xác nhận
             </button>
             <button
               type="button"
@@ -235,7 +235,7 @@ function QrPaymentModal({
               className="flex items-center justify-center gap-2 rounded-xl bg-[#0b1c30] px-6 py-3 font-extrabold text-white hover:bg-[#132a45] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Icon name="check_circle" />
-              {isProcessing ? "Dang tao hoa don..." : "Xac nhan da nhan tien"}
+              {isProcessing ? "Đang tạo hóa đơn..." : "Xác nhận đã nhận tiền"}
             </button>
           </div>
         </div>

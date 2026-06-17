@@ -22,7 +22,7 @@ export async function getCustomersController(req: Request, res: Response) {
 
   return res.status(200).json({
     success: true,
-    message: "Danh sach khach hang",
+    message: "Đã tải danh sách khách hàng.",
     data: result.customers,
     meta: {
       total: result.total,
@@ -38,7 +38,7 @@ export async function searchCustomersController(req: Request, res: Response) {
 
   return res.status(200).json({
     success: true,
-    message: "Tim kiem khach hang",
+    message: "Đã tìm kiếm khách hàng.",
     data: customers,
   });
 }
@@ -48,7 +48,7 @@ export async function getCustomerController(req: Request, res: Response) {
 
   return res.status(200).json({
     success: true,
-    message: "Chi tiet khach hang",
+    message: "Đã tải chi tiết khách hàng.",
     data: customer,
   });
 }
@@ -58,7 +58,7 @@ export async function createCustomerController(req: Request, res: Response) {
 
   return res.status(201).json({
     success: true,
-    message: "Tao khach hang thanh cong",
+    message: "Đã tạo khách hàng mới.",
     data: customer,
   });
 }
@@ -68,7 +68,7 @@ export async function updateCustomerController(req: Request, res: Response) {
 
   return res.status(200).json({
     success: true,
-    message: "Cap nhat khach hang thanh cong",
+    message: "Đã cập nhật khách hàng.",
     data: customer,
   });
 }
@@ -78,7 +78,7 @@ export async function deleteCustomerController(req: Request, res: Response) {
 
   return res.status(200).json({
     success: true,
-    message: "Xoa khach hang thanh cong",
+    message: "Đã xóa khách hàng.",
     data: customer,
   });
 }
@@ -88,7 +88,7 @@ export async function getCustomerOrdersController(req: Request, res: Response) {
 
   return res.status(200).json({
     success: true,
-    message: "Lich su mua hang cua khach hang",
+    message: "Đã tải lịch sử mua hàng của khách hàng.",
     data: orders,
   });
 }

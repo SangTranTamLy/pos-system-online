@@ -1,5 +1,6 @@
 docs/
 backend/node_modules/
+backend/database/
 frontend/node_modules/
 backend/dist/
 backend/uploads/

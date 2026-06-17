@@ -50,7 +50,7 @@ export type GoodsReceipt = {
   id: string;
   supplierId: string | null;
   supplierName?: string | null;
-  createdBy: string;
+  createdBy: string | null;
   createdByName?: string | null;
   note: string | null;
   totalAmount: number;

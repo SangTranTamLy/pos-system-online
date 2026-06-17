@@ -222,7 +222,7 @@ function PromotionModal({ editing, products, onClose, onSaved }: ModalProps) {
 
           <div>
             <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-600">
-              San pham ap dung <span className="text-red-500">*</span>
+              Sản phẩm áp dụng <span className="text-red-500">*</span>
             </label>
             <select
               value={form.productId}
@@ -230,7 +230,7 @@ function PromotionModal({ editing, products, onClose, onSaved }: ModalProps) {
               required
               className="w-full border border-slate-300 bg-white px-3 py-2.5 text-sm text-[#0b1c30] outline-none transition-colors focus:border-[#f97316] focus:ring-1 focus:ring-[#f97316]"
             >
-              <option value="">Chon san pham</option>
+              <option value="">Chọn sản phẩm</option>
               {products.map((product) => (
                 <option key={product.id} value={product.id}>
                   {product.name} - {product.sku}

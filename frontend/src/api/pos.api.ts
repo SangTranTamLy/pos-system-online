@@ -4,6 +4,7 @@ export type PosPaymentMethod = "cash" | "qr" | "card";
 
 export type CreatePosOrderPayload = {
   customerId?: string | null;
+  customerPhone?: string | null;
   paymentMethod: PosPaymentMethod;
   note?: string | null;
   items: Array<{

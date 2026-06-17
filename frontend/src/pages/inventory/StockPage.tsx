@@ -24,6 +24,10 @@ type ReceiptItemDraft = {
 };
 
 type PaymentFilter = "all" | "paid" | "partial" | "unpaid";
+type NoticeState = {
+  type: "success" | "error";
+  message: string;
+};
 
 const inputClass =
   "h-10 w-full border border-slate-200 bg-white px-3 text-sm font-semibold text-[#0b1c30] outline-none transition-colors focus:border-[#f97316]";
@@ -153,6 +157,7 @@ export function StockPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadErrorMessage, setLoadErrorMessage] = useState("");
+  const [notice, setNotice] = useState<NoticeState | null>(null);
   const [showSupplierModal, setShowSupplierModal] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [showMaterialModal, setShowMaterialModal] = useState(false);
@@ -210,6 +215,10 @@ export function StockPage() {
 
     return () => window.clearTimeout(loadTimer);
   }, [loadAllData]);
+
+  function showNotice(message: string, type: NoticeState["type"] = "error") {
+    setNotice({ type, message });
+  }
 
   const totalAmount = receiptItems.reduce(
     (sum, item) => sum + item.quantity * item.unitPrice,
@@ -318,12 +327,12 @@ export function StockPage() {
     event.preventDefault();
 
     if (!formSupplierId) {
-      alert("Vui lòng chọn nhà cung cấp.");
+      showNotice("Vui lòng chọn nhà cung cấp trước khi lập phiếu.");
       return;
     }
 
     if (receiptItems.length === 0) {
-      alert("Vui lòng chọn ít nhất một nguyên liệu nhập kho.");
+      showNotice("Vui lòng chọn ít nhất một nguyên liệu nhập kho.");
       return;
     }
 
@@ -332,7 +341,7 @@ export function StockPage() {
     );
 
     if (invalidItem) {
-      alert("Số lượng và giá nhập phải hợp lệ.");
+      showNotice("Số lượng và giá nhập phải hợp lệ.");
       return;
     }
 
@@ -355,9 +364,10 @@ export function StockPage() {
 
       resetReceiptForm();
       await loadAllData();
+      showNotice("Đã tạo phiếu nhập kho.", "success");
       navigate("/stock/history");
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Tạo phiếu nhập thất bại");
+      showNotice(error instanceof Error ? error.message : "Chưa tạo được phiếu nhập. Vui lòng thử lại.");
     } finally {
       setIsSubmitting(false);
     }
@@ -368,26 +378,50 @@ export function StockPage() {
     const formData = new FormData(event.currentTarget);
 
     const payload = {
-      name: String(formData.get("name")),
-      contactName: String(formData.get("contact") || ""),
-      phone: String(formData.get("phone")),
-      email: String(formData.get("email") || ""),
-      address: String(formData.get("address") || ""),
+      name: String(formData.get("name") || "").trim(),
+      contactName: String(formData.get("contact") || "").trim(),
+      phone: String(formData.get("phone") || "").trim(),
+      email: String(formData.get("email") || "").trim(),
+      address: String(formData.get("address") || "").trim(),
     };
+
+    if (!/^\d{10}$/.test(payload.phone)) {
+      showNotice("Số điện thoại nhà cung cấp phải gồm đúng 10 chữ số.");
+      return;
+    }
 
     try {
       setIsSubmitting(true);
+      const response = editingSupplier
+        ? await updateSupplier(editingSupplier.id, payload)
+        : await createSupplier(payload);
+
       if (editingSupplier) {
-        await updateSupplier(editingSupplier.id, payload);
+        setSuppliers((current) =>
+          current
+            .map((supplier) =>
+              supplier.id === response.data.id ? response.data : supplier
+            )
+            .sort((left, right) => left.name.localeCompare(right.name))
+        );
       } else {
-        await createSupplier(payload);
+        setSuppliers((current) =>
+          [...current, response.data].sort((left, right) =>
+            left.name.localeCompare(right.name)
+          )
+        );
       }
 
       setShowSupplierModal(false);
       setEditingSupplier(null);
-      await loadAllData();
+      showNotice(
+        editingSupplier
+          ? "Đã lưu thay đổi nhà cung cấp."
+          : "Đã thêm nhà cung cấp mới.",
+        "success"
+      );
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Lưu nhà cung cấp thất bại.");
+      showNotice(error instanceof Error ? error.message : "Chưa lưu được nhà cung cấp. Vui lòng thử lại.");
     } finally {
       setIsSubmitting(false);
     }
@@ -401,8 +435,9 @@ export function StockPage() {
     try {
       await deleteSupplier(supplier.id);
       await loadAllData();
+      showNotice("Đã xóa nhà cung cấp.", "success");
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Xóa nhà cung cấp thất bại.");
+      showNotice(error instanceof Error ? error.message : "Chưa xóa được nhà cung cấp. Vui lòng thử lại.");
     }
   }
 
@@ -431,8 +466,12 @@ export function StockPage() {
       setShowMaterialModal(false);
       setEditingMaterial(null);
       await loadAllData();
+      showNotice(
+        editingMaterial ? "Đã lưu thay đổi nguyên liệu." : "Đã thêm nguyên liệu mới.",
+        "success"
+      );
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Lưu nguyên liệu thất bại");
+      showNotice(error instanceof Error ? error.message : "Chưa lưu được nguyên liệu. Vui lòng thử lại.");
     } finally {
       setIsSubmitting(false);
     }
@@ -446,8 +485,9 @@ export function StockPage() {
     try {
       await deleteMaterial(material.id);
       await loadAllData();
+      showNotice("Đã xóa nguyên liệu.", "success");
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Xóa nguyên liệu thất bại");
+      showNotice(error instanceof Error ? error.message : "Chưa xóa được nguyên liệu. Vui lòng thử lại.");
     }
   }
 
@@ -475,6 +515,26 @@ export function StockPage() {
       title="Kho hàng"
       subtitle="Quản lý lịch sử nhập hàng, nhà cung cấp và công nợ NCC."
     >
+      {notice ? (
+        <div
+          className={`mb-4 flex items-start justify-between border p-4 text-sm font-bold ${
+            notice.type === "success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+              : "border-rose-200 bg-rose-50 text-rose-700"
+          }`}
+        >
+          <span>{notice.message}</span>
+          <button
+            type="button"
+            onClick={() => setNotice(null)}
+            className="ml-4 text-lg leading-none opacity-70 hover:opacity-100"
+            aria-label="Đóng thông báo"
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
+
       {currentTab === "import" ? (
         <div className="space-y-6">
           <section className="flex items-start gap-4 border-b border-slate-200 pb-6">
@@ -491,7 +551,7 @@ export function StockPage() {
                 Tạo Phiếu Nhập Kho
               </h1>
               <p className="mt-1 text-sm font-medium text-slate-500">
-                Tao dot nhap hang moi tu danh sach nguyen lieu.
+                Tạo đợt nhập hàng mới từ danh sách nguyên liệu.
               </p>
             </div>
           </section>
@@ -502,7 +562,7 @@ export function StockPage() {
             </div>
           ) : loadErrorMessage ? (
             <div className="border border-rose-200 bg-rose-50 p-5 text-sm font-bold text-rose-600">
-              Không tải được dữ liệu: {loadErrorMessage}. Hay kiểm tra backend đang chạy và đăng nhập đúng tài khoản.
+              Không tải được dữ liệu: {loadErrorMessage}. Hãy kiểm tra backend đang chạy và đăng nhập đúng tài khoản.
             </div>
           ) : (
             <form onSubmit={handleCreateReceiptSubmit} className="grid gap-6 xl:grid-cols-[1fr_360px]">
@@ -510,7 +570,7 @@ export function StockPage() {
                 <section className="border border-slate-200 bg-white p-5">
                   <div className="mb-4 flex items-center justify-between">
                     <h2 className="text-sm font-extrabold uppercase tracking-wide text-[#0b1c30]">
-                      Tim nguyen lieu nhap kho
+                      Tìm nguyên liệu nhập kho
                     </h2>
                   </div>
                   <div className="relative">
@@ -521,7 +581,7 @@ export function StockPage() {
                     <input
                       value={materialSearch}
                       onChange={(event) => setMaterialSearch(event.target.value)}
-                      placeholder="Nhap ten, ma hoac danh muc nguyen lieu..."
+                      placeholder="Nhập tên, mã hoặc danh mục nguyên liệu..."
                       className="h-12 w-full border border-slate-200 bg-slate-50 pl-12 pr-4 text-sm font-bold outline-none focus:border-[#f97316]"
                     />
                   </div>
@@ -530,7 +590,7 @@ export function StockPage() {
                     <p className="mb-2 text-xs font-bold text-slate-400">
                       {materialSearch.trim()
                         ? "Kết quả tìm kiếm"
-                        : "Nguyen lieu gan day - bam de them vao phieu"}
+                        : "Nguyên liệu gần đây - bấm để thêm vào phiếu"}
                     </p>
                     <div className="grid gap-2 md:grid-cols-2">
                       {materialResults.map((material) => (
@@ -561,19 +621,19 @@ export function StockPage() {
 
                 <section className="border border-slate-200 bg-white p-5">
                   <h2 className="mb-4 text-sm font-extrabold uppercase tracking-wide text-[#0b1c30]">
-                    Nguyen lieu nhap kho
+                    Nguyên liệu nhập kho
                   </h2>
 
                   {receiptItems.length === 0 ? (
                     <div className="flex min-h-[140px] items-center justify-center border border-dashed border-slate-200 bg-slate-50 text-center text-sm font-extrabold text-slate-400">
-                      Chua co nguyen lieu nao duoc chon. Hay dung o tim kiem o tren.
+                      Chưa có nguyên liệu nào được chọn. Hãy dùng ô tìm kiếm ở trên.
                     </div>
                   ) : (
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-sm">
                         <thead className="border-b border-slate-200 text-[11px] uppercase tracking-wide text-slate-400">
                           <tr>
-                              <th className="py-3">Nguyen lieu</th>
+                              <th className="py-3">Nguyên liệu</th>
                               <th className="w-28 py-3">Số lượng</th>
                               <th className="w-36 py-3">Giá nhập</th>
                               <th className="w-36 py-3 text-right">Thành tiền</th>
@@ -588,7 +648,7 @@ export function StockPage() {
                                   {item.material.name}
                                 </p>
                                 <p className="text-xs font-semibold text-slate-400">
-                                  SKU: {item.material.sku} - Don vi: {item.material.unit}
+                                  SKU: {item.material.sku} - Đơn vị: {item.material.unit}
                                 </p>
                               </td>
                               <td className="py-3">
@@ -629,7 +689,7 @@ export function StockPage() {
                                   type="button"
                                   onClick={() => removeReceiptItem(item.material.id)}
                                   className="text-slate-400 hover:text-rose-500"
-                                  aria-label="Xoa nguyen lieu"
+                                  aria-label="Xóa nguyên liệu"
                                 >
                                   <Icon name="delete" />
                                 </button>
@@ -767,7 +827,7 @@ export function StockPage() {
                 Nhập kho và Công nợ
               </h1>
               <p className="mt-1 text-sm font-medium text-slate-500">
-                Quản lí lịch sử nhập hàng từ nhà cung cập, theo dõi chi tiết phiếu nhập và công nợ NCC.
+                Quản lý lịch sử nhập hàng từ nhà cung cấp, theo dõi chi tiết phiếu nhập và công nợ NCC.
               </p>
             </div>
             <div className="flex gap-2">
@@ -835,7 +895,7 @@ export function StockPage() {
             </div>
           ) : loadErrorMessage ? (
             <div className="border border-rose-200 bg-rose-50 p-5 text-sm font-bold text-rose-600">
-              Không tải được dữ liệu: {loadErrorMessage}. Hay kiểm tra backend đang chạy và đăng nhập đúng tài khoản.
+              Không tải được dữ liệu: {loadErrorMessage}. Hãy kiểm tra backend đang chạy và đăng nhập đúng tài khoản.
             </div>
           ) : currentTab === "materials" ? (
             <>
@@ -1015,7 +1075,7 @@ export function StockPage() {
                     <input
                       value={searchQuery}
                       onChange={(event) => setSearchQuery(event.target.value)}
-                      placeholder="ìm tên nhà cung cấp, người liên hệ, số điện thoại..."
+                      placeholder="Tìm tên nhà cung cấp, người liên hệ, số điện thoại..."
                       className="h-10 w-full border border-slate-200 bg-white pl-10 pr-3 text-sm font-semibold outline-none focus:border-[#f97316]"
                     />
                   </div>
@@ -1373,7 +1433,11 @@ export function StockPage() {
                   <input
                     required
                     name="phone"
-                    type="text"
+                    type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]{10}"
+                    maxLength={10}
+                    title="Số điện thoại phải gồm đúng 10 chữ số"
                     placeholder="090..."
                     defaultValue={editingSupplier?.phone || ""}
                     className={inputClass}

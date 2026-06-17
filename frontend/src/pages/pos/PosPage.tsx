@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getProducts, type Product } from "../../api/product.api";
+import { searchCustomers, type Customer } from "../../api/customers.api";
 import {
   createPosOrder,
   previewPosPromotion,
@@ -32,10 +33,10 @@ const paymentMethods: Array<{
   label: string;
   icon: string;
 }> = [
-  { value: "cash", label: "Tien mat", icon: "payments" },
-  { value: "qr", label: "QR", icon: "qr_code" },
-  { value: "card", label: "The", icon: "credit_card" },
-];
+    { value: "cash", label: "Tiền mặt", icon: "payments" },
+    { value: "qr", label: "QR", icon: "qr_code" },
+    { value: "card", label: "The", icon: "credit_card" },
+  ];
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("vi-VN", {
@@ -71,6 +72,9 @@ function PosPage() {
   const [isValidatingPromo, setIsValidatingPromo] = useState(false);
   const [promoMessage, setPromoMessage] = useState("");
   const [cashPaid, setCashPaid] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [matchedCustomer, setMatchedCustomer] = useState<Customer | null>(null);
+  const [customerLookupMessage, setCustomerLookupMessage] = useState("");
   const [showPaymentConfirmModal, setShowPaymentConfirmModal] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
 
@@ -81,7 +85,7 @@ function PosPage() {
       setProducts(response.data);
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "Khong tai duoc san pham"
+        error instanceof Error ? error.message : "Không tải được sản phẩm. Vui lòng thử lại."
       );
     } finally {
       setIsLoading(false);
@@ -92,7 +96,7 @@ function PosPage() {
     const previewItems = toPromotionPreviewItems(cartItems);
 
     if (previewItems.length === 0) {
-      setPromoMessage("Vui long chon san pham truoc khi ap dung khuyen mai");
+      setPromoMessage("Vui lòng chọn sản phẩm trước khi áp dụng khuyến mãi.");
       setIsPromotionError(true);
       return;
     }
@@ -108,7 +112,7 @@ function PosPage() {
       setPromotionPreview(null);
       setIsPromotionError(true);
       setPromoMessage(
-        error instanceof Error ? error.message : "Ma khuyen mai khong hop le"
+        error instanceof Error ? error.message : "Mã khuyến mãi không hợp lệ."
       );
     } finally {
       setIsValidatingPromo(false);
@@ -168,7 +172,7 @@ function PosPage() {
         if (!isMounted) return;
         setPromotions([]);
         setErrorMessage(
-          error instanceof Error ? error.message : "Khong tai duoc du lieu POS"
+          error instanceof Error ? error.message : "Không tải được dữ liệu POS. Vui lòng thử lại."
         );
       })
       .finally(() => {
@@ -180,6 +184,42 @@ function PosPage() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    const phone = customerPhone.replace(/\D/g, "");
+
+    if (phone.length < 8) {
+      setMatchedCustomer(null);
+      setCustomerLookupMessage("");
+      return undefined;
+    }
+
+    let isMounted = true;
+    const timer = window.setTimeout(() => {
+      searchCustomers(phone)
+        .then((response) => {
+          if (!isMounted) return;
+          const customer =
+            response.data.find((item) => item.phone === phone) ?? null;
+          setMatchedCustomer(customer);
+          setCustomerLookupMessage(
+            customer
+              ? `Khách quen: ${customer.fullName}`
+              : "Không tìm thấy khách hàng. Hóa đơn sẽ không gắn khách."
+          );
+        })
+        .catch(() => {
+          if (!isMounted) return;
+          setMatchedCustomer(null);
+          setCustomerLookupMessage("Không tra cứu được khách hàng.");
+        });
+    }, 250);
+
+    return () => {
+      isMounted = false;
+      window.clearTimeout(timer);
+    };
+  }, [customerPhone]);
 
   const categories = useMemo(() => {
     const names = products
@@ -244,8 +284,8 @@ function PosPage() {
       .join(", ");
 
     return productCodes
-      ? `Thanh toan don hang ${productCodes}`
-      : "Thanh toan don hang";
+      ? `Thanh toán đơn hàng ${productCodes}`
+      : "Thanh toán đơn hàng";
   }, [cartItems]);
 
   const addToCart = (product: Product) => {
@@ -253,7 +293,7 @@ function PosPage() {
     setErrorMessage("");
 
     if (product.status === "out_of_stock" || product.stockQuantity <= 0) {
-      setErrorMessage(`${product.name} da het hang`);
+      setErrorMessage(`${product.name} đã hết hàng.`);
       return;
     }
 
@@ -265,7 +305,7 @@ function PosPage() {
       }
 
       if (existedItem.quantity >= product.stockQuantity) {
-        setErrorMessage(`${product.name} chi con ${product.stockQuantity} san pham`);
+        setErrorMessage(`${product.name} chỉ còn ${product.stockQuantity} sản phẩm.`);
         return currentItems;
       }
 
@@ -283,9 +323,9 @@ function PosPage() {
         .map((item) =>
           item.product.id === productId
             ? {
-                ...item,
-                quantity: Math.min(Math.max(quantity, 0), item.product.stockQuantity),
-              }
+              ...item,
+              quantity: Math.min(Math.max(quantity, 0), item.product.stockQuantity),
+            }
             : item
         )
         .filter((item) => item.quantity > 0)
@@ -305,6 +345,9 @@ function PosPage() {
     setCashPaid("");
     setPromotionCode("");
     setPromoMessage("");
+    setCustomerPhone("");
+    setMatchedCustomer(null);
+    setCustomerLookupMessage("");
   };
 
   const submitOrder = async () => {
@@ -313,11 +356,12 @@ function PosPage() {
       setErrorMessage("");
 
       const response = await createPosOrder({
-        customerId: null,
+        customerId: matchedCustomer?.id ?? null,
+        customerPhone: customerPhone.replace(/\D/g, "") || null,
         paymentMethod,
         note:
           paymentMethod === "qr"
-            ? `${note.trim() || "Ban tai quay"} | Noi dung CK: ${qrTransferContent}`
+            ? `${note.trim() || "Bán tại quầy"} | Nội dung CK: ${qrTransferContent}`
             : note.trim() || "Ban tai quay",
         items: cartItems.map((item) => ({
           productId: item.product.id,
@@ -330,14 +374,14 @@ function PosPage() {
       setShowPaymentConfirmModal(false);
       setShowQrModal(false);
       setCompletedOrder(response.data);
-    setPromotionPreview(null);
-    setIsPromotionError(false);
-    setPromotionCode("");
+      setPromotionPreview(null);
+      setIsPromotionError(false);
+      setPromotionCode("");
       clearCart();
       await loadProducts();
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "Tao hoa don that bai"
+        error instanceof Error ? error.message : "Chưa tạo được hóa đơn. Vui lòng thử lại."
       );
     } finally {
       setIsProcessing(false);
@@ -346,7 +390,7 @@ function PosPage() {
 
   const handleCheckout = async () => {
     if (cartItems.length === 0) {
-      setErrorMessage("Vui long chon it nhat mot san pham");
+      setErrorMessage("Vui lòng chọn ít nhất một sản phẩm.");
       return;
     }
 
@@ -356,7 +400,7 @@ function PosPage() {
     }
 
     if (paymentMethod === "cash" && finalAmount > 0 && cashPaidAmount < finalAmount) {
-      setErrorMessage("Tien khach dua chua du de thanh toan");
+      setErrorMessage("Tiền khách đưa chưa đủ để thanh toán.");
       return;
     }
 
@@ -376,8 +420,8 @@ function PosPage() {
 
   return (
     <AdminLayout
-      title="Ban hang tai quay"
-      subtitle="Chon mon, thanh toan va cap nhat ton kho tu MySQL."
+      title="Bán hàng tại quầy"
+      subtitle="Chọn món, thanh toán, theo dõi doanh thu và quản lý tồn kho."
     >
       <div className="flex h-[calc(100vh-132px)] min-h-[720px] gap-4">
         <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -390,7 +434,7 @@ function PosPage() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Tim san pham theo ten hoac SKU..."
+                placeholder="Tìm sản phẩm theo tên hoặc SKU..."
                 className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 pr-4 pl-10 text-sm outline-none transition-all focus:border-[#f97316] focus:bg-white focus:ring-2 focus:ring-orange-100"
               />
             </div>
@@ -436,12 +480,12 @@ function PosPage() {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-extrabold text-[#0b1c30]">
-                  Thuc don
+                  Thực đơn
                 </h2>
                 <p className="text-sm text-slate-500">
                   {isLoading
-                    ? "Dang tai san pham..."
-                    : `${filteredProducts.length} san pham trong thuc don`}
+                    ? "Đang tải sản phẩm..."
+                    : `${filteredProducts.length} sản phẩm trong thực đơn.`}
                 </p>
               </div>
             </div>
@@ -456,7 +500,7 @@ function PosPage() {
               {!isLoading && filteredProducts.length === 0 ? (
                 <div className="flex min-h-64 flex-col items-center justify-center text-center text-slate-400">
                   <Icon name="search_off" className="mb-2 text-4xl" />
-                  <p className="text-sm font-semibold">Khong tim thay san pham phu hop</p>
+                  <p className="text-sm font-semibold">Không tìm thấy sản phẩm phù hợp.</p>
                 </div>
               ) : null}
             </div>
@@ -469,7 +513,7 @@ function PosPage() {
               <div>
                 <h2 className="flex items-center gap-2 font-['Plus_Jakarta_Sans',sans-serif] text-lg font-extrabold text-[#0b1c30]">
                   <Icon name="shopping_cart" className="text-xl" />
-                  Gio hang
+                  Giỏ hàng
                 </h2>
               </div>
               <button
@@ -478,7 +522,7 @@ function PosPage() {
                 disabled={cartItems.length === 0}
                 className="text-sm font-semibold text-red-500 transition-colors hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Xoa tat ca
+                Xóa tất cả
               </button>
             </div>
 
@@ -486,8 +530,8 @@ function PosPage() {
               {cartItems.length === 0 ? (
                 <div className="flex h-full min-h-56 flex-col items-center justify-center rounded-2xl bg-slate-50 text-center text-slate-400">
                   <Icon name="shopping_basket" className="mb-3 text-5xl" />
-                  <p className="text-sm font-semibold">Gio hang dang trong</p>
-                  <p className="mt-1 text-xs">Chon san pham ben trai de ban</p>
+                  <p className="text-sm font-semibold">Giỏ hàng đang trong</p>
+                  <p className="mt-1 text-xs">Chọn sản phẩm bên trái để bán</p>
                 </div>
               ) : null}
 
@@ -538,6 +582,32 @@ function PosPage() {
             </div>
 
             <div className="space-y-4 border-t border-slate-200 p-5">
+              <label className="block space-y-2">
+                <span className="text-sm font-bold text-[#0b1c30]">
+                  Số điện thoại khách
+                </span>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  value={customerPhone}
+                  onChange={(event) => {
+                    const value = event.target.value.replace(/\D/g, "").slice(0, 10);
+                    setCustomerPhone(value);
+                  }}
+                  placeholder="Nhập SĐT khách quen..."
+                  className="h-11 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                />
+                {customerLookupMessage ? (
+                  <p
+                    className={`text-xs font-semibold ${
+                      matchedCustomer ? "text-emerald-600" : "text-slate-500"
+                    }`}
+                  >
+                    {customerLookupMessage}
+                  </p>
+                ) : null}
+              </label>
+
               <select
                 value={promotionCode}
                 onChange={(event) => {
@@ -552,7 +622,7 @@ function PosPage() {
                 }}
                 className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
               >
-                <option value="">Chon ma khuyen mai</option>
+                <option value="">Chọn mã khuyến mãi</option>
                 {activePromotions.map((item) => (
                   <option key={item.id} value={item.code}>
                     {item.code} - {item.productName}
@@ -567,7 +637,7 @@ function PosPage() {
                     setPromotionCode(event.target.value);
                     setPromoMessage("");
                   }}
-                  placeholder="Ma giam gia"
+                  placeholder="Mã giảm giá"
                   className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
                 />
                 <button
@@ -578,24 +648,23 @@ function PosPage() {
                   disabled={!promotionCode.trim() || isValidatingPromo}
                   className="h-11 rounded-xl border border-slate-200 px-4 text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
                 >
-                  {isValidatingPromo ? "..." : "Ap dung"}
+                  {isValidatingPromo ? "..." : "Áp dụng"}
                 </button>
               </div>
 
               {displayedPromoMessage ? (
                 <p
-                  className={`text-xs ${
-                    promotionPreview?.appliedPromotion && isPromotionApplicable
-                      ? "text-green-600"
-                      : "text-red-600"
-                  }`}
+                  className={`text-xs ${promotionPreview?.appliedPromotion && isPromotionApplicable
+                    ? "text-green-600"
+                    : "text-red-600"
+                    }`}
                 >
                   {displayedPromoMessage}
                 </p>
               ) : null}
 
               <label className="block space-y-2">
-                <span className="text-sm font-bold text-[#0b1c30]">Thanh toan</span>
+                <span className="text-sm font-bold text-[#0b1c30]">Thanh toán</span>
                 <div className="grid grid-cols-3 gap-2">
                   {paymentMethods.map((method) => {
                     const isSelected = paymentMethod === method.value;
@@ -623,26 +692,26 @@ function PosPage() {
 
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between text-slate-500">
-                  <span>Tam tinh</span>
+                  <span>Tạm tính</span>
                   <span>{formatCurrency(subtotal)}</span>
                 </div>
                 {discountAmount > 0 ? (
                   <div className="flex justify-between text-slate-500">
                     <span>
-                      {promotionPreview?.appliedPromotion?.name || "Giam gia"}
+                      {promotionPreview?.appliedPromotion?.name || "Giảm giá"}
                     </span>
                     <span>-{formatCurrency(discountAmount)}</span>
                   </div>
                 ) : null}
                 <div className="flex justify-between text-xl font-extrabold text-[#0b1c30]">
-                  <span>Tong cong</span>
+                  <span>Tổng cộng</span>
                   <span className="text-[#f97316]">{formatCurrency(finalAmount)}</span>
                 </div>
               </div>
 
               {paymentMethod === "cash" && finalAmount > 0 ? (
                 <label className="block space-y-2">
-                  <span className="text-sm font-bold text-[#0b1c30]">Tien khach dua</span>
+                  <span className="text-sm font-bold text-[#0b1c30]">Tiền khách đưa</span>
                   <input
                     type="number"
                     min={0}
@@ -656,12 +725,12 @@ function PosPage() {
                       const value = Math.max(0, parseInt(rawValue) || 0);
                       setCashPaid(String(value));
                     }}
-                    placeholder="Nhap so tien khach dua..."
+                    placeholder="Nhập số tiền khách đưa..."
                     className="h-11 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
                   />
                   {cashPaidAmount > 0 && cashPaidAmount < finalAmount ? (
                     <p className="text-xs text-red-600">
-                      Con thieu:{" "}
+                      Còn thiếu:{" "}
                       <span className="font-bold">
                         {formatCurrency(finalAmount - cashPaidAmount)}
                       </span>
@@ -669,7 +738,7 @@ function PosPage() {
                   ) : null}
                   {changeAmount > 0 ? (
                     <p className="text-xs text-slate-600">
-                      Tien thua:{" "}
+                      Tiền thừa:{" "}
                       <span className="font-bold text-orange-600">
                         {formatCurrency(changeAmount)}
                       </span>
@@ -679,12 +748,12 @@ function PosPage() {
               ) : null}
 
               <label className="block space-y-2">
-                <span className="sr-only">Ghi chu</span>
+                <span className="sr-only">Ghi chú</span>
                 <textarea
                   value={note}
                   onChange={(event) => setNote(event.target.value)}
                   rows={2}
-                  placeholder="Ghi chu don hang..."
+                  placeholder="Ghi chú đơn hàng..."
                   className="w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
                 />
               </label>
@@ -698,7 +767,7 @@ function PosPage() {
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0b1c30] px-6 py-4 font-extrabold text-white shadow-lg shadow-slate-200 transition-all hover:bg-[#132a45] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Icon name="credit_card" />
-                {isProcessing ? "Dang thanh toan..." : `Thanh toan ${formatCurrency(finalAmount)}`}
+                {isProcessing ? "Đang thanh toán..." : `Thanh toán ${formatCurrency(finalAmount)}`}
               </button>
             </div>
           </div>
@@ -709,7 +778,7 @@ function PosPage() {
         <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl">
           <div className="mb-3 flex items-center justify-between">
             <div>
-              <p className="text-xs font-bold uppercase text-slate-400">Gio hang</p>
+              <p className="text-xs font-bold uppercase text-slate-400">Giỏ hàng</p>
               <p className="font-extrabold text-[#0b1c30]">
                 {cartItems.length} mon - {formatCurrency(finalAmount)}
               </p>
@@ -722,7 +791,7 @@ function PosPage() {
               disabled={cartItems.length === 0 || isProcessing}
               className="rounded-2xl bg-[#0b1c30] px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-slate-200 disabled:opacity-50"
             >
-              Thanh toan
+              Thanh toán
             </button>
           </div>
           <div className="flex max-h-24 gap-2 overflow-x-auto">

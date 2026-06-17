@@ -2,7 +2,7 @@ export type Customer = {
   id: string;
   fullName: string;
   phone: string;
-  email: string | null;
+  address: string | null;
   totalSpent: number;
   orderCount: number;
   lastOrderAt: string | null;
@@ -19,14 +19,14 @@ export type CustomerListQuery = {
 export type CreateCustomerBody = {
   fullName?: string;
   phone?: string;
-  email?: string | null;
+  address?: string | null;
   totalSpent?: number;
 };
 
 export type UpdateCustomerBody = {
   fullName?: string;
   phone?: string;
-  email?: string | null;
+  address?: string | null;
 };
 
 export type CustomerOrderSummary = {

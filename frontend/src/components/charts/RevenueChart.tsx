@@ -31,13 +31,13 @@ function formatCurrency(value: number) {
 }
 
 function getRevenueChartTitle(period: DashboardRevenuePeriod) {
-  return period === "year" ? "Doanh thu trong nam" : "Doanh thu trong thang";
+  return period === "year" ? "Doanh thu trong năm" : "Doanh thu trong tháng";
 }
 
 function getRevenueChartSubtitle(period: DashboardRevenuePeriod) {
   return period === "year"
-    ? "Theo doi doanh thu theo tung thang trong nam hien tai"
-    : "Theo doi doanh thu theo tung ngay trong thang hien tai";
+    ? "Theo dõi doanh thu theo từng tháng trong năm hiện tại"
+    : "Theo dõi doanh thu theo từng ngày trong tháng hiện tại";
 }
 
 function getXAxisInterval(period: DashboardRevenuePeriod) {
@@ -108,9 +108,9 @@ export default function RevenueChart({
             value={period}
             onChange={(event) => onPeriodChange(event.target.value as DashboardRevenuePeriod)}
             className="h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-600 outline-none transition-colors hover:border-orange-200 focus:border-[#f97316]"
-            aria-label="Chon ky xem doanh thu"
+            aria-label="Chọn kỳ xem doanh thu"
           >
-            <option value="month">Thang</option>
+            <option value="month">Tháng</option>
             <option value="year">Nam</option>
           </select>
           <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">

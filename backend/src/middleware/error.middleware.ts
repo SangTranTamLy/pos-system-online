@@ -3,7 +3,7 @@ import { ApiError } from "../utils/apiError";
 
 export const notFoundMiddleware: RequestHandler = (req, res, next) => {
   void res;
-  next(new ApiError(404, `Route not found: ${req.method} ${req.originalUrl}`));
+  next(new ApiError(404, `Không tìm thấy đường dẫn: ${req.method} ${req.originalUrl}`));
 };
 
 type MysqlError = Error & {
@@ -19,17 +19,27 @@ function mapDatabaseError(error: MysqlError): ApiError | null {
         500,
         `Cấu trúc database chưa khớp với code: ${
           error.sqlMessage ?? error.message
-        }. Hãy chạy lại backend/src/database/schema.sql và backend/src/database/migration-sync-orders.sql`
+        }. Hãy kiểm tra và chạy các file migration cần thiết trong backend/src/database.`
+      );
+    case "ER_DUP_ENTRY":
+      return new ApiError(
+        409,
+        "Thông tin đã tồn tại. Vui lòng kiểm tra lại dữ liệu vừa nhập."
+      );
+    case "ER_DATA_TOO_LONG":
+      return new ApiError(
+        400,
+        "Dữ liệu nhập quá dài. Vui lòng rút gọn tên, số điện thoại, email hoặc địa chỉ."
       );
     case "ER_CHECK_CONSTRAINT_VIOLATED":
       return new ApiError(
         400,
-        "Dữ liệu đơn hàng không hợp lệ (vi phạm ràng buộc dữ liệu trong database)"
+        "Dữ liệu không hợp lệ. Vui lòng kiểm tra lại thông tin."
       );
     case "ER_NO_REFERENCED_ROW_2":
       return new ApiError(
         400,
-        "Dữ liệu tham chiếu không tồn tại (sản phẩm/khách hàng/nhân viên không có trong database)"
+        "Sản phẩm, khách hàng hoặc nhân viên không tồn tại. Vui lòng kiểm tra lại thông tin."
       );
     case "ECONNREFUSED":
     case "PROTOCOL_CONNECTION_LOST":
@@ -38,7 +48,7 @@ function mapDatabaseError(error: MysqlError): ApiError | null {
     case "ER_BAD_DB_ERROR":
       return new ApiError(
         500,
-        "Không kết nối được MySQL. Kiểm tra MySQL Server đang chạy và cấu hình trong file .env"
+        "Hệ thống đang gặp sự cố. Vui lòng thử lại sau."
       );
     default:
       return null;
@@ -73,6 +83,6 @@ export const errorMiddleware: ErrorRequestHandler = (
 
   res.status(500).json({
     success: false,
-    message: "Máy chủ bị lỗi!",
+    message: "Máy chủ đang gặp sự cố. Vui lòng thử lại sau.",
   });
 };
