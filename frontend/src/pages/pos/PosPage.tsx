@@ -9,6 +9,7 @@ import {
   type PosPromotionPreview,
 } from "../../api/pos.api";
 import { fetchPromotions, type Promotion } from "../../api/promotions.api";
+import { fetchShifts, type Shift } from "../../api/shifts.api";
 import PaymentConfirmModal from "../../components/pos/PaymentConfirmModal";
 import ProductCard from "../../components/pos/ProductCard";
 import QrPaymentModal from "../../components/pos/QrPaymentModal";
@@ -77,6 +78,7 @@ function PosPage() {
   const [customerLookupMessage, setCustomerLookupMessage] = useState("");
   const [showPaymentConfirmModal, setShowPaymentConfirmModal] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
+  const [activeShift, setActiveShift] = useState<Shift | null>(null);
 
   const loadProducts = useCallback(async () => {
     try {
@@ -160,13 +162,26 @@ function PosPage() {
   useEffect(() => {
     let isMounted = true;
 
-    Promise.all([getProducts(), fetchPromotions()])
-      .then(([productResponse, promotionData]) => {
+    Promise.all([getProducts(), fetchPromotions(), fetchShifts()])
+      .then(([productResponse, promotionData, shiftData]) => {
         if (!isMounted) return;
         setErrorMessage("");
         setProducts(productResponse.data);
         setPromotions(promotionData);
         setPromotionFilterTime(Date.now());
+        
+        const storedUserStr = localStorage.getItem("auth_user");
+        let currentUserId = "";
+        if (storedUserStr) {
+          try {
+             currentUserId = JSON.parse(storedUserStr).id;
+          } catch (e) {}
+        }
+        
+        const openShift = shiftData.find(
+          (s) => s.status === "OPEN" && s.userId === currentUserId
+        );
+        setActiveShift(openShift || null);
       })
       .catch((error) => {
         if (!isMounted) return;
@@ -418,6 +433,42 @@ function PosPage() {
     await submitOrder();
   };
 
+  if (isLoading) {
+    return (
+      <AdminLayout title="Bán hàng" subtitle="Tải dữ liệu...">
+        <div className="flex h-[calc(100vh-8rem)] items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <Icon
+              name="sync"
+              className="animate-spin text-4xl text-slate-400"
+            />
+            <p className="text-sm font-semibold text-slate-500">Đang tải dữ liệu POS...</p>
+          </div>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  if (!activeShift) {
+    return (
+      <AdminLayout title="Bán hàng">
+        <div className="flex h-[calc(100vh-8rem)] items-center justify-center">
+          <div className="flex max-w-md flex-col items-center text-center gap-4 rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-orange-100 text-[#f97316]">
+              <Icon name="lock" className="text-3xl" />
+            </div>
+            <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-extrabold text-[#0b1c30]">
+              POS Đã Khóa
+            </h2>
+            <p className="text-sm font-medium text-slate-600 leading-relaxed">
+              Bạn chưa có ca làm việc nào đang mở. Vui lòng vào mục <span className="font-bold text-[#0b1c30]">Ca làm</span> để đăng ký ca hoặc yêu cầu Quản lý mở ca.
+            </p>
+          </div>
+        </div>
+      </AdminLayout>
+    );
+  }
+
   return (
     <AdminLayout
       title="Bán hàng tại quầy"
@@ -450,7 +501,7 @@ function PosPage() {
                     : "bg-slate-50 text-slate-600 hover:bg-orange-50 hover:text-[#f97316]",
                 ].join(" ")}
               >
-                Tat ca
+                Tất cả
               </button>
               {categories.map((category) => (
                 <button
@@ -599,9 +650,8 @@ function PosPage() {
                 />
                 {customerLookupMessage ? (
                   <p
-                    className={`text-xs font-semibold ${
-                      matchedCustomer ? "text-emerald-600" : "text-slate-500"
-                    }`}
+                    className={`text-xs font-semibold ${matchedCustomer ? "text-emerald-600" : "text-slate-500"
+                      }`}
                   >
                     {customerLookupMessage}
                   </p>

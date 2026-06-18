@@ -255,4 +255,40 @@ CALL create_index_if_missing('audit_logs', 'idx_audit_logs_user_id', 'user_id');
 CALL create_index_if_missing('waste_transactions', 'idx_waste_transactions_order_id', 'order_id');
 CALL create_index_if_missing('waste_transactions', 'idx_waste_transactions_product_id', 'product_id');
 
+CREATE TABLE IF NOT EXISTS shifts (
+  id CHAR(36) PRIMARY KEY,
+  user_id CHAR(36) NOT NULL,
+  expected_start_time DATETIME NOT NULL,
+  expected_end_time DATETIME NOT NULL,
+  actual_start_time DATETIME NULL,
+  actual_end_time DATETIME NULL,
+  status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+  
+  approved_by CHAR(36) NULL,
+  opened_by CHAR(36) NULL,
+  closed_by CHAR(36) NULL,
+  
+  opening_cash DECIMAL(12, 2) NOT NULL DEFAULT 0,
+  actual_closing_cash DECIMAL(12, 2) NOT NULL DEFAULT 0,
+  total_sales_cash DECIMAL(12, 2) NOT NULL DEFAULT 0,
+  total_sales_qr DECIMAL(12, 2) NOT NULL DEFAULT 0,
+  total_sales DECIMAL(12, 2) NOT NULL DEFAULT 0,
+  variance DECIMAL(12, 2) NOT NULL DEFAULT 0,
+  
+  closing_note TEXT NULL,
+  
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  
+  CONSTRAINT fk_shifts_user_id FOREIGN KEY (user_id) REFERENCES users(id),
+  CONSTRAINT fk_shifts_approved_by FOREIGN KEY (approved_by) REFERENCES users(id),
+  CONSTRAINT fk_shifts_opened_by FOREIGN KEY (opened_by) REFERENCES users(id),
+  CONSTRAINT fk_shifts_closed_by FOREIGN KEY (closed_by) REFERENCES users(id),
+  CONSTRAINT chk_shifts_status CHECK (status IN ('PENDING', 'APPROVED', 'OPEN', 'CLOSING_REQUEST', 'CLOSED', 'CANCELLED'))
+);
+
+CALL create_index_if_missing('shifts', 'idx_shifts_user_id', 'user_id');
+CALL create_index_if_missing('shifts', 'idx_shifts_status', 'status');
+CALL create_index_if_missing('shifts', 'idx_shifts_time', 'expected_start_time,expected_end_time');
+
 DROP PROCEDURE IF EXISTS create_index_if_missing;

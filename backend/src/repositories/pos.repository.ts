@@ -34,6 +34,7 @@ type CreatePosOrderTransactionData = {
   items: NormalizedPosOrderItem[];
   promotionCode?: string | null;
   changeAmount?: number;
+  shiftId: string | null;
 };
 
 async function findProductForUpdate(
@@ -144,6 +145,7 @@ export async function createPosOrderTransaction(
       INSERT INTO orders (
         id,
         customer_id,
+        shift_id,
         created_by,
         promotion_id,
         status,
@@ -152,11 +154,12 @@ export async function createPosOrderTransaction(
         final_amount,
         note
       )
-      VALUES (?, ?, ?, ?, 'completed', ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, 'completed', ?, ?, ?, ?)
       `,
       [
         orderId,
         data.customerId,
+        data.shiftId,
         data.createdBy,
         promotionId,
         totalAmount,

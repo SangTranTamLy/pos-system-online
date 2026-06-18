@@ -67,6 +67,13 @@ export async function createPosOrderService(
     itemsCount: items.length,
   });
 
+  const { db } = await import("../config/database");
+  const [shifts] = await db.execute<any[]>(
+    "SELECT id FROM shifts WHERE user_id = ? AND status = 'OPEN' LIMIT 1",
+    [createdBy]
+  );
+  const shiftId = shifts[0]?.id || null;
+
   return createPosOrderTransaction({
     customerId,
     createdBy,
@@ -75,5 +82,6 @@ export async function createPosOrderService(
     items,
     promotionCode: body.promotionCode?.trim() || null,
     changeAmount: body.changeAmount ?? 0,
+    shiftId,
   });
 }

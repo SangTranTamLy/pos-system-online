@@ -8,13 +8,13 @@ import PosPage from "../pages/pos/PosPage";
 import InvoicePage from "../pages/invoices/InvoicePage";
 import CustomerPage from "../pages/customers/CustomerPage";
 import PromotionsPage from "../pages/promotions/PromotionsPage";
+import EmployeePage from "../pages/employees/EmployeePage";
 import {
   AuditLogsPage,
-  EmployeesPage,
   ReportsPage,
   SettingsPage,
-  ShiftsPage,
 } from "../pages/modules/ModuleScaffoldPage";
+import ShiftsPage from "../pages/shifts/ShiftsPage";
 import { StockPage } from "../pages/inventory/StockPage";
 
 function AppRoutes() {
@@ -22,20 +22,29 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
 
-      <Route element={<ProtectedRoute />}>
+      {/* Routes for everyone (Admin, Manager, Staff) */}
+      <Route element={<ProtectedRoute allowedRoles={["admin", "manager", "staff"]} />}>
+        <Route path="/pos" element={<PosPage />} />
+        <Route path="/invoices" element={<InvoicePage />} />
+        <Route path="/customers" element={<CustomerPage />} />
+        <Route path="/shifts" element={<ShiftsPage />} />
+      </Route>
+
+      {/* Routes for Admin & Manager only */}
+      <Route element={<ProtectedRoute allowedRoles={["admin", "manager"]} />}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/pos" element={<PosPage />} />
         <Route path="/products" element={<ProductPage />} />
         <Route path="/categories" element={<CategoryPage />} />
         <Route path="/stock/*" element={<StockPage />} />
-        <Route path="/customers" element={<CustomerPage />} />
-        <Route path="/invoices" element={<InvoicePage />} />
         <Route path="/promotions" element={<PromotionsPage />} />
-        <Route path="/employees" element={<EmployeesPage />} />
-        <Route path="/shifts" element={<ShiftsPage />} />
-        <Route path="/audit-logs" element={<AuditLogsPage />} />
         <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/employees" element={<EmployeePage />} />
+      </Route>
+
+      {/* Routes for Admin only */}
+      <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
+        <Route path="/audit-logs" element={<AuditLogsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
     </Routes>

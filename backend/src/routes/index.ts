@@ -1,5 +1,6 @@
 import { Router } from "express";
 import authRouter from "./auth.routes";
+import userRouter from "./user.routes";
 import categoryRouter from "./category.routes";
 import orderRouter from "./order.routes";
 import posRouter from "./pos.routes";
@@ -8,10 +9,12 @@ import dashboardRouter from "./dashboard.routes";
 import customersRouter from "./customers.routes";
 import promotionsRouter from "./promotions.routes";
 import inventoryRouter from "./inventory.routes";
+import shiftRouter from "./shift.routes";
 
 const apiRouter = Router();
 apiRouter.use("/dashboard", dashboardRouter);
 apiRouter.use("/auth", authRouter);
+apiRouter.use("/users", userRouter);
 apiRouter.use("/categories", categoryRouter);
 apiRouter.use("/products", productRouter);
 apiRouter.use("/pos", posRouter);
@@ -20,5 +23,6 @@ apiRouter.use("/invoices", orderRouter);
 apiRouter.use("/customers", customersRouter);
 apiRouter.use("/promotions", promotionsRouter);
 apiRouter.use("/inventory", inventoryRouter);
+apiRouter.use("/shifts", shiftRouter);
 
 export default apiRouter;

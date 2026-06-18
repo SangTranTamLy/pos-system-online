@@ -6,6 +6,7 @@ type MenuItem = {
   icon: string;
   path: string;
   group: "main" | "system";
+  allowedRoles: string[];
   disabled?: boolean;
   children?: Array<{
     label: string;
@@ -28,19 +29,19 @@ type AdminLayoutProps = {
 };
 
 const menuItems: MenuItem[] = [
-  { label: "Tổng quan", icon: "dashboard", path: "/dashboard", group: "main" },
-  { label: "Bán hàng (POS)", icon: "point_of_sale", path: "/pos", group: "main" },
-  { label: "Sản phẩm", icon: "package_2", path: "/products", group: "main" },
-  { label: "Danh mục", icon: "sell", path: "/categories", group: "main" },
-  { label: "Kho hàng", icon: "inventory_2", path: "/stock", group: "main" },
-  { label: "Khách hàng", icon: "group", path: "/customers", group: "main" },
-  { label: "Hóa đơn", icon: "receipt_long", path: "/invoices", group: "main" },
-  { label: "Khuyến mãi", icon: "redeem", path: "/promotions", group: "main" },
-  { label: "Nhân viên", icon: "badge", path: "/employees", group: "system" },
-  { label: "Ca làm", icon: "work_history", path: "/shifts", group: "system" },
-  { label: "Báo cáo", icon: "analytics", path: "/reports", group: "system" },
-  { label: "Nhật ký hệ thống", icon: "history", path: "/audit-logs", group: "system" },
-  { label: "Cấu hình hệ thống", icon: "settings", path: "/settings", group: "system" },
+  { label: "Tổng quan", icon: "dashboard", path: "/dashboard", group: "main", allowedRoles: ["admin", "manager"] },
+  { label: "Bán hàng (POS)", icon: "point_of_sale", path: "/pos", group: "main", allowedRoles: ["admin", "manager", "staff"] },
+  { label: "Sản phẩm", icon: "package_2", path: "/products", group: "main", allowedRoles: ["admin", "manager"] },
+  { label: "Danh mục", icon: "sell", path: "/categories", group: "main", allowedRoles: ["admin", "manager"] },
+  { label: "Kho hàng", icon: "inventory_2", path: "/stock", group: "main", allowedRoles: ["admin", "manager"] },
+  { label: "Khách hàng", icon: "group", path: "/customers", group: "main", allowedRoles: ["admin", "manager", "staff"] },
+  { label: "Hóa đơn", icon: "receipt_long", path: "/invoices", group: "main", allowedRoles: ["admin", "manager", "staff"] },
+  { label: "Khuyến mãi", icon: "redeem", path: "/promotions", group: "main", allowedRoles: ["admin", "manager"] },
+  { label: "Nhân viên", icon: "badge", path: "/employees", group: "system", allowedRoles: ["admin", "manager"] },
+  { label: "Ca làm", icon: "work_history", path: "/shifts", group: "system", allowedRoles: ["admin", "manager", "staff"] },
+  { label: "Báo cáo", icon: "analytics", path: "/reports", group: "system", allowedRoles: ["admin", "manager"] },
+  { label: "Nhật ký hệ thống", icon: "history", path: "/audit-logs", group: "system", allowedRoles: ["admin"] },
+  { label: "Cấu hình hệ thống", icon: "settings", path: "/settings", group: "system", allowedRoles: ["admin"] },
 ];
 
 export function Icon({
@@ -252,12 +253,22 @@ function AdminLayout({ children, title, subtitle }: AdminLayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const mainMenuItems = useMemo(
-    () => menuItems.filter((item) => item.group === "main"),
-    []
+    () =>
+      menuItems.filter(
+        (item) =>
+          item.group === "main" &&
+          (!user.roleName || item.allowedRoles.includes(user.roleName.toLowerCase()))
+      ),
+    [user.roleName]
   );
   const systemMenuItems = useMemo(
-    () => menuItems.filter((item) => item.group === "system"),
-    []
+    () =>
+      menuItems.filter(
+        (item) =>
+          item.group === "system" &&
+          (!user.roleName || item.allowedRoles.includes(user.roleName.toLowerCase()))
+      ),
+    [user.roleName]
   );
 
   const displayName = user.fullName?.trim() || "Admin Demo";

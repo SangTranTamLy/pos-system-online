@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { login } from "../../api/auth.api";
 import heroImage from "../../assets/brg_login.png";
@@ -77,7 +77,11 @@ function LoginPage() {
     localStorage.setItem("auth_token", response.data.token);
     localStorage.setItem("auth_user", JSON.stringify(response.data.user));
 
-    navigate("/dashboard");
+    if (response.data.user.roleName.toLowerCase() === "staff") {
+      navigate("/pos");
+    } else {
+      navigate("/dashboard");
+    }
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Đăng nhập thất bại";
