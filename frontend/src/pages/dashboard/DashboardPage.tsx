@@ -19,9 +19,9 @@ type StockAlert = { product: string; remain: string; minimum: string; remainClas
 
 function StatCard({ card }: { card: StatsCardData }) {
   return (
-    <article className="rounded-[24px] border border-slate-200/60 bg-white p-6 shadow-sm">
+    <article className="rounded-3xl border border-slate-200/60 bg-white p-6 shadow-sm">
       <div className="mb-5 flex items-center justify-between relative z-10">
-        <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-orange-50 text-[#f97316]">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-[#f97316]">
           <Icon name={card.icon} className="text-[24px]" filled />
         </div>
       </div>
@@ -56,7 +56,6 @@ function DashboardPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [revenuePeriod, setRevenuePeriod] = useState<DashboardRevenuePeriod>("month");
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const todayStr = new Date().toISOString().split("T")[0];
   const [reportDate, setReportDate] = useState(todayStr);
@@ -73,7 +72,6 @@ function DashboardPage() {
         const response = await getDashboardSummary(revenuePeriod, reportDate, reportDate);
         if (isActive) {
           setDashboard(response.data);
-          setLastUpdated(new Date());
           setErrorMessage("");
         }
       } catch (error) {
@@ -104,7 +102,7 @@ function DashboardPage() {
   function handleManualRefresh() {
     setIsRefreshing(true);
     getDashboardSummary(revenuePeriod, reportDate, reportDate)
-      .then((response) => { setDashboard(response.data); setLastUpdated(new Date()); setErrorMessage(""); })
+      .then((response) => { setDashboard(response.data); setErrorMessage(""); })
       .catch((error) => { setErrorMessage(error instanceof Error ? error.message : "Không tải được dữ liệu dashboard"); })
       .finally(() => setIsRefreshing(false));
   }
@@ -186,7 +184,7 @@ function DashboardPage() {
             type="button"
             onClick={handleManualRefresh}
             disabled={isRefreshing}
-            className="flex h-[34px] w-[34px] items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:border-[#f97316] hover:text-[#f97316] disabled:opacity-50"
+            className="flex h-8.5 w-8.5 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:border-[#f97316] hover:text-[#f97316] disabled:opacity-50"
             title="Làm mới dữ liệu"
           >
             <Icon name="refresh" className={`text-[18px] ${isRefreshing ? "animate-spin" : ""}`} />
@@ -252,7 +250,7 @@ function DashboardPage() {
                   realRecentOrders.map((order) => (
                     <tr key={order.code} className="transition-colors hover:bg-slate-50">
                       <td className="px-6 py-4 font-bold text-[#f97316]">{order.code}</td>
-                      <td className="px-6 py-4 text-[#0b1c30] truncate max-w-[120px]">{order.customer}</td>
+                      <td className="px-6 py-4 text-[#0b1c30] truncate max-w-30">{order.customer}</td>
                       <td className="px-6 py-4 text-right font-semibold text-[#0b1c30]">{order.total}</td>
                       <td className="px-6 py-4 text-center"><span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${order.statusClassName}`}>{order.status}</span></td>
                     </tr>
@@ -265,7 +263,7 @@ function DashboardPage() {
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-[24px] border border-slate-200/60 bg-white shadow-lg shadow-slate-200/40 2xl:col-span-4">
+        <div className="overflow-hidden rounded-3xl border border-slate-200/60 bg-white shadow-lg shadow-slate-200/40 2xl:col-span-4">
           <div className="flex items-center justify-between border-b border-slate-100 p-6">
             <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-bold text-[#0b1c30]">Cảnh báo tồn kho</h4>
             <button type="button" onClick={() => navigate("/products")} className="text-[11px] font-bold uppercase tracking-widest text-[#f97316] hover:underline">Xem tất cả</button>
@@ -280,7 +278,7 @@ function DashboardPage() {
                 {realStockAlerts.length > 0 ? (
                   realStockAlerts.map((item) => (
                     <tr key={item.product} className="transition-colors hover:bg-slate-50/50">
-                      <td className="px-6 py-4 text-[#0b1c30] font-semibold truncate max-w-[120px]">{item.product}</td>
+                      <td className="px-6 py-4 text-[#0b1c30] font-semibold truncate max-w-30">{item.product}</td>
                       <td className="px-6 py-4 text-center font-black"><span className={`rounded-full px-3 py-1 text-xs bg-red-50 ${item.remainClassName}`}>{item.remain}</span></td>
                       <td className="px-6 py-4 text-center font-bold text-slate-400">{item.minimum}</td>
                     </tr>
@@ -293,14 +291,14 @@ function DashboardPage() {
           </div>
         </div>
 
-        <div className="flex flex-col rounded-[24px] border border-slate-200/60 bg-white shadow-lg shadow-slate-200/40 2xl:col-span-3">
+        <div className="flex flex-col rounded-3xl border border-slate-200/60 bg-white shadow-lg shadow-slate-200/40 2xl:col-span-3">
           <div className="p-6 pb-2">
             <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-black text-[14px] uppercase tracking-wider text-[#0b1c30]">Phương thức thanh toán</h4>
           </div>
           <div className="p-6 pt-2 flex-1 flex flex-col justify-center">
             {totalOrdersCount > 0 ? (
               <div className="flex items-center justify-between gap-6 px-2">
-                <div className="relative h-[150px] w-[150px] shrink-0">
+                <div className="relative h-37.5 w-37.5 shrink-0">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
