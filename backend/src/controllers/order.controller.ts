@@ -11,7 +11,17 @@ function getParamId(id: string | string[]) {
 }
 
 export async function getOrdersController(req: Request, res: Response) {
-  const orders = await getOrdersService(req.query);
+  if (!req.user) {
+    throw new ApiError(401, "Chưa được xác thực");
+  }
+
+  const query = { ...req.query };
+
+  if (req.user.roleName.trim().toUpperCase() === "STAFF") {
+    query.createdBy = req.user.id;
+  }
+
+  const orders = await getOrdersService(query);
 
   return res.json({
     success: true,

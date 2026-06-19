@@ -35,7 +35,6 @@ export default function ShiftsPage() {
   const [errorMessage, setErrorMessage] = useState("");
   
   const [userRole, setUserRole] = useState("");
-  const [userId, setUserId] = useState("");
 
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [newShiftStart, setNewShiftStart] = useState("");
@@ -55,7 +54,6 @@ export default function ShiftsPage() {
       try {
         const u = JSON.parse(storedUser);
         setUserRole(u.roleName?.toUpperCase() || "");
-        setUserId(u.id);
       } catch (e) {}
     }
     loadShifts();

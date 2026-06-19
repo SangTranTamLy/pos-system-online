@@ -13,6 +13,7 @@ export type OrderListParams = {
   search?: string;
   dateFrom?: string;
   dateTo?: string;
+  createdBy?: string;
 };
 
 export type OrderListItem = {
@@ -115,6 +116,10 @@ function buildQuery(params?: OrderListParams) {
 
   if (params?.dateTo) {
     searchParams.set("dateTo", params.dateTo);
+  }
+
+  if (params?.createdBy) {
+    searchParams.set("createdBy", params.createdBy);
   }
 
   const queryString = searchParams.toString();

@@ -18,6 +18,7 @@ export type DashboardSummary = {
     }>;
     topProducts: Array<{
         name: string;
+        imageUrl?: string;
         soldQuantity: number;
         revenue: number;
     }>;
@@ -32,6 +33,18 @@ export type DashboardSummary = {
         productName: string;
         stockQuantity: number;
     }>;
+    paymentMethods: Array<{
+        method: string;
+        revenue: number;
+        percentage: number;
+        ordersCount: number;
+    }>;
+    currentShift: {
+        id: string;
+        userName: string;
+        expectedStartTime: string;
+        expectedEndTime: string;
+    } | null;
 };
 
 type ApiResponse<T> = {
@@ -49,8 +62,10 @@ function getAuthHeaders() {
     };
 }
 
-export async function getDashboardSummary(period: DashboardRevenuePeriod = "month") {
+export async function getDashboardSummary(period: DashboardRevenuePeriod = "month", startDate?: string, endDate?: string) {
     const params = new URLSearchParams({ period });
+    if (startDate) params.append("startDate", startDate);
+    if (endDate) params.append("endDate", endDate);
     const response = await fetch(`${API_BASE_URL}/dashboard/summary?${params.toString()}`, {
         method: "GET",
         headers: getAuthHeaders(),

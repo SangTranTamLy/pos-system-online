@@ -8,19 +8,27 @@ export type RevenueTrendRow = RowDataPacket & {
     revenue: string;
 };
 
-export async function getDashboardStats() {
+export async function getDashboardStats(startDate?: string, endDate?: string) {
+    let dateCondition = "DATE(created_at) = CURDATE()";
+    let params: string[] = [];
+
+    if (startDate && endDate) {
+        dateCondition = "DATE(created_at) >= ? AND DATE(created_at) <= ?";
+        params = [startDate, endDate, startDate, endDate];
+    }
+
     const [rows] = await db.execute<RowDataPacket[]>(`
         SELECT
         (SELECT COALESCE(SUM(final_amount), 0)
         FROM orders
         WHERE status = 'completed'
-          AND DATE(created_at) = CURDATE()
+          AND ${dateCondition}
         ) AS todayRevenue,
 
         (SELECT COUNT(*)
         FROM orders
         WHERE status = 'completed'
-          AND DATE(created_at) = CURDATE()
+          AND ${dateCondition}
         ) AS todayOrders,
 
         (SELECT COUNT(*)
@@ -37,74 +45,70 @@ export async function getDashboardStats() {
         (SELECT COUNT(*)
         FROM products
         WHERE status = 'active') AS activeProducts
-    `);
+    `, params);
 
     return rows[0];
 }
 
-export async function getRevenueByPeriod(period: DashboardRevenuePeriod) {
-    if (period === "year") {
-        const [rows] = await db.execute<RevenueTrendRow[]>(`
-        SELECT
-        revenue_by_month.sort,
-        CONCAT('Tháng ', revenue_by_month.sort) AS label,
-        revenue_by_month.revenue
-        FROM (
-            SELECT
-            MONTH(created_at) AS sort,
-            COALESCE(SUM(final_amount), 0) AS revenue
-            FROM orders
-            WHERE status = 'completed'
-            AND YEAR(created_at) = YEAR(CURRENT_DATE())
-            GROUP BY MONTH(created_at)
-        ) AS revenue_by_month
-        ORDER BY revenue_by_month.sort ASC
-    `);
+export async function getRevenueTrend(startDate?: string, endDate?: string) {
+    let dateCondition = "MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())";
+    let params: string[] = [];
 
-        return rows;
+    if (startDate && endDate) {
+        dateCondition = "DATE(created_at) >= ? AND DATE(created_at) <= ?";
+        params = [startDate, endDate];
     }
 
     const [rows] = await db.execute<RevenueTrendRow[]>(`
         SELECT
-        revenue_by_day.sort,
-        DATE_FORMAT(revenue_by_day.orderDate, '%d/%m') AS label,
-        revenue_by_day.revenue
-        FROM (
-            SELECT
-            DATE(created_at) AS orderDate,
-            DAY(created_at) AS sort,
-            COALESCE(SUM(final_amount), 0) AS revenue
-            FROM orders
-            WHERE status = 'completed'
-            AND MONTH(created_at) = MONTH(CURDATE())
-            AND YEAR(created_at) = YEAR(CURDATE())
-            GROUP BY DATE(created_at), DAY(created_at)
-        ) AS revenue_by_day
-        ORDER BY revenue_by_day.sort ASC
-    `);
+        DATE(created_at) as orderDate,
+        DAY(created_at) AS sort,
+        DATE_FORMAT(created_at, '%d/%m') AS label,
+        COALESCE(SUM(final_amount), 0) AS revenue
+        FROM orders
+        WHERE status = 'completed'
+        AND ${dateCondition}
+        GROUP BY DATE(created_at), DAY(created_at), DATE_FORMAT(created_at, '%d/%m')
+        ORDER BY DATE(created_at) ASC
+    `, params);
 
     return rows;
 }
 
-export async function getTopProducts() {
+export async function getTopProducts(startDate?: string, endDate?: string) {
+    let dateCondition = "1=1";
+    let params: string[] = [];
+    if (startDate && endDate) {
+        dateCondition = "DATE(o.created_at) >= ? AND DATE(o.created_at) <= ?";
+        params = [startDate, endDate];
+    }
+
     const [rows] = await db.execute<RowDataPacket[]>(`
         SELECT
         p.name,
+        p.image_url AS imageUrl,
         SUM(od.quantity) AS soldQuantity,
         SUM(od.line_total) AS revenue
         FROM order_details od
         JOIN orders o ON o.id = od.order_id
         JOIN products p ON p.id = od.product_id
-        WHERE o.status = 'completed'
-        GROUP BY p.id, p.name
+        WHERE o.status = 'completed' AND ${dateCondition}
+        GROUP BY p.id, p.name, p.image_url
         ORDER BY soldQuantity DESC
         LIMIT 5
-    `);
+    `, params);
 
     return rows;
 }
 
-export async function getRecentOrders() {
+export async function getRecentOrders(startDate?: string, endDate?: string) {
+    let dateCondition = "1=1";
+    let params: string[] = [];
+    if (startDate && endDate) {
+        dateCondition = "DATE(o.created_at) >= ? AND DATE(o.created_at) <= ?";
+        params = [startDate, endDate];
+    }
+
     const [rows] = await db.execute<RowDataPacket[]>(`
         SELECT
         o.id,
@@ -114,9 +118,10 @@ export async function getRecentOrders() {
         o.created_at AS createdAt
         FROM orders o
         LEFT JOIN customers c ON c.id = o.customer_id
+        WHERE ${dateCondition}
         ORDER BY o.created_at DESC
         LIMIT 5
-    `);
+    `, params);
 
     return rows;
 }
@@ -133,4 +138,43 @@ export async function getStockAlerts() {
     `);
 
     return rows;
+}
+
+export async function getPaymentMethodStats(startDate?: string, endDate?: string) {
+    let dateCondition = "1=1";
+    let params: string[] = [];
+    if (startDate && endDate) {
+        dateCondition = "DATE(o.created_at) >= ? AND DATE(o.created_at) <= ?";
+        params = [startDate, endDate];
+    }
+
+    const [rows] = await db.execute<RowDataPacket[]>(`
+        SELECT
+        p.payment_method as method,
+        COALESCE(SUM(p.amount), 0) AS revenue,
+        COUNT(DISTINCT o.id) AS ordersCount
+        FROM payments p
+        JOIN orders o ON o.id = p.order_id
+        WHERE o.status = 'completed' AND p.payment_status = 'paid' AND ${dateCondition}
+        GROUP BY p.payment_method
+    `, params);
+
+    return rows;
+}
+
+export async function getCurrentActiveShift() {
+    const [rows] = await db.execute<RowDataPacket[]>(`
+        SELECT
+        s.id,
+        u.full_name AS userName,
+        s.expected_start_time AS expectedStartTime,
+        s.expected_end_time AS expectedEndTime
+        FROM shifts s
+        JOIN users u ON u.id = s.user_id
+        WHERE s.status = 'OPEN'
+        ORDER BY s.expected_start_time DESC
+        LIMIT 1
+    `);
+    
+    return rows.length > 0 ? rows[0] : null;
 }

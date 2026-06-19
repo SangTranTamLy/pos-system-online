@@ -9,6 +9,7 @@ import {
   type PaymentMethod,
   type PaymentStatus,
 } from "../../api/order.api";
+import { fetchUsers, type User } from "../../api/users.api";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 
 type StatusFilter = OrderStatus | "all";
@@ -500,6 +501,8 @@ function InvoicePage() {
   const [cancelModal, setCancelModal] = useState<CancelModalState>("closed");
   const [cancelReason, setCancelReason] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
+  const [createdBy, setCreatedBy] = useState<string>("all");
   const currentUser = getCurrentUser();
   const isAdmin = isAdminUser(currentUser);
   const canCancelSelectedOrder = isAdmin && selectedOrder?.status === "completed";
@@ -517,6 +520,7 @@ function InvoicePage() {
           dateTo: dateTo || undefined,
           search,
           status: status === "all" ? undefined : status,
+          createdBy: createdBy === "all" ? undefined : createdBy,
         });
 
         if (!isMounted) {
@@ -553,7 +557,23 @@ function InvoicePage() {
       isMounted = false;
       window.clearTimeout(timeoutId);
     };
-  }, [dateFrom, dateTo, search, status]);
+  }, [dateFrom, dateTo, search, status, createdBy]);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (isAdmin) {
+      fetchUsers()
+        .then((data) => {
+          if (isMounted) setUsers(data);
+        })
+        .catch(() => {
+          // ignore error
+        });
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [isAdmin]);
 
   useEffect(() => {
     let isMounted = true;
@@ -715,6 +735,20 @@ function InvoicePage() {
               <option value="cancelled">Đã hủy</option>
               <option value="refunded">Đã hoàn tiền</option>
             </select>
+            {isAdmin && (
+              <select
+                value={createdBy}
+                onChange={(event) => setCreatedBy(event.target.value)}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b1c30] outline-none transition-all focus:border-[#f97316] focus:bg-white focus:ring-2 focus:ring-orange-100"
+              >
+                <option value="all">Tất cả nhân viên</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.fullName}
+                  </option>
+                ))}
+              </select>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -722,6 +756,7 @@ function InvoicePage() {
                 setDateTo("");
                 setSearch("");
                 setStatus("all");
+                setCreatedBy("all");
               }}
               className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50"
             >

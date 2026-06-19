@@ -141,6 +141,11 @@ function buildOrderFilters(query: OrderListQuery) {
     params.push(searchValue, searchValue, searchValue, searchValue);
   }
 
+  if (query.createdBy) {
+    conditions.push("o.created_by = ?");
+    params.push(query.createdBy);
+  }
+
   return {
     whereClause: conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "",
     params,

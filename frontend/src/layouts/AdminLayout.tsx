@@ -27,6 +27,7 @@ type AdminLayoutProps = {
   children: ReactNode;
   title?: string;
   subtitle?: string;
+  headerContent?: ReactNode;
 };
 
 const menuItems: MenuItem[] = [
@@ -247,7 +248,7 @@ function SidebarItem({
   );
 }
 
-function AdminLayout({ children, title, subtitle }: AdminLayoutProps) {
+function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutProps) {
   const navigate = useNavigate();
   const currentDateTime = useCurrentDateTime();
   const [user] = useState<AuthUser>(() => getStoredAuthUser());
@@ -406,9 +407,12 @@ function AdminLayout({ children, title, subtitle }: AdminLayoutProps) {
                 {subtitle ? <p className="text-xs text-slate-500">{subtitle}</p> : null}
               </div>
             ) : (
-              <p className="hidden text-sm font-medium capitalize text-slate-500 sm:block">
-                {currentDateTime}
-              </p>
+              <div className="flex items-center gap-4">
+                <p className="hidden text-sm font-medium capitalize text-slate-500 sm:block">
+                  {currentDateTime}
+                </p>
+                {headerContent}
+              </div>
             )}
           </div>
 

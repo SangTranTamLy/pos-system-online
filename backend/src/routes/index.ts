@@ -10,6 +10,7 @@ import customersRouter from "./customers.routes";
 import promotionsRouter from "./promotions.routes";
 import inventoryRouter from "./inventory.routes";
 import shiftRouter from "./shift.routes";
+import reportRouter from "./report.routes";
 
 const apiRouter = Router();
 apiRouter.use("/dashboard", dashboardRouter);
@@ -24,5 +25,6 @@ apiRouter.use("/customers", customersRouter);
 apiRouter.use("/promotions", promotionsRouter);
 apiRouter.use("/inventory", inventoryRouter);
 apiRouter.use("/shifts", shiftRouter);
+apiRouter.use("/reports", reportRouter);
 
 export default apiRouter;

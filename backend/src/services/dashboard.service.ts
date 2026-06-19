@@ -1,60 +1,58 @@
-﻿import {
+import {
     getDashboardStats,
     getRecentOrders,
-    getRevenueByPeriod,
+    getRevenueTrend,
     getStockAlerts,
     getTopProducts,
+    getPaymentMethodStats,
+    getCurrentActiveShift,
     type RevenueTrendRow,
 } from "../repositories/dashboard.repository";
 import type { DashboardRevenuePeriod } from "../types/dashboard.types";
 
-function formatMonthDayLabel(day: number) {
-    const today = new Date();
-    const month = today.getMonth() + 1;
+export async function getDashboardSummaryService(
+    period: DashboardRevenuePeriod = "month",
+    startDate?: string,
+    endDate?: string
+) {
+    const [stats, revenueRows, topProducts, recentOrders, stockAlerts, paymentMethodRows, currentShiftRow] =
+        await Promise.all([
+        getDashboardStats(startDate, endDate),
+        getRevenueTrend(startDate, endDate),
+        getTopProducts(startDate, endDate),
+        getRecentOrders(startDate, endDate),
+        getStockAlerts(),
+        getPaymentMethodStats(startDate, endDate),
+        getCurrentActiveShift(),
+        ]);
 
-    return `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}`;
-}
+    let totalPaymentRevenue = 0;
+    const paymentMethods = paymentMethodRows.map((item) => {
+        const rev = Number(item.revenue ?? 0);
+        totalPaymentRevenue += rev;
+        return {
+            method: String(item.method),
+            revenue: rev,
+            percentage: 0,
+            ordersCount: Number(item.ordersCount ?? 0)
+        };
+    });
 
-function normalizeRevenueTrend(rows: RevenueTrendRow[], period: DashboardRevenuePeriod) {
-    const revenueBySort = new Map(
-        rows.map((item) => [Number(item.sort), Number(item.revenue ?? 0)])
-    );
-
-    if (period === "year") {
-        return Array.from({ length: 12 }, (_, index) => {
-            const month = index + 1;
-
-            return {
-                sort: month,
-                label: `Tháng ${month}`,
-                revenue: revenueBySort.get(month) ?? 0,
-            };
+    if (totalPaymentRevenue > 0) {
+        paymentMethods.forEach(p => {
+            p.percentage = Math.round((p.revenue / totalPaymentRevenue) * 100);
         });
     }
 
-    const today = new Date();
-    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-
-    return Array.from({ length: daysInMonth }, (_, index) => {
-        const day = index + 1;
-
-        return {
-            sort: day,
-            label: formatMonthDayLabel(day),
-            revenue: revenueBySort.get(day) ?? 0,
+    let currentShift = null;
+    if (currentShiftRow) {
+        currentShift = {
+            id: String(currentShiftRow.id),
+            userName: String(currentShiftRow.userName),
+            expectedStartTime: currentShiftRow.expectedStartTime as Date,
+            expectedEndTime: currentShiftRow.expectedEndTime as Date,
         };
-    });
-}
-
-export async function getDashboardSummaryService(period: DashboardRevenuePeriod = "month") {
-    const [stats, revenueRows, topProducts, recentOrders, stockAlerts] =
-        await Promise.all([
-        getDashboardStats(),
-        getRevenueByPeriod(period),
-        getTopProducts(),
-        getRecentOrders(),
-        getStockAlerts(),
-        ]);
+    }
 
     return {
         stats: {
@@ -65,9 +63,14 @@ export async function getDashboardSummaryService(period: DashboardRevenuePeriod 
         totalCustomers: Number(stats.totalCustomers ?? 0),
         activeProducts: Number(stats.activeProducts ?? 0),
         },
-        revenueTrend: normalizeRevenueTrend(revenueRows, period),
+        revenueTrend: revenueRows.map(row => ({
+            sort: Number(row.sort),
+            label: String(row.label),
+            revenue: Number(row.revenue ?? 0),
+        })),
         topProducts: topProducts.map((item) => ({
         name: String(item.name),
+        imageUrl: item.imageUrl ? String(item.imageUrl) : undefined,
         soldQuantity: Number(item.soldQuantity ?? 0),
         revenue: Number(item.revenue ?? 0),
         })),
@@ -76,11 +79,13 @@ export async function getDashboardSummaryService(period: DashboardRevenuePeriod 
         customerName: String(item.customerName),
         finalAmount: Number(item.finalAmount ?? 0),
         status: String(item.status),
-        createdAt: item.createdAt,
+        createdAt: item.createdAt as Date,
         })),
         stockAlerts: stockAlerts.map((item) => ({
         productName: String(item.productName),
         stockQuantity: Number(item.stockQuantity ?? 0),
         })),
+        paymentMethods,
+        currentShift,
     };
 }

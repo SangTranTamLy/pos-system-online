@@ -13,6 +13,7 @@ export type OrderListQuery = {
   search?: string;
   dateFrom?: string;
   dateTo?: string;
+  createdBy?: string;
 };
 
 export type OrderListItem = {

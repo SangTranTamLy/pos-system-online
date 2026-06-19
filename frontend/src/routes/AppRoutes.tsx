@@ -16,11 +16,31 @@ import {
 } from "../pages/modules/ModuleScaffoldPage";
 import ShiftsPage from "../pages/shifts/ShiftsPage";
 import { StockPage } from "../pages/inventory/StockPage";
+import StaffDashboard from "../pages/dashboard/StaffDashboard";
+
+function RootRedirect() {
+  const rawUser = localStorage.getItem("auth_user");
+  if (!rawUser) return <Navigate to="/login" replace />;
+
+  let role: string | undefined;
+  try {
+    const user = JSON.parse(rawUser);
+    role = user.roleName?.trim().toLowerCase();
+  } catch {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (role === "admin" || role === "manager") {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return <Navigate to="/staff-dashboard" replace />;
+}
 
 function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/" element={<RootRedirect />} />
 
       {/* Routes for everyone (Admin, Manager, Staff) */}
       <Route element={<ProtectedRoute allowedRoles={["admin", "manager", "staff"]} />}>
@@ -30,10 +50,14 @@ function AppRoutes() {
         <Route path="/shifts" element={<ShiftsPage />} />
       </Route>
 
+      {/* Routes for Staff only */}
+      <Route element={<ProtectedRoute allowedRoles={["staff", "cashier"]} />}>
+        <Route path="/staff-dashboard" element={<StaffDashboard />} />
+      </Route>
+
       {/* Routes for Admin & Manager only */}
       <Route element={<ProtectedRoute allowedRoles={["admin", "manager"]} />}>
         <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/products" element={<ProductPage />} />
         <Route path="/categories" element={<CategoryPage />} />
         <Route path="/stock/*" element={<StockPage />} />

@@ -7,149 +7,48 @@ import {
   type DashboardSummary,
 } from "../../api/dashboard.api";
 import RevenueChart, { type RevenuePoint } from "../../components/charts/RevenueChart";
+import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import TopProductsCard, { type TopProduct } from "../../components/charts/TopProductsCard";
+import { getEmployeeRevenue } from "../../api/report.api";
+import type { EmployeeRevenue } from "../../types/report";
+import EmployeeRevenueTable from "../../components/dashboard/EmployeeRevenueTable";
 
-type QuickAction = {
-  label: string;
-  icon: string;
-  path?: string;
-  status?: string;
-  disabled?: boolean;
-};
-
-type StatsCardData = {
-  label: string;
-  value: string;
-  icon: string;
-  iconBg: string;
-  iconText: string;
-  badge: string;
-  badgeBg: string;
-  badgeText: string;
-};
-
-type RecentOrder = {
-  code: string;
-  customer: string;
-  type: string;
-  total: string;
-  status: string;
-  typeClassName: string;
-  statusClassName: string;
-};
-
-type StockAlert = {
-  product: string;
-  remain: string;
-  minimum: string;
-  remainClassName: string;
-};
-
-const quickActions: QuickAction[] = [
-  {
-    label: "Quản lý sản phẩm",
-    icon: "package_2",
-    path: "/products",
-  },
-  {
-    label: "Quản lý danh mục",
-    icon: "sell",
-    path: "/categories",
-  },
-  {
-    label: "Bán hàng tại quầy",
-    icon: "point_of_sale",
-    path: "/pos",
-  },
-];
-
-
-
-function QuickActionCard({
-  action,
-  onSelect,
-}: {
-  action: QuickAction;
-  onSelect: () => void;
-}) {
-  const isDisabled = action.disabled || !action.path;
-
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      disabled={isDisabled}
-      className={[
-        "group flex min-h-32 flex-col items-center justify-center rounded-xl border border-slate-200 bg-white p-4 transition-all",
-        isDisabled
-          ? "cursor-not-allowed opacity-60"
-          : "hover:-translate-y-0.5 hover:border-[#f97316] hover:shadow-md",
-      ].join(" ")}
-    >
-      <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-orange-50 text-[#f97316] transition-all group-enabled:group-hover:bg-[#f97316] group-enabled:group-hover:text-white">
-        <Icon name={action.icon} />
-      </div>
-      <span className="text-center text-sm font-semibold text-[#0b1c30]">{action.label}</span>
-      {action.status ? (
-        <span className="mt-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
-          {action.status}
-        </span>
-      ) : null}
-    </button>
-  );
-}
+type StatsCardData = { label: string; value: string; icon: string; };
+type RecentOrder = { code: string; customer: string; type: string; total: string; status: string; typeClassName: string; statusClassName: string; };
+type StockAlert = { product: string; remain: string; minimum: string; remainClassName: string; };
 
 function StatCard({ card }: { card: StatsCardData }) {
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
-      <div className="mb-3 flex items-center justify-between">
-        <div className={`rounded-lg p-2 ${card.iconBg} ${card.iconText}`}>
-          <Icon name={card.icon} className="scale-90" />
+    <article className="rounded-[24px] border border-slate-200/60 bg-white p-6 shadow-sm">
+      <div className="mb-5 flex items-center justify-between relative z-10">
+        <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-orange-50 text-[#f97316]">
+          <Icon name={card.icon} className="text-[24px]" filled />
         </div>
-        <span
-          className={`rounded px-2 py-0.5 text-[11px] font-bold ${card.badgeBg} ${card.badgeText}`}
-        >
-          {card.badge}
-        </span>
       </div>
-      <p className="text-xs font-semibold uppercase tracking-tight text-slate-500">{card.label}</p>
-      <h3 className="mt-1 text-xl font-bold text-[#0b1c30]">{card.value}</h3>
+      <p className="relative z-10 text-xs font-bold uppercase tracking-widest text-slate-400">{card.label}</p>
+      <h3 className="relative z-10 mt-2 font-['Plus_Jakarta_Sans',sans-serif] text-3xl font-extrabold tracking-tight text-[#0b1c30]">{card.value}</h3>
     </article>
   );
 }
 
 function formatCurrency(value: number) {
-  return new Intl.NumberFormat("vi-VN", {
-    style: "currency",
-    currency: "VND",
-    maximumFractionDigits: 0,
-  }).format(value);
+  return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(value);
 }
 
-
 function getOrderStatusLabel(status: string) {
-  const labels: Record<string, string> = {
-    completed: "Hoàn tất",
-    cancelled: "Đã hủy",
-    refunded: "Hoàn tiền",
-  };
-
+  const labels: Record<string, string> = { completed: "Hoàn tất", cancelled: "Đã hủy", refunded: "Hoàn tiền" };
   return labels[status] ?? status;
 }
 
 function getOrderStatusClassName(status: string) {
-  const classNames: Record<string, string> = {
-    completed: "bg-green-50 text-green-600",
-    cancelled: "bg-red-50 text-red-600",
-    refunded: "bg-slate-100 text-slate-500",
-  };
-
+  const classNames: Record<string, string> = { completed: "bg-green-50 text-green-600", cancelled: "bg-red-50 text-red-600", refunded: "bg-slate-100 text-slate-500" };
   return classNames[status] ?? "bg-slate-100 text-slate-500";
 }
 
 function getStockRemainClassName(stockQuantity: number) {
   return stockQuantity <= 5 ? "text-red-600" : "text-orange-600";
 }
+
 function DashboardPage() {
   const navigate = useNavigate();
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
@@ -159,6 +58,11 @@ function DashboardPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
+  const todayStr = new Date().toISOString().split("T")[0];
+  const [reportDate, setReportDate] = useState(todayStr);
+
+  const [employeeRevenue, setEmployeeRevenue] = useState<EmployeeRevenue[]>([]);
+
   useEffect(() => {
     let isActive = true;
 
@@ -166,19 +70,14 @@ function DashboardPage() {
       if (!silent) setIsLoading(true);
       else setIsRefreshing(true);
       try {
-        const response = await getDashboardSummary(revenuePeriod);
-
+        const response = await getDashboardSummary(revenuePeriod, reportDate, reportDate);
         if (isActive) {
           setDashboard(response.data);
           setLastUpdated(new Date());
           setErrorMessage("");
         }
       } catch (error) {
-        if (isActive) {
-          setErrorMessage(
-            error instanceof Error ? error.message : "Không tải được dữ liệu dashboard"
-          );
-        }
+        if (isActive) setErrorMessage(error instanceof Error ? error.message : "Không tải được dữ liệu dashboard");
       } finally {
         if (isActive) {
           setIsLoading(false);
@@ -188,136 +87,82 @@ function DashboardPage() {
     }
 
     void loadDashboard();
+    const interval = window.setInterval(() => { void loadDashboard(true); }, 60_000);
+    return () => { isActive = false; window.clearInterval(interval); };
+  }, [revenuePeriod, reportDate]);
 
-    // Auto-refresh every 60 seconds
-    const interval = window.setInterval(() => {
-      void loadDashboard(true);
-    }, 60_000);
-
-    return () => {
-      isActive = false;
-      window.clearInterval(interval);
-    };
-  }, [revenuePeriod]);
+  useEffect(() => {
+    let isActive = true;
+    getEmployeeRevenue(reportDate || undefined, reportDate || undefined)
+      .then((data) => { if (isActive) setEmployeeRevenue(data); })
+      .catch((error) => {
+        if (isActive) setErrorMessage(error instanceof Error ? error.message : "Không tải được dữ liệu nhân viên");
+      });
+    return () => { isActive = false; };
+  }, [reportDate]);
 
   function handleManualRefresh() {
     setIsRefreshing(true);
-    getDashboardSummary(revenuePeriod)
-      .then((response) => {
-        setDashboard(response.data);
-        setLastUpdated(new Date());
-        setErrorMessage("");
-      })
-      .catch((error) => {
-        setErrorMessage(
-          error instanceof Error ? error.message : "Không tải được dữ liệu dashboard"
-        );
-      })
+    getDashboardSummary(revenuePeriod, reportDate, reportDate)
+      .then((response) => { setDashboard(response.data); setLastUpdated(new Date()); setErrorMessage(""); })
+      .catch((error) => { setErrorMessage(error instanceof Error ? error.message : "Không tải được dữ liệu dashboard"); })
       .finally(() => setIsRefreshing(false));
   }
+
   const stats = dashboard?.stats;
 
   const realStatsCards: StatsCardData[] = [
-    {
-      label: "Doanh thu hôm nay",
-      value: formatCurrency(stats?.todayRevenue ?? 0),
-      icon: "payments",
-      iconBg: "bg-orange-50",
-      iconText: "text-[#f97316]",
-      badge: "Hôm nay",
-      badgeBg: "bg-green-50",
-      badgeText: "text-green-600",
-    },
-    {
-      label: "Hóa đơn hôm nay",
-      value: String(stats?.todayOrders ?? 0),
-      icon: "receipt_long",
-      iconBg: "bg-orange-50",
-      iconText: "text-[#f97316]",
-      badge: "POS",
-      badgeBg: "bg-green-50",
-      badgeText: "text-green-600",
-    },
-    {
-      label: "Danh mục đang bán",
-      value: String(stats?.activeCategories ?? 0),
-      icon: "sell",
-      iconBg: "bg-orange-50",
-      iconText: "text-[#f97316]",
-      badge: "Đang hoạt động",
-      badgeBg: "bg-orange-50",
-      badgeText: "text-[#f97316]",
-    },
-    {
-      label: "Sản phẩm sắp hết",
-      value: String(stats?.lowStockProducts ?? 0),
-      icon: "priority_high",
-      iconBg: "bg-red-50",
-      iconText: "text-red-600",
-      badge: "Sắp hết",
-      badgeBg: "bg-red-50",
-      badgeText: "text-red-600",
-    },
-    {
-      label: "Tổng khách hàng",
-      value: String(stats?.totalCustomers ?? 0),
-      icon: "person_add",
-      iconBg: "bg-green-50",
-      iconText: "text-green-600",
-      badge: "Khách hàng",
-      badgeBg: "bg-green-50",
-      badgeText: "text-green-600",
-    },
-    {
-      label: "Sản phẩm đang bán",
-      value: String(stats?.activeProducts ?? 0),
-      icon: "inventory",
-      iconBg: "bg-orange-50",
-      iconText: "text-[#f97316]",
-      badge: "Đang bán",
-      badgeBg: "bg-slate-50",
-      badgeText: "text-slate-500",
-    },
+    { label: "Tổng doanh thu", value: formatCurrency(stats?.todayRevenue ?? 0), icon: "payments" },
+    { label: "Tổng hóa đơn", value: String(stats?.todayOrders ?? 0), icon: "receipt_long" },
+    { label: "Danh mục đang bán", value: String(stats?.activeCategories ?? 0), icon: "category" },
+    { label: "Sản phẩm sắp hết", value: String(stats?.lowStockProducts ?? 0), icon: "priority_high" },
+    { label: "Tổng khách hàng", value: String(stats?.totalCustomers ?? 0), icon: "group" },
+    { label: "Sản phẩm đang bán", value: String(stats?.activeProducts ?? 0), icon: "inventory_2" },
   ];
 
   const realRevenueTrend: RevenuePoint[] = dashboard?.revenueTrend ?? [];
 
-  const maxSoldQuantity = Math.max(
-    ...(dashboard?.topProducts ?? []).map((item) => item.soldQuantity),
-    0
-  );
   const realTopProducts: TopProduct[] = (dashboard?.topProducts ?? []).map((item) => ({
     name: item.name,
-    sold: `${item.soldQuantity} đã bán`,
-    width: maxSoldQuantity > 0 ? `${Math.max((item.soldQuantity / maxSoldQuantity) * 100, 8)}%` : "8%",
+    imageUrl: item.imageUrl,
+    sold: `Đã bán: ${item.soldQuantity}`,
+    revenue: formatCurrency(item.revenue),
   }));
-  const totalTopProductSold = (dashboard?.topProducts ?? []).reduce(
-    (total, item) => total + item.soldQuantity,
-    0
-  );
-  const totalTopProductRevenue = (dashboard?.topProducts ?? []).reduce(
-    (total, item) => total + item.revenue,
-    0
-  );
 
   const realRecentOrders: RecentOrder[] = (dashboard?.recentOrders ?? []).map((order) => ({
-    code: `#HD-${order.id}`,
-    customer: order.customerName,
-    type: "POS",
-    total: formatCurrency(order.finalAmount),
-    status: getOrderStatusLabel(order.status),
-    typeClassName: "bg-orange-50 text-[#f97316]",
-    statusClassName: getOrderStatusClassName(order.status),
+    code: `#HD-${order.id}`, customer: order.customerName, type: "POS", total: formatCurrency(order.finalAmount), status: getOrderStatusLabel(order.status), typeClassName: "bg-orange-50 text-[#f97316]", statusClassName: getOrderStatusClassName(order.status),
   }));
 
   const realStockAlerts: StockAlert[] = (dashboard?.stockAlerts ?? []).map((item) => ({
-    product: item.productName,
-    remain: String(item.stockQuantity),
-    minimum: "10",
-    remainClassName: getStockRemainClassName(item.stockQuantity),
+    product: item.productName, remain: String(item.stockQuantity), minimum: "10", remainClassName: getStockRemainClassName(item.stockQuantity),
   }));
 
-  if (isLoading) {
+  const paymentMethods = dashboard?.paymentMethods ?? [];
+  const totalOrdersCount = paymentMethods.reduce((sum, item) => sum + (item.ordersCount || 0), 0);
+
+  const paymentMethodColors: Record<string, string> = {
+    'cash': '#f97316', // Orange 500
+    'qr': '#fb923c',   // Orange 400
+    'card': '#fed7aa', // Orange 200
+  };
+  const paymentMethodLabels: Record<string, string> = {
+    'cash': 'Tiền mặt',
+    'qr': 'QR',
+    'card': 'Thẻ',
+  };
+
+  const standardMethods = ['cash', 'qr', 'card'];
+  const donutData = standardMethods.map(m => {
+    const found = paymentMethods.find(p => p.method.toLowerCase() === m);
+    return {
+      name: m,
+      value: found ? found.revenue : 0,
+      percentage: found ? found.percentage : 0,
+      ordersCount: found ? found.ordersCount : 0
+    };
+  });
+
+  if (isLoading && !dashboard) {
     return (
       <AdminLayout>
         <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm font-semibold text-slate-500 shadow-sm">
@@ -328,60 +173,56 @@ function DashboardPage() {
   }
 
   return (
-    <AdminLayout>
-      {errorMessage ? (
-        <div className="mb-6 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-600">
-          {errorMessage}
+    <AdminLayout
+      headerContent={
+        <div className="flex items-center gap-2 ml-4">
+          <input
+            type="date"
+            value={reportDate}
+            onChange={(e) => setReportDate(e.target.value)}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-bold text-[#f97316] outline-none transition-all focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+          />
+          <button
+            type="button"
+            onClick={handleManualRefresh}
+            disabled={isRefreshing}
+            className="flex h-[34px] w-[34px] items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:border-[#f97316] hover:text-[#f97316] disabled:opacity-50"
+            title="Làm mới dữ liệu"
+          >
+            <Icon name="refresh" className={`text-[18px] ${isRefreshing ? "animate-spin" : ""}`} />
+          </button>
         </div>
+      }
+    >
+      {errorMessage ? (
+        <div className="mb-6 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-600">{errorMessage}</div>
       ) : null}
 
-      <section className="mb-6">
-        <div className="mb-2 flex items-center justify-between gap-4">
-          <div>
-            <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-lg font-bold text-[#0b1c30]">
-              Thao tác nhanh
-            </h2>
-            <p className="text-sm text-slate-500">
-              Chỉ hiển thị các chức năng phù hợp với đề tài hiện tại.
-            </p>
+      {/* Current shift indicator */}
+      {dashboard?.currentShift && (
+        <div className="mb-6 rounded-2xl bg-blue-50/50 p-4 border border-blue-100 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-center gap-4 text-blue-900">
+            <div className="bg-blue-100 text-blue-600 p-2.5 rounded-full">
+              <Icon name="schedule" className="scale-110" />
+            </div>
+            <div>
+              <p className="font-extrabold text-[15px]">
+                Ca hiện tại: {new Date(dashboard.currentShift.expectedStartTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - {new Date(dashboard.currentShift.expectedEndTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+              </p>
+              <p className="text-sm mt-0.5 text-blue-700">Thu ngân: <span className="font-bold">{dashboard.currentShift.userName}</span></p>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            {lastUpdated && (
-              <span className="text-xs text-slate-400">
-                Cập nhật: {lastUpdated.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={handleManualRefresh}
-              disabled={isRefreshing}
-              title="Làm mới dữ liệu"
-              className="inline-flex h-10 items-center justify-center gap-2 border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition-colors hover:border-[#f97316] hover:text-[#f97316] disabled:opacity-50"
-            >
-              <Icon name="refresh" className={`text-base ${isRefreshing ? "animate-spin" : ""}`} />
-              {isRefreshing ? "Đang tải..." : "Làm mới"}
-            </button>
-          </div>
+          <span className="bg-blue-600 text-white px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-white"></span>
+            Đang hoạt động
+          </span>
         </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {quickActions.map((action) => (
-            <QuickActionCard
-              key={action.label}
-              action={action}
-              onSelect={() => {
-                if (action.path) {
-                  navigate(action.path);
-                }
-              }}
-            />
-          ))}
-        </div>
-      </section>
+      )}
+
+
 
       <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
-        {realStatsCards.map((card) => (
-          <StatCard key={card.label} card={card} />
-        ))}
+        {realStatsCards.map((card) => (<StatCard key={card.label} card={card} />))}
       </section>
 
       <section className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-12">
@@ -390,132 +231,126 @@ function DashboardPage() {
         </div>
 
         <div className="flex flex-col gap-6 xl:col-span-4">
-          <div className="flex flex-1 flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h4 className="mb-4 font-['Plus_Jakarta_Sans',sans-serif] font-bold text-[#0b1c30]">
-              Các món bán chạy
-            </h4>
-            <div className="grid flex-1 grid-cols-2 gap-3">
-              <div className="rounded-xl bg-orange-50 p-4">
-                <p className="text-xs font-semibold text-slate-500">Số lượng đã bán</p>
-                <p className="mt-2 text-2xl font-bold text-[#0b1c30]">{totalTopProductSold}</p>
-              </div>
-              <div className="rounded-xl bg-green-50 p-4">
-                <p className="text-xs font-semibold text-slate-500">Doanh thu top món</p>
-                <p className="mt-2 text-lg font-bold text-[#0b1c30]">
-                  {formatCurrency(totalTopProductRevenue)}
-                </p>
-              </div>
-            </div>
-          </div>
-
           <TopProductsCard products={realTopProducts} />
         </div>
       </section>
 
-      <section className="grid grid-cols-1 gap-6 2xl:grid-cols-12">
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm 2xl:col-span-7">
+      <section className="mb-8 grid grid-cols-1 gap-6 2xl:grid-cols-12">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm 2xl:col-span-5">
           <div className="flex items-center justify-between border-b border-slate-200 p-6">
-            <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-bold text-[#0b1c30]">
-              Hóa đơn gần đây
-            </h4>
-            <button type="button" className="text-xs font-bold text-[#f97316] hover:underline">
-              Xem tất cả
-            </button>
+            <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-bold text-[#0b1c30]">Hóa đơn gần đây</h4>
+            <button type="button" className="text-xs font-bold text-[#f97316] hover:underline">Xem tất cả</button>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full min-w-160 text-left text-sm">
               <thead className="bg-slate-50 font-semibold text-slate-500">
-                <tr>
-                  <th className="px-6 py-3">Mã đơn</th>
-                  <th className="px-6 py-3">Khách hàng</th>
-                  <th className="px-6 py-3">Loại</th>
-                  <th className="px-6 py-3 text-right">Tổng tiền</th>
-                  <th className="px-6 py-3 text-center">Trạng thái</th>
-                </tr>
+                <tr><th className="px-6 py-3">Mã đơn</th><th className="px-6 py-3">Khách hàng</th><th className="px-6 py-3 text-right">Tổng tiền</th><th className="px-6 py-3 text-center">Trạng thái</th></tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {realRecentOrders.length > 0 ? (
                   realRecentOrders.map((order) => (
                     <tr key={order.code} className="transition-colors hover:bg-slate-50">
                       <td className="px-6 py-4 font-bold text-[#f97316]">{order.code}</td>
-                      <td className="px-6 py-4 text-[#0b1c30]">{order.customer}</td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${order.typeClassName}`}
-                        >
-                          {order.type}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right font-semibold text-[#0b1c30]">
-                        {order.total}
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${order.statusClassName}`}
-                        >
-                          {order.status}
-                        </span>
-                      </td>
+                      <td className="px-6 py-4 text-[#0b1c30] truncate max-w-[120px]">{order.customer}</td>
+                      <td className="px-6 py-4 text-right font-semibold text-[#0b1c30]">{order.total}</td>
+                      <td className="px-6 py-4 text-center"><span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${order.statusClassName}`}>{order.status}</span></td>
                     </tr>
                   ))
                 ) : (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-6 text-center text-sm text-slate-400">
-                      Chưa có hóa đơn gần đây
-                    </td>
-                  </tr>
+                  <tr><td colSpan={4} className="px-6 py-6 text-center text-sm text-slate-400">Chưa có hóa đơn gần đây</td></tr>
                 )}
               </tbody>
             </table>
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm 2xl:col-span-5">
-          <div className="flex items-center justify-between border-b border-slate-200 p-6">
-            <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-bold text-[#0b1c30]">
-              Cảnh báo tồn kho
-            </h4>
-            <button
-              type="button"
-              onClick={() => navigate("/products")}
-              className="text-xs font-bold text-[#f97316] hover:underline"
-            >
-              Xem sản phẩm
-            </button>
+        <div className="overflow-hidden rounded-[24px] border border-slate-200/60 bg-white shadow-lg shadow-slate-200/40 2xl:col-span-4">
+          <div className="flex items-center justify-between border-b border-slate-100 p-6">
+            <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-bold text-[#0b1c30]">Cảnh báo tồn kho</h4>
+            <button type="button" onClick={() => navigate("/products")} className="text-[11px] font-bold uppercase tracking-widest text-[#f97316] hover:underline">Xem tất cả</button>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full min-w-104 text-left text-sm">
-              <thead className="bg-slate-50 font-semibold text-slate-500">
-                <tr>
-                  <th className="px-6 py-3">Sản phẩm</th>
-                  <th className="px-6 py-3 text-center">Còn lại</th>
-                  <th className="px-6 py-3 text-center">Mức tối thiểu</th>
-                </tr>
+              <thead className="bg-slate-50/50 font-semibold text-slate-400">
+                <tr><th className="px-6 py-4 uppercase tracking-widest text-[10px]">Sản phẩm</th><th className="px-6 py-4 text-center uppercase tracking-widest text-[10px]">Còn lại</th><th className="px-6 py-4 text-center uppercase tracking-widest text-[10px]">Tối thiểu</th></tr>
               </thead>
-              <tbody className="divide-y divide-slate-200"> 
+              <tbody className="divide-y divide-slate-100">
                 {realStockAlerts.length > 0 ? (
                   realStockAlerts.map((item) => (
-                    <tr key={item.product} className="transition-colors hover:bg-slate-50">
-                      <td className="px-6 py-4 text-[#0b1c30]">{item.product}</td>
-                      <td className="px-6 py-4 text-center font-bold">
-                        <span className={item.remainClassName}>{item.remain}</span>
-                      </td>
-                      <td className="px-6 py-4 text-center text-slate-400">{item.minimum}</td>
+                    <tr key={item.product} className="transition-colors hover:bg-slate-50/50">
+                      <td className="px-6 py-4 text-[#0b1c30] font-semibold truncate max-w-[120px]">{item.product}</td>
+                      <td className="px-6 py-4 text-center font-black"><span className={`rounded-full px-3 py-1 text-xs bg-red-50 ${item.remainClassName}`}>{item.remain}</span></td>
+                      <td className="px-6 py-4 text-center font-bold text-slate-400">{item.minimum}</td>
                     </tr>
                   ))
                 ) : (
-                  <tr>
-                    <td colSpan={3} className="px-6 py-6 text-center text-sm text-slate-400">
-                      Không có sản phẩm sắp hết hàng
-                    </td>
-                  </tr>
+                  <tr><td colSpan={3} className="px-6 py-8 text-center text-sm font-semibold text-slate-400">Không có sản phẩm sắp hết hàng</td></tr>
                 )}
               </tbody>
             </table>
           </div>
         </div>
+
+        <div className="flex flex-col rounded-[24px] border border-slate-200/60 bg-white shadow-lg shadow-slate-200/40 2xl:col-span-3">
+          <div className="p-6 pb-2">
+            <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-black text-[14px] uppercase tracking-wider text-[#0b1c30]">Phương thức thanh toán</h4>
+          </div>
+          <div className="p-6 pt-2 flex-1 flex flex-col justify-center">
+            {totalOrdersCount > 0 ? (
+              <div className="flex items-center justify-between gap-6 px-2">
+                <div className="relative h-[150px] w-[150px] shrink-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={donutData.filter(d => d.value > 0)}
+                        innerRadius={50}
+                        outerRadius={75}
+                        paddingAngle={3}
+                        dataKey="value"
+                        stroke="none"
+                        cornerRadius={4}
+                      >
+                        {donutData.filter(d => d.value > 0).map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={paymentMethodColors[entry.name]} />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tổng</span>
+                    <span className="text-[28px] font-black leading-none text-[#0b1c30]">{totalOrdersCount}</span>
+                  </div>
+                </div>
+
+                <div className="flex-1 flex flex-col gap-5">
+                  {donutData.map(item => (
+                    <div key={item.name} className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="h-3 w-3 rounded-full shadow-sm" style={{ backgroundColor: paymentMethodColors[item.name] }}></span>
+                        <span className="text-[13px] font-bold text-slate-700">{paymentMethodLabels[item.name]}</span>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[15px] font-black text-[#0b1c30]">{item.percentage}%</p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{item.ordersCount} đơn</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-400">
+                <Icon name="pie_chart" className="text-[48px] opacity-20" />
+                <p className="text-sm font-semibold">Chưa có giao dịch</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="mb-8">
+        <EmployeeRevenueTable data={employeeRevenue} />
       </section>
     </AdminLayout>
   );
