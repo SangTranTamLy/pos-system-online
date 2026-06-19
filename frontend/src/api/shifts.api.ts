@@ -1,6 +1,6 @@
 const API_BASE_URL = "http://localhost:5000/api";
 
-export type ShiftStatus = 'PENDING' | 'APPROVED' | 'OPEN' | 'CLOSING_REQUEST' | 'CLOSED' | 'CANCELLED';
+export type ShiftStatus = 'PENDING' | 'APPROVED' | 'OPENING_REQUEST' | 'OPEN' | 'CLOSING_REQUEST' | 'CLOSED' | 'CANCELLED';
 
 export interface Shift {
   id: string;
@@ -71,14 +71,24 @@ export async function approveShift(id: string): Promise<Shift> {
   return data.data;
 }
 
-export async function openShift(id: string, openingCash: number): Promise<Shift> {
-  const response = await fetch(`${API_BASE_URL}/shifts/${id}/open`, {
+export async function requestOpenShift(id: string, openingCash: number): Promise<Shift> {
+  const response = await fetch(`${API_BASE_URL}/shifts/${id}/request-open`, {
     method: "PATCH",
     headers: getAuthHeaders(),
     body: JSON.stringify({ openingCash }),
   });
   const data = await response.json();
-  if (!response.ok) throw new Error(data.message || "Lỗi mở ca");
+  if (!response.ok) throw new Error(data.message || "Lỗi yêu cầu mở ca");
+  return data.data;
+}
+
+export async function openShift(id: string): Promise<Shift> {
+  const response = await fetch(`${API_BASE_URL}/shifts/${id}/open`, {
+    method: "PATCH",
+    headers: getAuthHeaders(),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message || "Lỗi xác nhận mở ca");
   return data.data;
 }
 

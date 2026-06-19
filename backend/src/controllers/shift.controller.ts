@@ -26,10 +26,16 @@ export const approveShiftController = async (req: Request, res: Response) => {
   res.json({ success: true, message: "Duyệt ca thành công", data: shift });
 };
 
-export const openShiftController = async (req: Request, res: Response) => {
+export const requestOpenShiftController = async (req: Request, res: Response) => {
   const user = req.user as AuthUser;
   const { openingCash } = req.body;
-  const shift = await shiftService.openShift(req.params.id as string, user.id, Number(openingCash) || 0);
+  const shift = await shiftService.requestOpenShift(req.params.id as string, user.id, Number(openingCash) || 0);
+  res.json({ success: true, message: "Đã gửi yêu cầu mở ca", data: shift });
+};
+
+export const openShiftController = async (req: Request, res: Response) => {
+  const user = req.user as AuthUser;
+  const shift = await shiftService.openShift(req.params.id as string, user.id);
   res.json({ success: true, message: "Mở ca thành công", data: shift });
 };
 

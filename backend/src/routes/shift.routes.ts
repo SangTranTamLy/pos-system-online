@@ -11,7 +11,7 @@ shiftRouter.use(authMiddleware);
 shiftRouter.get("/", asyncHandler(shiftController.getShiftsController));
 shiftRouter.post("/", asyncHandler(shiftController.registerShiftController));
 shiftRouter.patch("/:id/request-close", asyncHandler(shiftController.requestCloseShiftController));
-
+shiftRouter.patch("/:id/request-open", asyncHandler(shiftController.requestOpenShiftController));
 // Manager and Admin only
 shiftRouter.patch(
   "/:id/approve",

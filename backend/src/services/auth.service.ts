@@ -1,10 +1,12 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { findUserByEmail } from "../repositories/user.repository";
+import { findAllActiveUsersWithRoles } from "../repositories/user.repository";
 import type {
   AuthTokenPayload,
   AuthUser,
   LoginRequestBody,
+  LoginPinRequestBody,
 } from "../types/auth.types";
 import { ApiError } from "../utils/apiError";
 
@@ -47,7 +49,12 @@ export async function loginService(
   const isPasswordValid = await bcrypt.compare(body.password, user.passwordHash);
 
   if (!isPasswordValid) {
-    throw new ApiError(401, "Email hoặc mật khẩu không hợp lệ!");
+    throw new ApiError(401, "Mật khẩu không chính xác!");
+  }
+
+  const roleName = user.roleName.toLowerCase();
+  if (roleName !== "admin" && roleName !== "manager") {
+    throw new ApiError(403, "Tab này chỉ dành cho Quản trị viên hoặc Quản lý");
   }
 
   const authUser: AuthUser = {
@@ -74,4 +81,53 @@ export async function loginService(
     token,
     user: authUser,
   };
+}
+
+export async function loginPinService(
+  body: LoginPinRequestBody
+): Promise<LoginResult> {
+  if (!body.pin || body.pin.length !== 6) {
+    throw new ApiError(400, "Mã PIN phải bao gồm 6 chữ số.");
+  }
+
+  const activeUsers = await findAllActiveUsersWithRoles();
+
+  for (const user of activeUsers) {
+    if (user.pinCode) {
+      const isMatch = await bcrypt.compare(body.pin, user.pinCode);
+      if (isMatch) {
+        const roleName = user.roleName.toLowerCase();
+        if (roleName === "admin" || roleName === "manager") {
+          throw new ApiError(403, "Tài khoản Quản lý không được phép đăng nhập bằng mã PIN");
+        }
+
+        const authUser: AuthUser = {
+          id: user.id,
+          fullName: user.fullName,
+          email: user.email,
+          roleId: user.roleId,
+          roleName: user.roleName,
+        };
+
+        const payload: AuthTokenPayload = {
+          userId: authUser.id,
+          email: authUser.email,
+          fullName: authUser.fullName,
+          roleId: authUser.roleId,
+          roleName: authUser.roleName,
+        };
+
+        const token = jwt.sign(payload, getJwtSecret(), {
+          expiresIn: "1d",
+        });
+
+        return {
+          token,
+          user: authUser,
+        };
+      }
+    }
+  }
+
+  throw new ApiError(401, "Mã PIN không chính xác!");
 }

@@ -3,6 +3,10 @@ export interface LoginRequestBody {
   password: string;
 }
 
+export interface LoginPinRequestBody {
+  pin: string;
+}
+
 export interface AuthUser {
   id: string;
   fullName: string;
@@ -28,6 +32,8 @@ export type DatabaseUser = {
   fullName: string;
   email: string;
   passwordHash: string;
+  phone: string;
+  pinCode: string;
   roleId: string;
   roleName: string;
   isActive: boolean;

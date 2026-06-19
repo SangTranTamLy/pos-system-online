@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 import { 
-  fetchShifts, registerShift, approveShift, openShift, 
+  fetchShifts, registerShift, approveShift, requestOpenShift, openShift, 
   requestCloseShift, closeShift, cancelShift, type Shift 
 } from "../../api/shifts.api";
 
@@ -22,6 +22,7 @@ function formatDate(isoStr: string) {
 const statusMap: Record<string, { label: string; color: string }> = {
   PENDING: { label: "Chờ duyệt", color: "bg-amber-100 text-amber-700" },
   APPROVED: { label: "Đã duyệt", color: "bg-blue-100 text-blue-700" },
+  OPENING_REQUEST: { label: "Yêu cầu mở", color: "bg-orange-100 text-orange-700" },
   OPEN: { label: "Đang mở", color: "bg-green-100 text-green-700" },
   CLOSING_REQUEST: { label: "Yêu cầu đóng", color: "bg-purple-100 text-purple-700" },
   CLOSED: { label: "Đã đóng", color: "bg-slate-200 text-slate-700" },
@@ -40,6 +41,7 @@ export default function ShiftsPage() {
   const [newShiftStart, setNewShiftStart] = useState("");
   const [newShiftEnd, setNewShiftEnd] = useState("");
   
+  const [showRequestOpenModal, setShowRequestOpenModal] = useState<string | null>(null);
   const [showOpenModal, setShowOpenModal] = useState<string | null>(null);
   const [openingCash, setOpeningCash] = useState("");
   
@@ -93,12 +95,23 @@ export default function ShiftsPage() {
     }
   };
 
+  const handleRequestOpen = async () => {
+    if (!showRequestOpenModal) return;
+    try {
+      await requestOpenShift(showRequestOpenModal, Number(openingCash));
+      setShowRequestOpenModal(null);
+      setOpeningCash("");
+      loadShifts();
+    } catch (error: any) {
+      alert(error.message);
+    }
+  };
+
   const handleOpen = async () => {
     if (!showOpenModal) return;
     try {
-      await openShift(showOpenModal, Number(openingCash));
+      await openShift(showOpenModal);
       setShowOpenModal(null);
-      setOpeningCash("");
       loadShifts();
     } catch (error: any) {
       alert(error.message);
@@ -148,6 +161,7 @@ export default function ShiftsPage() {
     };
   }, [shifts]);
 
+  const activeShiftToOpen = useMemo(() => shifts.find(s => s.id === showOpenModal), [shifts, showOpenModal]);
   const activeShiftToClose = useMemo(() => shifts.find(s => s.id === showCloseModal), [shifts, showCloseModal]);
 
   return (
@@ -255,8 +269,8 @@ export default function ShiftsPage() {
                               {shift.status === 'PENDING' && (
                                 <button onClick={() => handleApprove(shift.id)} className="text-blue-600 hover:text-blue-800 font-bold text-xs bg-blue-50 px-3 py-1.5 rounded-lg">Duyệt</button>
                               )}
-                              {shift.status === 'APPROVED' && (
-                                <button onClick={() => setShowOpenModal(shift.id)} className="text-green-600 hover:text-green-800 font-bold text-xs bg-green-50 px-3 py-1.5 rounded-lg">Mở ca</button>
+                              {shift.status === 'OPENING_REQUEST' && (
+                                <button onClick={() => setShowOpenModal(shift.id)} className="text-green-600 hover:text-green-800 font-bold text-xs bg-green-50 px-3 py-1.5 rounded-lg">Xác nhận mở ca</button>
                               )}
                               {shift.status === 'CLOSING_REQUEST' && (
                                 <button onClick={() => setShowCloseModal(shift.id)} className="text-purple-600 hover:text-purple-800 font-bold text-xs bg-purple-50 px-3 py-1.5 rounded-lg">Đóng & Đối soát</button>
@@ -267,6 +281,9 @@ export default function ShiftsPage() {
                             </>
                           ) : (
                             <>
+                              {shift.status === 'APPROVED' && (
+                                <button onClick={() => setShowRequestOpenModal(shift.id)} className="text-orange-600 hover:text-orange-800 font-bold text-xs bg-orange-50 px-3 py-1.5 rounded-lg">Nhập tiền & Mở ca</button>
+                              )}
                               {shift.status === 'OPEN' && (
                                 <button onClick={() => handleRequestClose(shift.id)} className="text-orange-600 hover:text-orange-800 font-bold text-xs bg-orange-50 px-3 py-1.5 rounded-lg">Yêu cầu đóng</button>
                               )}
@@ -306,21 +323,39 @@ export default function ShiftsPage() {
         </div>
       )}
 
-      {/* Manager Open Modal */}
-      {showOpenModal && (
+      {/* Staff Request Open Modal */}
+      {showRequestOpenModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl">
-            <h3 className="text-xl font-bold text-[#0b1c30] mb-4">Mở ca làm</h3>
+            <h3 className="text-xl font-bold text-[#0b1c30] mb-4">Yêu cầu mở ca</h3>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">Tiền đầu ca (VND)</label>
-                <p className="text-xs text-slate-500 mb-2">Số tiền lẻ bạn giao cho nhân viên để thối lại cho khách.</p>
+                <p className="text-xs text-slate-500 mb-2">Số tiền lẻ bạn nhận từ Quản lý để bắt đầu ca.</p>
                 <input type="number" value={openingCash} onChange={e => setOpeningCash(e.target.value)} placeholder="VD: 500000" className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100" />
               </div>
             </div>
             <div className="mt-6 flex justify-end gap-3">
+              <button onClick={() => setShowRequestOpenModal(null)} className="rounded-xl px-5 py-3 font-bold text-slate-600 hover:bg-slate-50">Hủy</button>
+              <button onClick={handleRequestOpen} className="rounded-xl bg-[#f97316] px-5 py-3 font-bold text-white shadow-lg shadow-orange-200 hover:bg-orange-600">Gửi yêu cầu</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manager Open Modal */}
+      {showOpenModal && activeShiftToOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl">
+            <h3 className="text-xl font-bold text-[#0b1c30] mb-4">Xác nhận mở ca</h3>
+            <div className="space-y-4">
+              <p className="text-sm text-slate-600">Nhân viên <b>{activeShiftToOpen.userName || 'Bạn'}</b> đã báo nhận số tiền đầu ca là:</p>
+              <p className="text-3xl font-extrabold text-[#f97316] text-center">{formatCurrency(activeShiftToOpen.openingCash)}</p>
+              <p className="text-xs text-slate-500 text-center">Vui lòng xác nhận xem số tiền này có đúng không.</p>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
               <button onClick={() => setShowOpenModal(null)} className="rounded-xl px-5 py-3 font-bold text-slate-600 hover:bg-slate-50">Hủy</button>
-              <button onClick={handleOpen} className="rounded-xl bg-green-600 px-5 py-3 font-bold text-white hover:bg-green-700">Mở ca & Khởi tạo</button>
+              <button onClick={handleOpen} className="rounded-xl bg-green-600 px-5 py-3 font-bold text-white hover:bg-green-700">Duyệt mở ca</button>
             </div>
           </div>
         </div>

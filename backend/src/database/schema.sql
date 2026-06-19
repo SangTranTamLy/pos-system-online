@@ -14,13 +14,16 @@ CREATE TABLE IF NOT EXISTS roles (
 CREATE TABLE IF NOT EXISTS users (
   id CHAR(36) PRIMARY KEY,
   full_name VARCHAR(120) NOT NULL,
-  email VARCHAR(255) NOT NULL UNIQUE,
-  password_hash VARCHAR(255) NOT NULL,
+  email VARCHAR(255) UNIQUE NULL,
+  password_hash VARCHAR(255) NULL,
+  username VARCHAR(20) UNIQUE NULL,
+  pin_code VARCHAR(255) UNIQUE NULL,
   role_id CHAR(36) NOT NULL,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT fk_users_role_id FOREIGN KEY (role_id) REFERENCES roles(id)
+  CONSTRAINT fk_users_role_id FOREIGN KEY (role_id) REFERENCES roles(id),
+  CONSTRAINT chk_users_username_format CHECK (username IS NULL OR username REGEXP '^0[0-9]{9}$')
 );
 
 CREATE TABLE IF NOT EXISTS categories (
@@ -284,7 +287,7 @@ CREATE TABLE IF NOT EXISTS shifts (
   CONSTRAINT fk_shifts_approved_by FOREIGN KEY (approved_by) REFERENCES users(id),
   CONSTRAINT fk_shifts_opened_by FOREIGN KEY (opened_by) REFERENCES users(id),
   CONSTRAINT fk_shifts_closed_by FOREIGN KEY (closed_by) REFERENCES users(id),
-  CONSTRAINT chk_shifts_status CHECK (status IN ('PENDING', 'APPROVED', 'OPEN', 'CLOSING_REQUEST', 'CLOSED', 'CANCELLED'))
+  CONSTRAINT chk_shifts_status CHECK (status IN ('PENDING', 'APPROVED', 'OPENING_REQUEST', 'OPEN', 'CLOSING_REQUEST', 'CLOSED', 'CANCELLED'))
 );
 
 CALL create_index_if_missing('shifts', 'idx_shifts_user_id', 'user_id');

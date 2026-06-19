@@ -9,6 +9,8 @@ export type UserRow = RowDataPacket & {
   password_hash: string;
   role_id: string;
   is_active: number;
+  phone: string;
+  pin_code: string;
   role_name: string;
 }
 
@@ -27,6 +29,8 @@ export const findUserByEmail = async (
       users.full_name,
       users.email,
       users.password_hash,
+      users.phone,
+      users.pin_code,
       users.role_id,
       users.is_active,
       r.name AS role_name
@@ -46,6 +50,8 @@ export const findUserByEmail = async (
     fullName: user.full_name,
     email: user.email,
     passwordHash: user.password_hash,
+    phone: user.phone,
+    pinCode: user.pin_code,
     roleId: user.role_id,
     roleName: user.role_name,
     isActive: Boolean(user.is_active),
@@ -59,6 +65,8 @@ export const findUserById = async (id: string): Promise<DatabaseUser | null> => 
       users.full_name,
       users.email,
       users.password_hash,
+      users.phone,
+      users.pin_code,
       users.role_id,
       users.is_active,
       r.name AS role_name
@@ -78,6 +86,8 @@ export const findUserById = async (id: string): Promise<DatabaseUser | null> => 
     fullName: user.full_name,
     email: user.email,
     passwordHash: user.password_hash,
+    phone: user.phone,
+    pinCode: user.pin_code,
     roleId: user.role_id,
     roleName: user.role_name,
     isActive: Boolean(user.is_active),
@@ -91,6 +101,8 @@ export const findAllUsers = async (): Promise<DatabaseUser[]> => {
       users.full_name,
       users.email,
       users.password_hash,
+      users.phone,
+      users.pin_code,
       users.role_id,
       users.is_active,
       r.name AS role_name
@@ -105,6 +117,8 @@ export const findAllUsers = async (): Promise<DatabaseUser[]> => {
     fullName: user.full_name,
     email: user.email,
     passwordHash: user.password_hash,
+    phone: user.phone,
+    pinCode: user.pin_code,
     roleId: user.role_id,
     roleName: user.role_name,
     isActive: Boolean(user.is_active),
@@ -114,31 +128,58 @@ export const findAllUsers = async (): Promise<DatabaseUser[]> => {
 export const createUser = async (
   id: string,
   fullName: string,
-  email: string,
-  passwordHash: string,
+  email: string | null,
+  passwordHash: string | null,
+  phone: string | null,
+  pinCode: string | null,
   roleId: string,
   isActive: boolean = true
 ): Promise<void> => {
   await db.execute<ResultSetHeader>(
-    `INSERT INTO users (id, full_name, email, password_hash, role_id, is_active)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [id, fullName, email, passwordHash, roleId, isActive ? 1 : 0]
+    `INSERT INTO users (id, full_name, email, password_hash, phone, pin_code, role_id, is_active)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, fullName, email, passwordHash, phone, pinCode, roleId, isActive ? 1 : 0]
   );
 };
 
 export const updateUser = async (
   id: string,
   fullName: string,
-  email: string,
+  email: string | null,
   roleId: string,
-  isActive: boolean
+  isActive: boolean,
+  phone: string | null = null,
+  pinCode: string | null = null
 ): Promise<void> => {
-  await db.execute<ResultSetHeader>(
-    `UPDATE users
-     SET full_name = ?, email = ?, role_id = ?, is_active = ?
-     WHERE id = ?`,
-    [fullName, email, roleId, isActive ? 1 : 0, id]
-  );
+  if (phone !== null && pinCode !== null) {
+    await db.execute<ResultSetHeader>(
+      `UPDATE users
+       SET full_name = ?, email = ?, phone = ?, pin_code = ?, role_id = ?, is_active = ?
+       WHERE id = ?`,
+      [fullName, email, phone, pinCode, roleId, isActive ? 1 : 0, id]
+    );
+  } else if (phone !== null) {
+    await db.execute<ResultSetHeader>(
+      `UPDATE users
+       SET full_name = ?, email = ?, phone = ?, role_id = ?, is_active = ?
+       WHERE id = ?`,
+      [fullName, email, phone, roleId, isActive ? 1 : 0, id]
+    );
+  } else if (pinCode !== null) {
+    await db.execute<ResultSetHeader>(
+      `UPDATE users
+       SET full_name = ?, email = ?, pin_code = ?, role_id = ?, is_active = ?
+       WHERE id = ?`,
+      [fullName, email, pinCode, roleId, isActive ? 1 : 0, id]
+    );
+  } else {
+    await db.execute<ResultSetHeader>(
+      `UPDATE users
+       SET full_name = ?, email = ?, role_id = ?, is_active = ?
+       WHERE id = ?`,
+      [fullName, email, roleId, isActive ? 1 : 0, id]
+    );
+  }
 };
 
 export const updateUserPassword = async (
@@ -170,4 +211,34 @@ export const getAllRoles = async (): Promise<RoleRow[]> => {
     `SELECT id, name, description FROM roles WHERE name != 'admin' ORDER BY name ASC`
   );
   return rows;
+};
+
+export const findAllActiveUsersWithRoles = async (): Promise<DatabaseUser[]> => {
+  const [rows] = await db.execute<UserRow[]>(
+    `SELECT
+      users.id,
+      users.full_name,
+      users.email,
+      users.password_hash,
+      users.phone,
+      users.pin_code,
+      users.role_id,
+      users.is_active,
+      r.name AS role_name
+    FROM users
+    JOIN roles r ON users.role_id = r.id
+    WHERE users.is_active = TRUE
+    `
+  );
+  return rows.map((user) => ({
+    id: user.id,
+    fullName: user.full_name,
+    email: user.email,
+    passwordHash: user.password_hash,
+    phone: user.phone,
+    pinCode: user.pin_code,
+    roleId: user.role_id,
+    roleName: user.role_name,
+    isActive: Boolean(user.is_active),
+  }));
 };

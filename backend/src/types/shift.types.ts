@@ -1,4 +1,4 @@
-export type ShiftStatus = 'PENDING' | 'APPROVED' | 'OPEN' | 'CLOSING_REQUEST' | 'CLOSED' | 'CANCELLED';
+export type ShiftStatus = 'PENDING' | 'APPROVED' | 'OPENING_REQUEST' | 'OPEN' | 'CLOSING_REQUEST' | 'CLOSED' | 'CANCELLED';
 
 export interface Shift {
   id: string;
@@ -41,8 +41,12 @@ export interface ApproveShiftPayload {
   // Empty or could have notes
 }
 
-export interface OpenShiftPayload {
+export interface RequestOpenShiftPayload {
   openingCash: number;
+}
+
+export interface OpenShiftPayload {
+  // Empty payload
 }
 
 export interface CloseShiftPayload {

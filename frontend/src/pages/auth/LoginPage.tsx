@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { login } from "../../api/auth.api";
+import { login, loginPinApi } from "../../api/auth.api";
 import heroImage from "../../assets/brg_login.png";
 
 type LoginTab = "staff" | "quick";
@@ -53,13 +53,13 @@ function TabButton({
 }
 
 function LoginPage() {
-  const [activeTab, setActiveTab] = useState<LoginTab>("staff");
+  const [activeTab, setActiveTab] = useState<LoginTab>("quick");
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [quickPin, setQuickPin] = useState("");
+  const [pin, setPin] = useState("");
   const navigate = useNavigate();
 
   const handleStaffLogin = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -93,11 +93,44 @@ function LoginPage() {
 };
 
   const handleQuickDigit = (digit: string) => {
-    setQuickPin((current) => (current.length >= 6 ? current : `${current}${digit}`));
+    setPin((current) => (current.length >= 6 ? current : `${current}${digit}`));
   };
 
   const handleQuickBackspace = () => {
-    setQuickPin((current) => current.slice(0, -1));
+    setPin((current) => current.slice(0, -1));
+  };
+
+  useEffect(() => {
+    if (pin.length === 6) {
+      handleAutoLogin();
+    }
+  }, [pin]);
+
+  const handleAutoLogin = async () => {
+    if (pin.length !== 6) return;
+    
+    try {
+      setIsSubmitting(true);
+      const response = await loginPinApi(pin);
+      
+      localStorage.setItem("auth_token", response.data.token);
+      localStorage.setItem("auth_user", JSON.stringify(response.data.user));
+
+      const role = response.data.user.roleName.toLowerCase();
+      if (role === 'admin' || role === 'manager' || role === 'quản lý' || role === 'quản trị viên') {
+        navigate("/dashboard");
+      } else if (role === 'staff' || role === 'cashier' || role === 'nhân viên thu ngân') {
+        navigate("/pos");
+      } else {
+        navigate("/pos");
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Đăng nhập thất bại";
+      alert(message);
+      setPin("");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   
 
@@ -238,7 +271,7 @@ function LoginPage() {
                     </button>
                   </form>
                 ) : (
-                  <form className="space-y-4">
+                  <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); handleAutoLogin(); }}>
                     <div className="space-y-2 text-center">
                       <p className="text-sm font-semibold tracking-[0.02em] text-[#584237]">
                         Nhập mã nhân viên hoặc quét thẻ nhân viên
@@ -256,12 +289,12 @@ function LoginPage() {
                         />
                         <input
                           id="employee-id"
-                          type="text"
+                          type="password"
                           inputMode="numeric"
                           maxLength={6}
-                          value={quickPin}
+                          value={pin}
                           onChange={(event) =>
-                            setQuickPin(event.target.value.replace(/\D/g, "").slice(0, 6))
+                            setPin(event.target.value.replace(/\D/g, "").slice(0, 6))
                           }
                           placeholder="Nhập 6 chữ số PIN"
                           className="h-11 w-full border-none bg-transparent py-3 pr-4 pl-10 text-center text-[#0b1c30] tracking-[0.3em] outline-none placeholder:text-[#584237]/50"

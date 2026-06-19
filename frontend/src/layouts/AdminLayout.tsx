@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { fetchShifts } from "../api/shifts.api";
 
 type MenuItem = {
   label: string;
@@ -251,6 +252,22 @@ function AdminLayout({ children, title, subtitle }: AdminLayoutProps) {
   const currentDateTime = useCurrentDateTime();
   const [user] = useState<AuthUser>(() => getStoredAuthUser());
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [hasActiveShift, setHasActiveShift] = useState(true);
+
+  useEffect(() => {
+    const roleName = user.roleName?.toLowerCase() || "";
+    if (roleName === "staff") {
+      fetchShifts().then(shifts => {
+        const storedUserStr = localStorage.getItem("auth_user");
+        let currentUserId = "";
+        if (storedUserStr) {
+          try { currentUserId = JSON.parse(storedUserStr).id; } catch(e) {}
+        }
+        const openShift = shifts.find(s => s.status === "OPEN" && s.userId === currentUserId);
+        setHasActiveShift(!!openShift);
+      }).catch(() => setHasActiveShift(false));
+    }
+  }, [user.roleName]);
 
   const mainMenuItems = useMemo(
     () =>
@@ -258,8 +275,11 @@ function AdminLayout({ children, title, subtitle }: AdminLayoutProps) {
         (item) =>
           item.group === "main" &&
           (!user.roleName || item.allowedRoles.includes(user.roleName.toLowerCase()))
-      ),
-    [user.roleName]
+      ).map(item => ({
+        ...item,
+        disabled: user.roleName?.toLowerCase() === "staff" && !hasActiveShift && item.path !== "/shifts" ? true : item.disabled
+      })),
+    [user.roleName, hasActiveShift]
   );
   const systemMenuItems = useMemo(
     () =>
@@ -267,8 +287,11 @@ function AdminLayout({ children, title, subtitle }: AdminLayoutProps) {
         (item) =>
           item.group === "system" &&
           (!user.roleName || item.allowedRoles.includes(user.roleName.toLowerCase()))
-      ),
-    [user.roleName]
+      ).map(item => ({
+        ...item,
+        disabled: user.roleName?.toLowerCase() === "staff" && !hasActiveShift && item.path !== "/shifts" ? true : item.disabled
+      })),
+    [user.roleName, hasActiveShift]
   );
 
   const displayName = user.fullName?.trim() || "Admin Demo";

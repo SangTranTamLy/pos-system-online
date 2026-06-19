@@ -168,7 +168,7 @@ function ProductPage() {
         }
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "KhÃ´ng táº£i Ä‘Æ°á»£c dá»¯ liá»‡u sáº£n pháº©m");
+      setErrorMessage(error instanceof Error ? error.message : "Không tải được dữ liệu sản phẩm");
     } finally {
       setIsLoading(false);
     }
@@ -203,7 +203,7 @@ function ProductPage() {
       (product) => product.stockQuantity > 0 && product.stockQuantity <= 10
     ).length;
 
-   return [
+    return [
       { label: "Tổng sản phẩm", value: String(products.length), icon: "package_2" },
       {
         label: "Còn hàng",
@@ -266,8 +266,8 @@ function ProductPage() {
       description: product.description ?? "",
       imageUrl: product.imageUrl ?? "",
     });
-    const hasExternalImage = product.imageUrl && 
-      product.imageUrl.trim().startsWith("http") && 
+    const hasExternalImage = product.imageUrl &&
+      product.imageUrl.trim().startsWith("http") &&
       !product.imageUrl.includes("/uploads/products/");
     setImageSource(hasExternalImage ? "url" : "file");
     setIsModalOpen(true);
@@ -491,7 +491,7 @@ function ProductPage() {
             className="inline-flex h-10 items-center justify-center gap-2 border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
           >
             <Icon name="download" />
-              Xuất danh sách
+            Xuất danh sách
           </button>
           <button
             type="button"
@@ -762,7 +762,7 @@ function ProductPage() {
                   }
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
                 >
-                  <option value="">Chá»n danh má»¥c</option>
+                  <option value="">Chọn danh mục</option>
                   {categories.map((category) => (
                     <option key={category.id} value={category.id}>
                       {category.name}
@@ -822,22 +822,20 @@ function ProductPage() {
                   <button
                     type="button"
                     onClick={() => setImageSource("file")}
-                    className={`flex-1 rounded-lg py-1.5 text-xs font-bold transition-all duration-200 cursor-pointer ${
-                      imageSource === "file"
-                        ? "bg-white text-[#f97316] shadow-sm"
-                        : "text-slate-500 hover:text-slate-800"
-                    }`}
+                    className={`flex-1 rounded-lg py-1.5 text-xs font-bold transition-all duration-200 cursor-pointer ${imageSource === "file"
+                      ? "bg-white text-[#f97316] shadow-sm"
+                      : "text-slate-500 hover:text-slate-800"
+                      }`}
                   >
                     Tải từ máy
                   </button>
                   <button
                     type="button"
                     onClick={() => setImageSource("url")}
-                    className={`flex-1 rounded-lg py-1.5 text-xs font-bold transition-all duration-200 cursor-pointer ${
-                      imageSource === "url"
-                        ? "bg-white text-[#f97316] shadow-sm"
-                        : "text-slate-500 hover:text-slate-800"
-                    }`}
+                    className={`flex-1 rounded-lg py-1.5 text-xs font-bold transition-all duration-200 cursor-pointer ${imageSource === "url"
+                      ? "bg-white text-[#f97316] shadow-sm"
+                      : "text-slate-500 hover:text-slate-800"
+                      }`}
                   >
                     Nhập link ảnh
                   </button>
@@ -935,8 +933,8 @@ function ProductPage() {
               <Icon name="check" className="text-sm" />
             </div>
             <div>
-              <p className="text-sm font-bold text-[#0b1c30]">Dá»¯ liá»‡u Ä‘Ã£ Ä‘á»“ng bá»™</p>
-              <p className="text-[10px] text-slate-500">Sáº£n pháº©m Ä‘Ã£ Ä‘Æ°á»£c cáº­p nháº­t tá»« MySQL</p>
+              <p className="text-sm font-bold text-[#0b1c30]">Dữ liệu đã được cập nhật</p>
+              <p className="text-[10px] text-slate-500">Sản phẩm đã được cập nhật</p>
             </div>
           </div>
         </div>

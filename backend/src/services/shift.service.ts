@@ -44,10 +44,28 @@ export const approveShift = async (id: string, managerId: string): Promise<Shift
   return (await shiftRepo.findShiftById(id))!;
 };
 
-export const openShift = async (id: string, managerId: string, openingCash: number): Promise<Shift> => {
+export const requestOpenShift = async (id: string, userId: string, openingCash: number): Promise<Shift> => {
   const shift = await shiftRepo.findShiftById(id);
   if (!shift) throw new ApiError(404, "Không tìm thấy ca làm việc");
-  if (shift.status !== 'APPROVED') throw new ApiError(400, "Chỉ có thể mở ca đã được duyệt");
+  if (shift.userId !== userId) throw new ApiError(403, "Chỉ nhân viên của ca mới được yêu cầu mở ca");
+  if (shift.status !== 'APPROVED') throw new ApiError(400, "Chỉ có thể yêu cầu mở ca đã được duyệt");
+
+  const hasOpenShift = await shiftRepo.checkOpenShiftExists(shift.userId);
+  if (hasOpenShift) {
+    throw new ApiError(409, "Nhân viên này đang có ca làm việc chưa kết thúc");
+  }
+
+  await shiftRepo.updateShiftStatus(id, 'OPENING_REQUEST', {
+    opening_cash: openingCash
+  });
+
+  return (await shiftRepo.findShiftById(id))!;
+};
+
+export const openShift = async (id: string, managerId: string): Promise<Shift> => {
+  const shift = await shiftRepo.findShiftById(id);
+  if (!shift) throw new ApiError(404, "Không tìm thấy ca làm việc");
+  if (shift.status !== 'OPENING_REQUEST') throw new ApiError(400, "Chỉ có thể xác nhận mở ca cho ca đang yêu cầu mở");
 
   const hasOpenShift = await shiftRepo.checkOpenShiftExists(shift.userId);
   if (hasOpenShift) {
@@ -56,7 +74,6 @@ export const openShift = async (id: string, managerId: string, openingCash: numb
 
   await shiftRepo.updateShiftStatus(id, 'OPEN', {
     opened_by: managerId,
-    opening_cash: openingCash,
     actual_start_time: new Date()
   });
 

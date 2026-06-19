@@ -172,16 +172,24 @@ function PosPage() {
         
         const storedUserStr = localStorage.getItem("auth_user");
         let currentUserId = "";
+        let roleName = "";
         if (storedUserStr) {
           try {
-             currentUserId = JSON.parse(storedUserStr).id;
+             const user = JSON.parse(storedUserStr);
+             currentUserId = user.id;
+             roleName = user.roleName?.toLowerCase() || "";
           } catch (e) {}
         }
         
         const openShift = shiftData.find(
           (s) => s.status === "OPEN" && s.userId === currentUserId
         );
-        setActiveShift(openShift || null);
+        
+        if (roleName === "admin" || roleName === "manager") {
+          setActiveShift({ id: "admin_bypass", status: "OPEN" } as any);
+        } else {
+          setActiveShift(openShift || null);
+        }
       })
       .catch((error) => {
         if (!isMounted) return;

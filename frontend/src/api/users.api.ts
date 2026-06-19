@@ -10,14 +10,19 @@ export type User = {
   id: string;
   fullName: string;
   email: string;
+  phone: string;
   roleId: string;
   roleName: string;
   isActive: boolean;
+  passwordHash?: string;
+  pinCode?: string;
 };
 
 export type CreateUserPayload = {
   fullName: string;
   email: string;
+  phone: string;
+  pinCode: string;
   password?: string;
   roleId: string;
   isActive?: boolean;
@@ -26,6 +31,8 @@ export type CreateUserPayload = {
 export type UpdateUserPayload = {
   fullName: string;
   email: string;
+  phone?: string;
+  pinCode?: string;
   roleId: string;
   isActive: boolean;
   password?: string;

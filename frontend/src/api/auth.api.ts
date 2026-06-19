@@ -41,6 +41,24 @@ export async function login(payload: LoginPayload): Promise<LoginResponse> {
 
   return data;
 }
+
+export async function loginPinApi(pin: string): Promise<LoginResponse> {
+  const response = await fetch(`${API_BASE_URL}/auth/login-pin`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ pin }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || "Đăng nhập mã PIN thất bại");
+  }
+
+  return data;
+}
 export async function getMe(token: string): Promise<MeResponse> {
   const response = await fetch(`${API_BASE_URL}/auth/me`, {
     method: "GET",
