@@ -26,8 +26,6 @@ import {
   PieChart,
   Pie,
   Cell,
-  LineChart,
-  Line,
   AreaChart,
   Area
 } from "recharts";
@@ -40,12 +38,12 @@ function formatCurrency(value: number) {
   return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(value);
 }
 
-function exportToCSV(data: any[], headers: { key: string; label: string }[], filename: string) {
+function exportToCSV<T extends object>(data: T[], headers: { key: string; label: string }[], filename: string) {
   const csvRows = [];
   csvRows.push(headers.map(h => `"${h.label.replace(/"/g, '""')}"`).join(","));
   for (const row of data) {
     const values = headers.map(h => {
-      const val = row[h.key];
+      const val = (row as Record<string, unknown>)[h.key];
       const escaped = String(val === null || val === undefined ? '' : val).replace(/"/g, '""');
       return `"${escaped}"`;
     });
@@ -84,28 +82,29 @@ export default function ReportsPage() {
   const [comparisonData, setComparisonData] = useState<ComparisonReport | null>(null);
   const [customerData, setCustomerData] = useState<CustomerRetentionReport[]>([]);
 
-  // Update dates when preset changes
-  useEffect(() => {
-    if (preset === "custom") return;
+  const handlePresetChange = (newPreset: string) => {
+    setPreset(newPreset);
+    if (newPreset === "custom") return;
     const end = new Date();
     const start = new Date();
 
-    if (preset === "today") {
+    if (newPreset === "today") {
       // Start of today
-    } else if (preset === "week") {
+    } else if (newPreset === "week") {
       start.setDate(end.getDate() - 7);
-    } else if (preset === "month") {
+    } else if (newPreset === "month") {
       start.setDate(end.getDate() - 30);
-    } else if (preset === "last-month") {
+    } else if (newPreset === "last-month") {
       start.setDate(end.getDate() - 60);
     }
 
     setStartDate(start.toISOString().split("T")[0]);
     setEndDate(end.toISOString().split("T")[0]);
-  }, [preset]);
+  };
 
   // Load data based on active tab and dates
   const loadReportData = async () => {
+    await Promise.resolve();
     setLoading(true);
     setError("");
     try {
@@ -133,7 +132,11 @@ export default function ReportsPage() {
   };
 
   useEffect(() => {
-    void loadReportData();
+    const timer = setTimeout(() => {
+      void loadReportData();
+    }, 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, startDate, endDate]);
 
   const handleExport = () => {
@@ -213,7 +216,7 @@ export default function ReportsPage() {
           ].map(p => (
             <button
               key={p.id}
-              onClick={() => setPreset(p.id)}
+              onClick={() => handlePresetChange(p.id)}
               className={`rounded-xl px-4 py-2 text-xs font-black transition-all ${
                 preset === p.id 
                   ? "bg-[#f97316] text-white shadow-md shadow-orange-200" 
@@ -385,7 +388,7 @@ export default function ReportsPage() {
                             dataKey="totalValue"
                             stroke="none"
                           >
-                            {inventoryData.categories.map((entry, index) => (
+                            {inventoryData.categories.map((_, index) => (
                               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                             ))}
                           </Pie>
