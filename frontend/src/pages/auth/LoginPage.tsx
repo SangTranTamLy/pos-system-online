@@ -100,12 +100,6 @@ function LoginPage() {
     setPin((current) => current.slice(0, -1));
   };
 
-  useEffect(() => {
-    if (pin.length === 6) {
-      handleAutoLogin();
-    }
-  }, [pin]);
-
   const handleAutoLogin = async () => {
     if (pin.length !== 6) return;
     
@@ -132,6 +126,16 @@ function LoginPage() {
       setIsSubmitting(false);
     }
   };
+
+  useEffect(() => {
+    if (pin.length === 6) {
+      const timer = setTimeout(() => {
+        void handleAutoLogin();
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pin]);
   
 
   return (

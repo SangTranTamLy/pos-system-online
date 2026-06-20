@@ -5,7 +5,7 @@ import { fetchShifts, type Shift } from "../../api/shifts.api";
 import type { AuditLog } from "../../types/audit-log";
 import { FilterBar } from "../../components/common/FilterBar";
 
-function exportToCSV(data: any[], headers: { key: string; label: string }[], filename: string) {
+function exportToCSV(data: Record<string, unknown>[], headers: { key: string; label: string }[], filename: string) {
   const csvRows = [];
   csvRows.push(headers.map(h => `"${h.label.replace(/"/g, '""')}"`).join(","));
   for (const row of data) {
@@ -28,10 +28,10 @@ function exportToCSV(data: any[], headers: { key: string; label: string }[], fil
   document.body.removeChild(link);
 }
 
-function renderValueChanges(oldValues: any, newValues: any) {
+function renderValueChanges(oldValues: unknown, newValues: unknown) {
   if (!oldValues && !newValues) return null;
 
-  const formatVal = (val: any) => {
+  const formatVal = (val: unknown) => {
     if (val === null || val === undefined) return "null";
     if (typeof val === "object") return JSON.stringify(val);
     return String(val);
@@ -45,14 +45,16 @@ function renderValueChanges(oldValues: any, newValues: any) {
     !Array.isArray(oldValues) &&
     !Array.isArray(newValues)
   ) {
-    const allKeys = Array.from(new Set([...Object.keys(oldValues), ...Object.keys(newValues)]));
-    const changes: { key: string; oldVal: any; newVal: any }[] = [];
+    const oldObj = oldValues as Record<string, unknown>;
+    const newObj = newValues as Record<string, unknown>;
+    const allKeys = Array.from(new Set([...Object.keys(oldObj), ...Object.keys(newObj)]));
+    const changes: { key: string; oldVal: unknown; newVal: unknown }[] = [];
     const ignoredKeys = ["updated_at", "updatedAt", "created_at", "createdAt", "timestamp", "password", "password_hash"];
 
     for (const key of allKeys) {
       if (ignoredKeys.includes(key)) continue;
-      const oldVal = oldValues[key];
-      const newVal = newValues[key];
+      const oldVal = oldObj[key];
+      const newVal = newObj[key];
       if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
         changes.push({ key, oldVal, newVal });
       }
@@ -79,13 +81,13 @@ function renderValueChanges(oldValues: any, newValues: any) {
 
   return (
     <div className="mt-2 text-[10px] font-mono bg-slate-50 p-2 rounded border border-slate-100 max-h-40 overflow-y-auto">
-      {oldValues && (
+      {!!oldValues && (
         <div className="text-red-500 mb-1 leading-normal">
           <span className="font-bold">- Cũ: </span>
           {typeof oldValues === "object" ? JSON.stringify(oldValues, null, 2) : String(oldValues)}
         </div>
       )}
-      {newValues && (
+      {!!newValues && (
         <div className="text-emerald-600 leading-normal">
           <span className="font-bold">+ Mới: </span>
           {typeof newValues === "object" ? JSON.stringify(newValues, null, 2) : String(newValues)}
@@ -177,16 +179,17 @@ export default function AuditLogsPage() {
       .catch(err => console.error("Lỗi lấy danh sách ca làm việc", err));
   }, []);
 
-  const loadLogs = async () => {
+  const loadLogs = async (currentPage = page, currentActionType = actionType, currentShiftId = shiftId) => {
+    await Promise.resolve();
     setLoading(true);
     setError("");
     try {
       const data = await getAuditLogs({
-        page,
+        page: currentPage,
         limit: 15,
         search: search.trim() || undefined,
-        actionType: actionType || undefined,
-        shiftId: shiftId || undefined
+        actionType: currentActionType || undefined,
+        shiftId: currentShiftId || undefined
       });
       setLogs(data.logs);
       setTotal(data.total);
@@ -197,15 +200,19 @@ export default function AuditLogsPage() {
     }
   };
 
-  // Re-fetch when page, action filter or shift filter changes
+  // Load logs on mount
   useEffect(() => {
-    void loadLogs();
-  }, [page, actionType, shiftId]);
+    const timer = setTimeout(() => {
+      void loadLogs(1, "", "");
+    }, 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(1);
-    void loadLogs();
+    void loadLogs(1, actionType, shiftId);
   };
 
   const handleClearFilters = () => {
@@ -213,6 +220,7 @@ export default function AuditLogsPage() {
     setActionType("");
     setShiftId("");
     setPage(1);
+    void loadLogs(1, "", "");
   };
 
   const handleExportExcel = () => {
@@ -278,8 +286,13 @@ export default function AuditLogsPage() {
             {/* Shifts list filter */}
             <select
               value={shiftId}
-              onChange={e => { setShiftId(e.target.value); setPage(1); }}
-              className="h-[46px] rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-600 outline-none focus:border-[#f97316]"
+              onChange={e => {
+                const val = e.target.value;
+                setShiftId(val);
+                setPage(1);
+                void loadLogs(1, actionType, val);
+              }}
+              className="h-11.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-600 outline-none focus:border-[#f97316]"
             >
               <option value="">-- Tất cả các ca --</option>
               {shifts.map(shift => (
@@ -292,8 +305,13 @@ export default function AuditLogsPage() {
             {/* Action Type filter */}
             <select
               value={actionType}
-              onChange={e => { setActionType(e.target.value); setPage(1); }}
-              className="h-[46px] rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-600 outline-none focus:border-[#f97316]"
+              onChange={e => {
+                const val = e.target.value;
+                setActionType(val);
+                setPage(1);
+                void loadLogs(1, val, shiftId);
+              }}
+              className="h-11.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-600 outline-none focus:border-[#f97316]"
             >
               <option value="">-- Chọn loại hành động --</option>
               <option value="BAN_HANG">BÁN HÀNG (Xanh lá)</option>
@@ -396,7 +414,11 @@ export default function AuditLogsPage() {
             <div className="flex items-center gap-3">
               <button
                 disabled={page <= 1}
-                onClick={() => setPage(p => p - 1)}
+                onClick={() => {
+                  const newPage = page - 1;
+                  setPage(newPage);
+                  void loadLogs(newPage, actionType, shiftId);
+                }}
                 className="flex h-9 items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-3 text-xs text-slate-500 transition-colors hover:bg-slate-100 disabled:opacity-50 disabled:hover:bg-white"
               >
                 <Icon name="chevron_left" className="text-lg" />
@@ -407,7 +429,11 @@ export default function AuditLogsPage() {
               </span>
               <button
                 disabled={page >= totalPages}
-                onClick={() => setPage(p => p + 1)}
+                onClick={() => {
+                  const newPage = page + 1;
+                  setPage(newPage);
+                  void loadLogs(newPage, actionType, shiftId);
+                }}
                 className="flex h-9 items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-3 text-xs text-slate-500 transition-colors hover:bg-slate-100 disabled:opacity-50 disabled:hover:bg-white"
               >
                 Sau

@@ -21,17 +21,17 @@ export default function ProductCard({ product, onAdd }: ProductCardProps) {
   return (
     <article
       className={[
-        "relative flex min-h-[265px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm",
+        "relative flex min-h-66.25 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm",
         isUnavailable ? "opacity-60" : "",
       ].join(" ")}
     >
-      <div className="flex h-[150px] items-center justify-center bg-white px-4 pt-4">
+      <div className="flex h-37.5 items-center justify-center bg-white px-4 pt-4">
         {product.imageUrl ? (
           <img
             src={product.imageUrl}
             alt={product.name}
             className={[
-              "h-full max-h-[135px] w-full object-contain",
+              "h-full max-h-33.75 w-full object-contain",
               isUnavailable ? "grayscale" : "",
             ].join(" ")}
           />

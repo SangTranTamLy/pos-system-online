@@ -153,12 +153,14 @@ function SidebarItem({
       (item.path !== "/dashboard" && location.pathname.startsWith(item.path)));
 
   const [isOpen, setIsOpen] = useState(() => isActive);
+  const [prevPathname, setPrevPathname] = useState(location.pathname);
 
-  useEffect(() => {
+  if (location.pathname !== prevPathname) {
+    setPrevPathname(location.pathname);
     if (isActive) {
       setIsOpen(true);
     }
-  }, [isActive, location.pathname]);
+  }
 
   if (hasChildren) {
     return (
@@ -263,7 +265,7 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
         const storedUserStr = localStorage.getItem("auth_user");
         let currentUserId = "";
         if (storedUserStr) {
-          try { currentUserId = JSON.parse(storedUserStr).id; } catch(e) {}
+          try { currentUserId = JSON.parse(storedUserStr).id; } catch { /* ignore parse errors */ }
         }
         const openShift = shifts.find(s => s.status === "OPEN" && s.userId === currentUserId);
         setHasActiveShift(!!openShift);
