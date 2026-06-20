@@ -167,6 +167,9 @@ export async function deleteSupplier(id: string): Promise<Supplier> {
   }
 
   const supplier = mapSupplier(rows[0]);
+  
+  // Set supplier_id of materials referencing this supplier to NULL to prevent orphan rows or errors
+  await db.execute("UPDATE raw_materials SET supplier_id = NULL WHERE supplier_id = ?", [id]);
   await db.execute("DELETE FROM suppliers WHERE id = ?", [id]);
 
   return supplier;
@@ -202,7 +205,8 @@ async function resolveMaterialSupplierId(
   );
 
   if (!rows[0]) {
-    throw new ApiError(400, "Nhà cung cấp mặc định không tồn tại.");
+    // Gracefully handle deleted/orphaned supplier references by clearing them
+    return null;
   }
 
   return supplierId;
@@ -402,7 +406,15 @@ export async function deleteMaterial(id: string): Promise<Material> {
   }
 
   const material = mapMaterial(rows[0]);
-  await db.execute("DELETE FROM raw_materials WHERE id = ?", [id]);
+  try {
+    await db.execute("DELETE FROM raw_materials WHERE id = ?", [id]);
+  } catch (error: any) {
+    // Catch foreign key constraint violation (ER_ROW_IS_REFERENCED / 1451)
+    if (error.errno === 1451 || error.code === "ER_ROW_IS_REFERENCED_2" || error.code === "ER_ROW_IS_REFERENCED") {
+      throw new ApiError(400, "Không thể xóa nguyên liệu này vì đã có lịch sử nhập kho liên quan. Vui lòng chuyển trạng thái hoạt động sang Vô hiệu hóa thay vì xóa.");
+    }
+    throw error;
+  }
 
   return material;
 }
@@ -592,6 +604,43 @@ export async function createGoodsReceiptTransaction(
       supplierName = sups[0]?.name || null;
     }
 
+    // Log goods receipt
+    try {
+      const [userRows] = await connection.execute<RowDataPacket[]>(
+        `SELECT u.full_name, r.name AS role_name 
+         FROM users u 
+         JOIN roles r ON u.role_id = r.id 
+         WHERE u.id = ? 
+         LIMIT 1`,
+        [createdBy]
+      );
+
+      const userFullName = userRows[0]?.full_name || "Nhân viên";
+      const rawRole = userRows[0]?.role_name || "staff";
+      const userRole = rawRole.trim().toLowerCase() === "admin" || rawRole.trim().toLowerCase() === "manager" ? "QL" : "TN";
+
+      let descriptionText = `Nhập kho nguyên liệu. Tổng giá trị: ${totalAmount.toLocaleString("vi-VN")}đ. Chi tiết: `;
+      const detailStrings = materialDetailsList.map(d => `${d.materialName} (${d.quantity} ${d.unit})`);
+      descriptionText += detailStrings.join(", ");
+
+      await connection.execute(
+        `
+        INSERT INTO audit_logs (id, user_id, user_name, role, action_type, target_object, description)
+        VALUES (?, ?, ?, ?, 'SUA_KHO', ?, ?)
+        `,
+        [
+          randomUUID(),
+          createdBy,
+          userFullName,
+          userRole,
+          supplierName || "Nhà cung cấp",
+          descriptionText
+        ]
+      );
+    } catch (logErr) {
+      console.error("Error creating audit log for goods receipt:", logErr);
+    }
+
     return {
       id: receiptId,
       supplierId: data.supplierId || null,
@@ -669,6 +718,40 @@ export async function createStockAdjustmentTransaction(
     }
 
     await connection.commit();
+
+    // Log stock adjustment
+    try {
+      const [userRows] = await connection.execute<RowDataPacket[]>(
+        `SELECT u.full_name, r.name AS role_name 
+         FROM users u 
+         JOIN roles r ON u.role_id = r.id 
+         WHERE u.id = ? 
+         LIMIT 1`,
+        [createdBy]
+      );
+
+      const userFullName = userRows[0]?.full_name || "Nhân viên";
+      const rawRole = userRows[0]?.role_name || "staff";
+      const userRole = rawRole.trim().toLowerCase() === "admin" || rawRole.trim().toLowerCase() === "manager" ? "QL" : "TN";
+      const direction = qtyDiff > 0 ? "tăng" : "giảm";
+
+      await connection.execute(
+        `
+        INSERT INTO audit_logs (id, user_id, user_name, role, action_type, target_object, description)
+        VALUES (?, ?, ?, ?, 'SUA_KHO', ?, ?)
+        `,
+        [
+          randomUUID(),
+          createdBy,
+          userFullName,
+          userRole,
+          `Sản phẩm: ${product.name}`,
+          `Điều chỉnh kho: ${direction} từ ${oldQuantity} thành ${newQuantity}. Lý do: ${note || "Kiểm kho"}.`
+        ]
+      );
+    } catch (logErr) {
+      console.error("Error creating audit log for stock adjust:", logErr);
+    }
 
     return {
       productId,

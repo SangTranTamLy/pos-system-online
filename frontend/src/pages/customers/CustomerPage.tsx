@@ -9,6 +9,7 @@ import {
   type CustomerOrderSummary,
 } from "../../api/customers.api";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
+import { FilterBar } from "../../components/common/FilterBar";
 
 type CustomerFormState = {
   fullName: string;
@@ -88,8 +89,12 @@ function CustomerPage() {
   }, []);
 
   useEffect(() => {
-    void loadCustomers("");
-  }, [loadCustomers]);
+    const timer = setTimeout(() => {
+      void loadCustomers(search);
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [search, loadCustomers]);
 
   useEffect(() => {
     if (!successMessage) return undefined;
@@ -242,10 +247,7 @@ function CustomerPage() {
     }
   };
 
-  const handleSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    void loadCustomers(search);
-  };
+  // Removed handleSearchSubmit as it is now live-searched with debounce
 
   return (
     <AdminLayout
@@ -260,30 +262,12 @@ function CustomerPage() {
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-col gap-4 border-b border-slate-200 p-4 lg:flex-row lg:items-center lg:justify-between">
-          <form
-            className="flex w-full max-w-2xl flex-col gap-3 sm:flex-row"
-            onSubmit={handleSearchSubmit}
-          >
-            <div className="relative flex-1">
-              <Icon
-                name="search"
-                className="absolute top-1/2 left-3 -translate-y-1/2 text-slate-400"
-              />
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Tìm tên, số điện thoại hoặc địa chỉ..."
-                className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pr-4 pl-10 text-sm outline-none transition-all focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
-              />
-            </div>
-            <button
-              type="submit"
-              className="inline-flex h-10 items-center justify-center gap-2 border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
-            >
-              <Icon name="search" className="text-lg" />
-              Tìm
-            </button>
-          </form>
+          <FilterBar
+            search={search}
+            onSearchChange={(val) => setSearch(val)}
+            searchPlaceholder="Tìm tên, số điện thoại hoặc địa chỉ..."
+            className="w-full max-w-2xl"
+          />
 
           <button
             type="button"

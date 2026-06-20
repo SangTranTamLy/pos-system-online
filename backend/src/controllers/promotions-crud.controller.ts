@@ -10,6 +10,7 @@ import {
   updatePromotion,
 } from "../repositories/promotions.repository";
 import { ApiError } from "../utils/apiError";
+import { createAuditLog } from "../repositories/audit-log.repository";
 
 export async function listPromotionsController(_req: Request, res: Response) {
   const promotions = await findAllPromotions();
@@ -76,6 +77,19 @@ export async function createPromotionController(req: Request, res: Response) {
   if (existing) throw new ApiError(409, "Mã khuyến mãi đã tồn tại.");
 
   const promotion = await createPromotion(data);
+
+  const userId = (req as any).user?.id;
+  if (userId && promotion) {
+    void createAuditLog(
+      userId,
+      "SUA_KHUYEN_MAI",
+      `Mã KM: ${promotion.code}`,
+      `Tạo mới chiến dịch khuyến mãi: ${promotion.name} (Mã: ${promotion.code}).`,
+      null,
+      promotion
+    );
+  }
+
   return res.status(201).json({ success: true, data: promotion });
 }
 
@@ -98,6 +112,18 @@ export async function updatePromotionController(req: Request, res: Response) {
   const updated = await updatePromotion(id, { ...data, isActive });
   if (!updated) throw new ApiError(404, "Không tìm thấy khuyến mãi.");
 
+  const userId = (req as any).user?.id;
+  if (userId) {
+    void createAuditLog(
+      userId,
+      "SUA_KHUYEN_MAI",
+      `Mã KM: ${updated.code}`,
+      `Cập nhật chiến dịch khuyến mãi: ${updated.name} (Mã: ${updated.code}).`,
+      existing,
+      updated
+    );
+  }
+
   return res.json({ success: true, data: updated });
 }
 
@@ -107,6 +133,20 @@ export async function togglePromotionController(req: Request, res: Response) {
   if (!existing) throw new ApiError(404, "Không tìm thấy khuyến mãi.");
 
   const updated = await togglePromotion(id, !existing.isActive);
+
+  const userId = (req as any).user?.id;
+  if (userId && updated) {
+    const statusLabel = updated.isActive ? "Hoạt động" : "Tạm dừng";
+    void createAuditLog(
+      userId,
+      "SUA_KHUYEN_MAI",
+      `Mã KM: ${updated.code}`,
+      `Thay đổi trạng thái khuyến mãi ${updated.name} thành: ${statusLabel}.`,
+      existing,
+      updated
+    );
+  }
+
   return res.json({ success: true, data: updated });
 }
 
@@ -116,5 +156,18 @@ export async function deletePromotionController(req: Request, res: Response) {
   if (!existing) throw new ApiError(404, "Không tìm thấy khuyến mãi.");
 
   await deletePromotion(id);
+
+  const userId = (req as any).user?.id;
+  if (userId) {
+    void createAuditLog(
+      userId,
+      "SUA_KHUYEN_MAI",
+      `Mã KM: ${existing.code}`,
+      `Xóa chiến dịch khuyến mãi: ${existing.name} (Mã: ${existing.code}).`,
+      existing,
+      null
+    );
+  }
+
   return res.json({ success: true, message: "Đã xóa khuyến mãi." });
 }

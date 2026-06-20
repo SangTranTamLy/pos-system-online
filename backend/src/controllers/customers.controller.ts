@@ -54,7 +54,8 @@ export async function getCustomerController(req: Request, res: Response) {
 }
 
 export async function createCustomerController(req: Request, res: Response) {
-  const customer = await createCustomerService(req.body);
+  const userId = (req as any).user?.id;
+  const customer = await createCustomerService(req.body, userId);
 
   return res.status(201).json({
     success: true,
@@ -64,7 +65,8 @@ export async function createCustomerController(req: Request, res: Response) {
 }
 
 export async function updateCustomerController(req: Request, res: Response) {
-  const customer = await updateCustomerService(getParamId(req.params.id), req.body);
+  const userId = (req as any).user?.id;
+  const customer = await updateCustomerService(getParamId(req.params.id), req.body, userId);
 
   return res.status(200).json({
     success: true,
@@ -74,7 +76,8 @@ export async function updateCustomerController(req: Request, res: Response) {
 }
 
 export async function deleteCustomerController(req: Request, res: Response) {
-  const customer = await deleteCustomerService(getParamId(req.params.id));
+  const userId = (req as any).user?.id;
+  const customer = await deleteCustomerService(getParamId(req.params.id), userId);
 
   return res.status(200).json({
     success: true,

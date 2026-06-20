@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "ts-node-dev --respawn src/app.ts",
     "build": "tsc",
-    "start": "node dist/app.js"
+    "start": "node dist/app.js",
+    "db:reset": "ts-node src/database/run-reset.ts"
   },
   "keywords": [],
   "author": "",

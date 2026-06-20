@@ -12,6 +12,7 @@ import {
   updateProductById,
   updateProductStatusById,
 } from "../repositories/product.repository";
+import { createAuditLog } from "../repositories/audit-log.repository";
 import type {
   CreateProductBody,
   Product,
@@ -106,7 +107,7 @@ export async function uploadProductImageService(
   };
 }
 
-export async function createProductService(body: CreateProductBody) {
+export async function createProductService(body: CreateProductBody, userId?: string) {
   try {
   if (!body.categoryId) {
     throw new ApiError(400, "Vui lòng chọn danh mục");
@@ -136,7 +137,7 @@ export async function createProductService(body: CreateProductBody) {
   validateMoney(body.importPrice, "Giá nhập");
   validateQuantity(body.stockQuantity);
 
-  return await createProduct({
+  const product = await createProduct({
     ...body,
     sku: body.sku.trim(),
     name: body.name.trim(),
@@ -145,13 +146,26 @@ export async function createProductService(body: CreateProductBody) {
     requiresPreparation: Boolean(category.requiresPreparation),
     isStockReturnable: Boolean(category.isStockReturnable),
   });
+
+  if (userId) {
+    void createAuditLog(
+      userId,
+      "SUA_SAN_PHAM",
+      `Món: ${product.name}`,
+      `Thêm mới sản phẩm: ${product.name} (${product.sku}). Giá bán: ${product.salePrice.toLocaleString("vi-VN")}đ.`,
+      null,
+      product
+    );
+  }
+
+  return product;
   } catch (err) {
     if (err instanceof ApiError) throw err;
     throw new ApiError(500, "Lỗi khi tạo sản phẩm");
   }
 }
 
-export async function updateProductService(id: string, body: UpdateProductBody) {
+export async function updateProductService(id: string, body: UpdateProductBody, userId?: string) {
   try {
   const currentProduct = await findProductById(id);
 
@@ -195,6 +209,39 @@ export async function updateProductService(id: string, body: UpdateProductBody) 
     throw new ApiError(404, "Không tìm thấy sản phẩm");
   }
 
+  if (userId) {
+    const oldPrice = Number(currentProduct.salePrice);
+    const newPrice = Number(updatedProduct.salePrice);
+    let desc = `Cập nhật thông tin món.`;
+
+    const changes: string[] = [];
+    if (currentProduct.name !== updatedProduct.name) {
+      changes.push(`đổi tên từ "${currentProduct.name}" thành "${updatedProduct.name}"`);
+    }
+    if (oldPrice !== newPrice) {
+      changes.push(`đổi giá bán từ ${oldPrice.toLocaleString("vi-VN")}đ thành ${newPrice.toLocaleString("vi-VN")}đ`);
+    }
+    if (currentProduct.imageUrl !== updatedProduct.imageUrl) {
+      changes.push(`thay đổi ảnh sản phẩm`);
+    }
+    if (currentProduct.sku !== updatedProduct.sku) {
+      changes.push(`đổi SKU từ "${currentProduct.sku}" thành "${updatedProduct.sku}"`);
+    }
+
+    if (changes.length > 0) {
+      desc = `Cập nhật: ${changes.join(", ")}.`;
+    }
+
+    void createAuditLog(
+      userId,
+      "SUA_SAN_PHAM",
+      `Món: ${updatedProduct.name}`,
+      desc,
+      currentProduct,
+      updatedProduct
+    );
+  }
+
   return updatedProduct;
   } catch (err) {
     if (err instanceof ApiError) throw err;
@@ -204,7 +251,8 @@ export async function updateProductService(id: string, body: UpdateProductBody) 
 
 export async function updateProductStatusService(
   id: string,
-  body: { status?: Product["status"] }
+  body: { status?: Product["status"] },
+  userId?: string
 ) {
   const currentProduct = await findProductById(id);
 
@@ -232,10 +280,26 @@ export async function updateProductStatusService(
     throw new ApiError(404, "Không tìm thấy sản phẩm");
   }
 
+  if (userId) {
+    const statusLabels: Record<string, string> = {
+      active: "Hoạt động",
+      paused: "Tạm dừng",
+      out_of_stock: "Hết hàng",
+    };
+    void createAuditLog(
+      userId,
+      "SUA_SAN_PHAM",
+      `Món: ${currentProduct.name}`,
+      `Thay đổi trạng thái sản phẩm sang: ${statusLabels[body.status!] || body.status}.`,
+      currentProduct,
+      product
+    );
+  }
+
   return product;
 }
 
-export async function deleteProductService(id: string) {
+export async function deleteProductService(id: string, userId?: string) {
   const currentProduct = await findProductById(id);
 
   if (!currentProduct) {
@@ -252,6 +316,17 @@ export async function deleteProductService(id: string) {
 
   if (!isDeleted) {
     throw new ApiError(404, "Không tìm thấy sản phẩm");
+  }
+
+  if (userId) {
+    void createAuditLog(
+      userId,
+      "SUA_SAN_PHAM",
+      `Món: ${currentProduct.name}`,
+      `Xóa sản phẩm: ${currentProduct.name} (${currentProduct.sku}).`,
+      currentProduct,
+      null
+    );
   }
 
   return currentProduct;

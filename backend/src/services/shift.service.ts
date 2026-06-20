@@ -3,6 +3,8 @@ import { ApiError } from "../utils/apiError";
 import * as shiftRepo from "../repositories/shift.repository";
 import { Shift } from "../types/shift.types";
 
+import { createAuditLog } from "../repositories/audit-log.repository";
+
 export const getShifts = async (userId?: string): Promise<Shift[]> => {
   return shiftRepo.findShifts(userId);
 };
@@ -77,7 +79,19 @@ export const openShift = async (id: string, managerId: string): Promise<Shift> =
     actual_start_time: new Date()
   });
 
-  return (await shiftRepo.findShiftById(id))!;
+  const updatedShift = (await shiftRepo.findShiftById(id))!;
+
+  // Ghi nhật ký hoạt động mở ca
+  void createAuditLog(
+    managerId,
+    "MO_CA",
+    `Ca làm: ${updatedShift.userName || "Nhân viên"}`,
+    `Duyệt mở ca làm việc thành công. Nhân viên ca: ${updatedShift.userName || "Không rõ"}. Số tiền mặt đầu ca: ${updatedShift.openingCash.toLocaleString("vi-VN")}đ.`,
+    shift,
+    updatedShift
+  );
+
+  return updatedShift;
 };
 
 export const requestCloseShift = async (id: string, userId: string): Promise<Shift> => {
@@ -90,7 +104,19 @@ export const requestCloseShift = async (id: string, userId: string): Promise<Shi
     actual_end_time: new Date()
   });
 
-  return (await shiftRepo.findShiftById(id))!;
+  const updatedShift = (await shiftRepo.findShiftById(id))!;
+
+  // Ghi nhật ký yêu cầu đóng ca
+  void createAuditLog(
+    userId,
+    "YEU_CAU_DONG_CA",
+    `Ca làm: ${updatedShift.userName || "Nhân viên"}`,
+    `Nhân viên gửi yêu cầu đóng ca làm việc.`,
+    shift,
+    updatedShift
+  );
+
+  return updatedShift;
 };
 
 export const closeShift = async (
@@ -121,10 +147,25 @@ export const closeShift = async (
     closing_note: closingNote || null
   });
 
-  return (await shiftRepo.findShiftById(id))!;
+  const updatedShift = (await shiftRepo.findShiftById(id))!;
+
+  // Ghi nhật ký xác nhận đóng ca
+  const directionStr = variance >= 0 ? "Thừa" : "Thiếu";
+  const desc = `Xác nhận đóng ca làm việc thành công. Nhân viên ca: ${updatedShift.userName || "Không rõ"}. Doanh thu ca: ${totalSales.toLocaleString("vi-VN")}đ. Tiền mặt chốt két: ${actualClosingCash.toLocaleString("vi-VN")}đ (Chênh lệch: ${directionStr} ${Math.abs(variance).toLocaleString("vi-VN")}đ).${closingNote ? ` Ghi chú: ${closingNote}` : ""}`;
+
+  void createAuditLog(
+    managerId,
+    "XAC_NHAN_DONG_CA",
+    `Ca làm: ${updatedShift.userName || "Nhân viên"}`,
+    desc,
+    shift,
+    updatedShift
+  );
+
+  return updatedShift;
 };
 
-export const cancelShift = async (id: string): Promise<Shift> => {
+export const cancelShift = async (id: string, userId: string): Promise<Shift> => {
   const shift = await shiftRepo.findShiftById(id);
   if (!shift) throw new ApiError(404, "Không tìm thấy ca làm việc");
   if (['CLOSED', 'CANCELLED'].includes(shift.status)) {
@@ -133,5 +174,17 @@ export const cancelShift = async (id: string): Promise<Shift> => {
 
   await shiftRepo.updateShiftStatus(id, 'CANCELLED');
 
-  return (await shiftRepo.findShiftById(id))!;
+  const updatedShift = (await shiftRepo.findShiftById(id))!;
+
+  // Ghi nhật ký hủy ca
+  void createAuditLog(
+    userId,
+    "HUY_CA",
+    `Ca làm: ${updatedShift.userName || "Nhân viên"}`,
+    `Hủy ca làm việc đăng ký ngày ${new Date(updatedShift.expectedStartTime).toLocaleDateString("vi-VN")}.`,
+    shift,
+    updatedShift
+  );
+
+  return updatedShift;
 };

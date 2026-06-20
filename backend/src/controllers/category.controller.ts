@@ -23,7 +23,8 @@ export async function getCategoriesController(_req: Request, res: Response) {
 }
 
 export async function createCategoryController(req: Request, res: Response) {
-  const category = await createCategoryService(req.body);
+  const userId = (req as any).user?.id;
+  const category = await createCategoryService(req.body, userId);
 
   res.status(201).json({
     success: true,
@@ -44,7 +45,8 @@ export async function uploadCategoryImageController(req: Request, res: Response)
 }
 
 export async function updateCategoryController(req: Request, res: Response) {
-  const category = await updateCategoryService(getParamId(req.params.id), req.body);
+  const userId = (req as any).user?.id;
+  const category = await updateCategoryService(getParamId(req.params.id), req.body, userId);
 
   res.json({
     success: true,
@@ -57,9 +59,11 @@ export async function updateCategoryStatusController(
   req: Request,
   res: Response
 ) {
+  const userId = (req as any).user?.id;
   const category = await updateCategoryStatusService(
     getParamId(req.params.id),
-    req.body
+    req.body,
+    userId
   );
 
   res.json({
@@ -70,7 +74,8 @@ export async function updateCategoryStatusController(
 }
 
 export async function deleteCategoryController(req: Request, res: Response) {
-  const category = await deleteCategoryService(getParamId(req.params.id));
+  const userId = (req as any).user?.id;
+  const category = await deleteCategoryService(getParamId(req.params.id), userId);
 
   res.json({
     success: true,

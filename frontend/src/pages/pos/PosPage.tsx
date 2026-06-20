@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getProducts, type Product } from "../../api/product.api";
 import { searchCustomers, type Customer } from "../../api/customers.api";
+import { createAuditLog } from "../../api/audit-log.api";
 import {
   createPosOrder,
   previewPosPromotion,
@@ -341,6 +342,19 @@ function PosPage() {
   };
 
   const updateQuantity = (productId: string, quantity: number) => {
+    const item = cartItems.find((i) => i.product.id === productId);
+    if (item) {
+      const newQty = Math.min(Math.max(quantity, 0), item.product.stockQuantity);
+      if (newQty < item.quantity) {
+        const diff = item.quantity - newQty;
+        void createAuditLog({
+          actionType: "HUY_MON",
+          targetObject: `Món: ${item.product.name}`,
+          description: `Giảm số lượng món '${item.product.name}' trong giỏ hàng (Giảm đi ${diff} phần, còn lại ${newQty} phần).`
+        }).catch(console.error);
+      }
+    }
+
     setCartItems((currentItems) =>
       currentItems
         .map((item) =>
@@ -356,12 +370,29 @@ function PosPage() {
   };
 
   const removeFromCart = (productId: string) => {
+    const item = cartItems.find((i) => i.product.id === productId);
+    if (item) {
+      void createAuditLog({
+        actionType: "HUY_MON",
+        targetObject: `Món: ${item.product.name}`,
+        description: `Hủy món khỏi giỏ hàng đang chờ: ${item.product.name} (Số lượng: ${item.quantity}).`
+      }).catch(console.error);
+    }
+
     setCartItems((currentItems) =>
       currentItems.filter((item) => item.product.id !== productId)
     );
   };
 
   const clearCart = () => {
+    if (cartItems.length > 0) {
+      void createAuditLog({
+        actionType: "HUY_MON",
+        targetObject: `Giỏ hàng POS`,
+        description: `Thu ngân xóa sạch toàn bộ giỏ hàng (Số mặt hàng đã xóa: ${cartItems.length}).`
+      }).catch(console.error);
+    }
+
     setCartItems([]);
     setNote("");
     setErrorMessage("");

@@ -108,7 +108,9 @@ export async function getCustomerService(id: string) {
   return customer;
 }
 
-export async function createCustomerService(body: CreateCustomerBody) {
+import { createAuditLog } from "../repositories/audit-log.repository";
+
+export async function createCustomerService(body: CreateCustomerBody, userId?: string) {
   const fullName = normalizeName(body.fullName);
   const phone = normalizePhone(body.phone);
   const address = normalizeAddress(body.address);
@@ -121,17 +123,31 @@ export async function createCustomerService(body: CreateCustomerBody) {
     throw new ApiError(409, "Số điện thoại này đã được dùng cho khách hàng khác.");
   }
 
-  return createCustomer({
+  const customer = await createCustomer({
     fullName,
     phone,
     address,
     totalSpent: normalizeMoney(body.totalSpent),
   });
+
+  if (userId) {
+    void createAuditLog(
+      userId,
+      "SUA_KHACH_HANG",
+      `Khách hàng: ${customer.fullName}`,
+      `Tạo khách hàng mới: ${customer.fullName} (SĐT: ${customer.phone}).`,
+      null,
+      customer
+    );
+  }
+
+  return customer;
 }
 
 export async function updateCustomerService(
   id: string,
-  body: UpdateCustomerBody
+  body: UpdateCustomerBody,
+  userId?: string
 ) {
   const currentCustomer = await getCustomerService(id);
   const fullName = normalizeName(body.fullName);
@@ -156,10 +172,21 @@ export async function updateCustomerService(
     throw new ApiError(404, "Không tìm thấy khách hàng.");
   }
 
+  if (userId) {
+    void createAuditLog(
+      userId,
+      "SUA_KHACH_HANG",
+      `Khách hàng: ${updatedCustomer.fullName}`,
+      `Cập nhật thông tin khách hàng: ${updatedCustomer.fullName}.`,
+      currentCustomer,
+      updatedCustomer
+    );
+  }
+
   return updatedCustomer;
 }
 
-export async function deleteCustomerService(id: string) {
+export async function deleteCustomerService(id: string, userId?: string) {
   const currentCustomer = await getCustomerService(id);
   const orderCount = await countOrdersByCustomerId(id);
 
@@ -174,6 +201,17 @@ export async function deleteCustomerService(id: string) {
 
   if (!deleted) {
     throw new ApiError(404, "Không tìm thấy khách hàng.");
+  }
+
+  if (userId) {
+    void createAuditLog(
+      userId,
+      "SUA_KHACH_HANG",
+      `Khách hàng: ${currentCustomer.fullName}`,
+      `Xóa thông tin khách hàng: ${currentCustomer.fullName}.`,
+      currentCustomer,
+      null
+    );
   }
 
   return currentCustomer;

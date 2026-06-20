@@ -432,27 +432,38 @@ export async function cancelOrderById(
       [orderId]
     );
 
+    const [userRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT u.full_name, r.name AS role_name 
+       FROM users u 
+       JOIN roles r ON u.role_id = r.id 
+       WHERE u.id = ? 
+       LIMIT 1`,
+      [cancelledBy]
+    );
+    const userFullName = userRows[0]?.full_name || "Nhân viên";
+    const rawRole = userRows[0]?.role_name || "staff";
+    const userRole = rawRole.trim().toLowerCase() === "admin" || rawRole.trim().toLowerCase() === "manager" ? "QL" : "TN";
+
     await connection.execute(
       `
       INSERT INTO audit_logs (
         id,
         user_id,
-        action,
-        entity_name,
-        entity_id,
-        metadata
+        user_name,
+        role,
+        action_type,
+        target_object,
+        description
       )
-      VALUES (?, ?, 'cancel_invoice', 'orders', ?, ?)
+      VALUES (?, ?, ?, ?, 'HUY_HOA_DON', ?, ?)
       `,
       [
         randomUUID(),
         cancelledBy,
-        orderId,
-        JSON.stringify({
-          reason: cancelReason,
-          restoredItems,
-          wasteItems,
-        }),
+        userFullName,
+        userRole,
+        `Đơn #${orderId}`,
+        `Hủy hóa đơn. Lý do: ${cancelReason}.`
       ]
     );
 

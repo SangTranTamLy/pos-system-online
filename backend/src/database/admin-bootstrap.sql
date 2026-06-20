@@ -1,10 +1,10 @@
 USE pos_system;
 
 INSERT INTO roles (id, name, description)
-VALUES ('00000000-0000-0000-0000-000000000001', 'admin', 'Quản trị viên')
+VALUES ('00000000-0000-0000-0000-000000000001', 'admin', 'Quản trị viên') AS new_role
 ON DUPLICATE KEY UPDATE
-  name = VALUES(name),
-  description = VALUES(description);
+  name = new_role.name,
+  description = new_role.description;
 
 INSERT INTO users (
   id,
@@ -21,9 +21,9 @@ VALUES (
   '$2b$10$9tUFu9TM1ge5iv3Uluug4OuIyrVetVSvdhHQDTRD9uWltV1wpRXBG',
   '00000000-0000-0000-0000-000000000001',
   TRUE
-)
+) AS new_user
 ON DUPLICATE KEY UPDATE
-  full_name = VALUES(full_name),
-  password_hash = VALUES(password_hash),
-  role_id = VALUES(role_id),
-  is_active = VALUES(is_active);
+  full_name = new_user.full_name,
+  password_hash = new_user.password_hash,
+  role_id = new_user.role_id,
+  is_active = new_user.is_active;

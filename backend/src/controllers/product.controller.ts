@@ -45,7 +45,8 @@ export async function uploadProductImageController(req: Request, res: Response) 
 }
 
 export async function createProductController(req: Request, res: Response) {
-  const product = await createProductService(req.body);
+  const userId = (req as any).user?.id || "";
+  const product = await createProductService(req.body, userId);
 
   return res.status(201).json({
     success: true,
@@ -55,7 +56,8 @@ export async function createProductController(req: Request, res: Response) {
 }
 
 export async function updateProductController(req: Request, res: Response) {
-  const product = await updateProductService(getParamId(req.params.id), req.body);
+  const userId = (req as any).user?.id || "";
+  const product = await updateProductService(getParamId(req.params.id), req.body, userId);
 
   return res.json({
     success: true,
@@ -65,9 +67,11 @@ export async function updateProductController(req: Request, res: Response) {
 }
 
 export async function updateProductStatusController(req: Request, res: Response) {
+  const userId = (req as any).user?.id || "";
   const product = await updateProductStatusService(
     getParamId(req.params.id),
-    req.body
+    req.body,
+    userId
   );
 
   return res.json({
@@ -78,7 +82,8 @@ export async function updateProductStatusController(req: Request, res: Response)
 }
 
 export async function deleteProductController(req: Request, res: Response) {
-  const product = await deleteProductService(getParamId(req.params.id));
+  const userId = (req as any).user?.id || "";
+  const product = await deleteProductService(getParamId(req.params.id), userId);
 
   return res.json({
     success: true,

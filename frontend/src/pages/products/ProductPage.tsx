@@ -17,6 +17,7 @@ import {
   type Product,
 } from "../../api/product.api";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
+import { FilterBar } from "../../components/common/FilterBar";
 
 type ProductFormState = {
   categoryId: string;
@@ -511,23 +512,21 @@ function ProductPage() {
       </section>
 
       <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-3 border-b border-slate-200 p-4 lg:grid-cols-[1fr_220px_220px_auto]">
-          <div className="relative">
-            <Icon
-              name="search"
-              className="absolute top-1/2 left-3 -translate-y-1/2 text-slate-400"
-            />
-            <input
-              value={search}
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setPage(1);
-              }}
-              placeholder="Tìm theo SKU hoặc tên sản phẩm..."
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pr-4 pl-10 text-sm outline-none transition-all focus:border-[#f97316] focus:bg-white focus:ring-2 focus:ring-orange-100"
-            />
-          </div>
-
+        <FilterBar
+          search={search}
+          onSearchChange={(val) => {
+            setSearch(val);
+            setPage(1);
+          }}
+          searchPlaceholder="Tìm theo SKU hoặc tên sản phẩm..."
+          onClear={() => {
+            setSearch("");
+            setCategoryFilter("all");
+            setSearchParams({});
+            setPage(1);
+          }}
+          className="grid gap-3 border-b border-slate-200 p-4 lg:grid-cols-[1fr_220px_auto] lg:items-center"
+        >
           <select
             value={categoryFilter}
             onChange={(event) => {
@@ -542,7 +541,7 @@ function ProductPage() {
               );
               setPage(1);
             }}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+            className="h-[46px] rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition-all focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
           >
             <option value="all">Tất cả danh mục</option>
             {categories.map((category) => (
@@ -551,20 +550,7 @@ function ProductPage() {
               </option>
             ))}
           </select>
-
-          <button
-            type="button"
-            onClick={() => {
-              setSearch("");
-              setCategoryFilter("all");
-              setSearchParams({});
-              setPage(1);
-            }}
-            className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50"
-          >
-            Xóa lọc
-          </button>
-        </div>
+        </FilterBar>
 
         {isLoading ? (
           <div className="p-6 text-sm font-medium text-slate-500">Đang tải sản phẩm...</div>

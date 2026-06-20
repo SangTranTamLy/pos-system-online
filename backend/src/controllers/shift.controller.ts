@@ -58,6 +58,7 @@ export const closeShiftController = async (req: Request, res: Response) => {
 };
 
 export const cancelShiftController = async (req: Request, res: Response) => {
-  const shift = await shiftService.cancelShift(req.params.id as string);
+  const user = req.user as AuthUser;
+  const shift = await shiftService.cancelShift(req.params.id as string, user.id);
   res.json({ success: true, message: "Hủy ca thành công", data: shift });
 };

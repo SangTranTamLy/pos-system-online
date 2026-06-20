@@ -11,6 +11,8 @@ import {
 } from "../../api/order.api";
 import { fetchUsers, type User } from "../../api/users.api";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
+import { FilterBar } from "../../components/common/FilterBar";
+import { createAuditLog } from "../../api/audit-log.api";
 
 type StatusFilter = OrderStatus | "all";
 type CancelModalState = "closed" | "open";
@@ -672,6 +674,13 @@ function InvoicePage() {
       setSelectedOrderId(orderToPrint.id);
       setSelectedOrder(orderToPrint);
       printInvoiceReceipt(orderToPrint);
+
+      // Log IN_LAI_BILL action
+      void createAuditLog({
+        actionType: "IN_LAI_BILL",
+        targetObject: shortOrderId(orderToPrint.id),
+        description: `In lại hóa đơn Đơn ${shortOrderId(orderToPrint.id)}`,
+      }).catch((err) => console.error("Lỗi ghi log in lại hóa đơn:", err));
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Không in được hóa đơn");
     }
@@ -693,16 +702,23 @@ function InvoicePage() {
 
       <section className="grid grid-cols-1 gap-6 2xl:grid-cols-[1fr_430px]">
         <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="grid gap-3 border-b border-slate-200 p-4 lg:grid-cols-[1fr_160px_160px_180px_auto] lg:items-center">
-            <div className="relative">
-              <Icon name="search" className="absolute top-1/2 left-3 -translate-y-1/2 text-slate-400" />
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Tìm theo mã HD, SĐT khách, nhân viên..."
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pr-4 pl-10 text-sm outline-none transition-all focus:border-[#f97316] focus:bg-white focus:ring-2 focus:ring-orange-100"
-              />
-            </div>
+          <FilterBar
+            search={search}
+            onSearchChange={(val) => setSearch(val)}
+            searchPlaceholder="Tìm theo mã HD, SĐT khách, nhân viên..."
+            onClear={() => {
+              setDateFrom("");
+              setDateTo("");
+              setSearch("");
+              setStatus("all");
+              setCreatedBy("all");
+            }}
+            className={`grid gap-3 border-b border-slate-200 p-4 lg:items-center ${
+              isAdmin
+                ? "lg:grid-cols-[1fr_150px_150px_160px_170px_auto]"
+                : "lg:grid-cols-[1fr_150px_150px_170px_auto]"
+            }`}
+          >
             <div className="relative">
               <span className="pointer-events-none absolute -top-2 left-3 bg-white px-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
                 Từ ngày
@@ -711,7 +727,7 @@ function InvoicePage() {
                 type="date"
                 value={dateFrom}
                 onChange={(event) => setDateFrom(event.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b1c30] outline-none transition-all focus:border-[#f97316] focus:bg-white focus:ring-2 focus:ring-orange-100"
+                className="w-full h-[46px] rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-[#0b1c30] outline-none transition-all focus:border-[#f97316] focus:bg-white focus:ring-2 focus:ring-orange-100"
               />
             </div>
             <div className="relative">
@@ -722,13 +738,13 @@ function InvoicePage() {
                 type="date"
                 value={dateTo}
                 onChange={(event) => setDateTo(event.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b1c30] outline-none transition-all focus:border-[#f97316] focus:bg-white focus:ring-2 focus:ring-orange-100"
+                className="w-full h-[46px] rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-[#0b1c30] outline-none transition-all focus:border-[#f97316] focus:bg-white focus:ring-2 focus:ring-orange-100"
               />
             </div>
             <select
               value={status}
               onChange={(event) => setStatus(event.target.value as StatusFilter)}
-              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b1c30] outline-none transition-all focus:border-[#f97316] focus:bg-white focus:ring-2 focus:ring-orange-100"
+              className="h-[46px] rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-[#0b1c30] outline-none transition-all focus:border-[#f97316] focus:bg-white focus:ring-2 focus:ring-orange-100"
             >
               <option value="all">Tất cả trạng thái</option>
               <option value="completed">Hoàn tất</option>
@@ -739,7 +755,7 @@ function InvoicePage() {
               <select
                 value={createdBy}
                 onChange={(event) => setCreatedBy(event.target.value)}
-                className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b1c30] outline-none transition-all focus:border-[#f97316] focus:bg-white focus:ring-2 focus:ring-orange-100"
+                className="h-[46px] rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-[#0b1c30] outline-none transition-all focus:border-[#f97316] focus:bg-white focus:ring-2 focus:ring-orange-100"
               >
                 <option value="all">Tất cả nhân viên</option>
                 {users.map((u) => (
@@ -749,20 +765,7 @@ function InvoicePage() {
                 ))}
               </select>
             )}
-            <button
-              type="button"
-              onClick={() => {
-                setDateFrom("");
-                setDateTo("");
-                setSearch("");
-                setStatus("all");
-                setCreatedBy("all");
-              }}
-              className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50"
-            >
-              Xóa lọc
-            </button>
-          </div>
+          </FilterBar>
 
           {error ? (
             <div className="border-b border-red-100 bg-red-50 px-6 py-3 text-sm font-semibold text-red-600">{error}</div>

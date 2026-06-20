@@ -249,6 +249,52 @@ export async function createPosOrderTransaction(
       [paymentId, orderId, data.paymentMethod, finalAmount]
     );
 
+    // Thêm nhật ký hoạt động bán hàng / giảm giá
+    try {
+      const [userRows] = await connection.execute<RowDataPacket[]>(
+        `SELECT u.full_name, r.name AS role_name 
+         FROM users u 
+         JOIN roles r ON u.role_id = r.id 
+         WHERE u.id = ? 
+         LIMIT 1`,
+        [data.createdBy]
+      );
+      const userFullName = userRows[0]?.full_name || "Nhân viên";
+      const rawRole = userRows[0]?.role_name || "staff";
+      const userRole = rawRole.trim().toLowerCase() === "admin" || rawRole.trim().toLowerCase() === "manager" ? "QL" : "TN";
+
+      const actionType = discountAmount > 0 ? "GIAM_GIA" : "BAN_HANG";
+      const description = discountAmount > 0
+        ? `Thanh toán thành công đơn hàng. Tổng tiền gốc: ${totalAmount.toLocaleString("vi-VN")}đ, Giảm giá: ${discountAmount.toLocaleString("vi-VN")}đ${data.promotionCode ? ` (Mã: ${data.promotionCode})` : ""}, Thực thu: ${finalAmount.toLocaleString("vi-VN")}đ.`
+        : `Thanh toán thành công đơn hàng. Tổng tiền: ${finalAmount.toLocaleString("vi-VN")}đ.`;
+
+      await connection.execute(
+        `
+        INSERT INTO audit_logs (
+          id,
+          user_id,
+          user_name,
+          role,
+          action_type,
+          target_object,
+          description
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          randomUUID(),
+          data.createdBy,
+          userFullName,
+          userRole,
+          actionType,
+          `Đơn #${orderId}`,
+          description
+        ]
+      );
+    } catch (logErr) {
+      console.error("Lỗi ghi log hoạt động bán hàng:", logErr);
+    }
+
     await connection.commit();
 
     const changeAmount = data.changeAmount ?? 0;

@@ -11,6 +11,7 @@ import promotionsRouter from "./promotions.routes";
 import inventoryRouter from "./inventory.routes";
 import shiftRouter from "./shift.routes";
 import reportRouter from "./report.routes";
+import auditLogRouter from "./audit-log.routes";
 
 const apiRouter = Router();
 apiRouter.use("/dashboard", dashboardRouter);
@@ -26,5 +27,6 @@ apiRouter.use("/promotions", promotionsRouter);
 apiRouter.use("/inventory", inventoryRouter);
 apiRouter.use("/shifts", shiftRouter);
 apiRouter.use("/reports", reportRouter);
+apiRouter.use("/audit-logs", auditLogRouter);
 
 export default apiRouter;

@@ -10,10 +10,10 @@ import CustomerPage from "../pages/customers/CustomerPage";
 import PromotionsPage from "../pages/promotions/PromotionsPage";
 import EmployeePage from "../pages/employees/EmployeePage";
 import {
-  AuditLogsPage,
-  ReportsPage,
   SettingsPage,
 } from "../pages/modules/ModuleScaffoldPage";
+import ReportsPage from "../pages/reports/ReportsPage";
+import AuditLogsPage from "../pages/audit-logs/AuditLogsPage";
 import ShiftsPage from "../pages/shifts/ShiftsPage";
 import { StockPage } from "../pages/inventory/StockPage";
 import StaffDashboard from "../pages/dashboard/StaffDashboard";

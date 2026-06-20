@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
+import { createAuditLog } from "../../api/audit-log.api";
 
 type ModuleKey =
   | "stock"
@@ -269,6 +270,22 @@ function ModuleScaffoldPage({ moduleKey }: { moduleKey: ModuleKey }) {
     );
   }, [config.rows, search]);
 
+  const handlePrimaryAction = async () => {
+    if (moduleKey === "settings") {
+      try {
+        await createAuditLog({
+          actionType: "SUA_CAU_HINH",
+          targetObject: "Cấu hình hệ thống",
+          description: "Thay đổi cấu hình hệ thống",
+        });
+        alert("Đã lưu cấu hình hệ thống và ghi nhận vào nhật ký hoạt động!");
+      } catch (err) {
+        console.error("Lỗi lưu cấu hình:", err);
+        alert(err instanceof Error ? err.message : "Không thể lưu cấu hình");
+      }
+    }
+  };
+
   return (
     <AdminLayout title={config.title} subtitle={config.subtitle}>
       <section className="mb-8 flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:flex-row lg:items-center lg:justify-between">
@@ -283,6 +300,7 @@ function ModuleScaffoldPage({ moduleKey }: { moduleKey: ModuleKey }) {
         </div>
         <button
           type="button"
+          onClick={handlePrimaryAction}
           className="inline-flex h-10 items-center justify-center gap-2 bg-[#f97316] px-4 text-sm font-bold text-white transition-colors hover:bg-[#ea580c]"
         >
           <Icon name="add" />

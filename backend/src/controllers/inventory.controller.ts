@@ -15,6 +15,8 @@ import {
   createStockAdjustmentTransaction,
 } from "../repositories/inventory.repository";
 import { ApiError } from "../utils/apiError";
+import { createAuditLog } from "../repositories/audit-log.repository";
+import { db } from "../config/database";
 
 function validateSupplierPhone(phone: unknown) {
   const normalizedPhone = String(phone || "").trim();
@@ -47,6 +49,18 @@ export async function createSupplierController(req: Request, res: Response) {
 
   const supplier = await createSupplier(req.body);
 
+  const userId = (req as any).user?.id;
+  if (userId && supplier) {
+    void createAuditLog(
+      userId,
+      "SUA_NHA_CUNG_CAP",
+      `NCC: ${supplier.name}`,
+      `Thêm nhà cung cấp mới: ${supplier.name} (SĐT: ${supplier.phone}).`,
+      null,
+      supplier
+    );
+  }
+
   return res.status(201).json({
     success: true,
     message: "Đã thêm nhà cung cấp mới.",
@@ -68,7 +82,28 @@ export async function updateSupplierController(req: Request, res: Response) {
 
   validateSupplierPhone(phone);
 
+  // Lấy dữ liệu cũ để ghi log JSON
+  let oldSupplier = null;
+  try {
+    const [rows]: any = await db.query("SELECT * FROM suppliers WHERE id = ?", [id]);
+    oldSupplier = rows[0] || null;
+  } catch (err) {
+    console.error("Lỗi khi lấy thông tin nhà cung cấp cũ:", err);
+  }
+
   const supplier = await updateSupplier(id, req.body);
+
+  const userId = (req as any).user?.id;
+  if (userId && supplier) {
+    void createAuditLog(
+      userId,
+      "SUA_NHA_CUNG_CAP",
+      `NCC: ${supplier.name}`,
+      `Cập nhật nhà cung cấp: ${supplier.name} (SĐT: ${supplier.phone}).`,
+      oldSupplier,
+      supplier
+    );
+  }
 
   return res.json({
     success: true,
@@ -85,6 +120,18 @@ export async function deleteSupplierController(req: Request, res: Response) {
   }
 
   const supplier = await deleteSupplier(id);
+
+  const userId = (req as any).user?.id;
+  if (userId && supplier) {
+    void createAuditLog(
+      userId,
+      "SUA_NHA_CUNG_CAP",
+      `NCC: ${supplier.name}`,
+      `Xóa nhà cung cấp: ${supplier.name} (SĐT: ${supplier.phone || "Không có"}).`,
+      supplier,
+      null
+    );
+  }
 
   return res.json({
     success: true,
@@ -114,6 +161,18 @@ export async function createMaterialController(req: Request, res: Response) {
 
   const material = await createMaterial(req.body);
 
+  const userId = (req as any).user?.id;
+  if (userId && material) {
+    void createAuditLog(
+      userId,
+      "SUA_NGUYEN_LIEU",
+      `Nguyên liệu: ${material.name}`,
+      `Thêm nguyên liệu mới: ${material.name} (ĐVT: ${material.unit}).`,
+      null,
+      material
+    );
+  }
+
   return res.status(201).json({
     success: true,
     message: "Đã thêm nguyên liệu mới.",
@@ -137,7 +196,28 @@ export async function updateMaterialController(req: Request, res: Response) {
     throw new ApiError(400, "Vui lòng nhập đơn vị tính nguyên liệu");
   }
 
+  // Lấy dữ liệu cũ để ghi log JSON
+  let oldMaterial = null;
+  try {
+    const [rows]: any = await db.query("SELECT * FROM raw_materials WHERE id = ?", [id]);
+    oldMaterial = rows[0] || null;
+  } catch (err) {
+    console.error("Lỗi khi lấy thông tin nguyên liệu cũ:", err);
+  }
+
   const material = await updateMaterial(id, req.body);
+
+  const userId = (req as any).user?.id;
+  if (userId && material) {
+    void createAuditLog(
+      userId,
+      "SUA_NGUYEN_LIEU",
+      `Nguyên liệu: ${material.name}`,
+      `Cập nhật nguyên liệu: ${material.name} (ĐVT: ${material.unit}).`,
+      oldMaterial,
+      material
+    );
+  }
 
   return res.json({
     success: true,
@@ -154,6 +234,18 @@ export async function deleteMaterialController(req: Request, res: Response) {
   }
 
   const material = await deleteMaterial(id);
+
+  const userId = (req as any).user?.id;
+  if (userId && material) {
+    void createAuditLog(
+      userId,
+      "SUA_NGUYEN_LIEU",
+      `Nguyên liệu: ${material.name}`,
+      `Xóa nguyên liệu thô: ${material.name} (ĐVT: ${material.unit || "Không rõ"}).`,
+      material,
+      null
+    );
+  }
 
   return res.json({
     success: true,

@@ -7,7 +7,7 @@ import {
   type DashboardSummary,
 } from "../../api/dashboard.api";
 import RevenueChart, { type RevenuePoint } from "../../components/charts/RevenueChart";
-import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
+import { PieChart, Pie, Cell } from "recharts";
 import TopProductsCard, { type TopProduct } from "../../components/charts/TopProductsCard";
 import { getEmployeeRevenue } from "../../api/report.api";
 import type { EmployeeRevenue } from "../../types/report";
@@ -299,23 +299,21 @@ function DashboardPage() {
             {totalOrdersCount > 0 ? (
               <div className="flex items-center justify-between gap-6 px-2">
                 <div className="relative h-37.5 w-37.5 shrink-0">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={donutData.filter(d => d.value > 0)}
-                        innerRadius={50}
-                        outerRadius={75}
-                        paddingAngle={3}
-                        dataKey="value"
-                        stroke="none"
-                        cornerRadius={4}
-                      >
-                        {donutData.filter(d => d.value > 0).map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={paymentMethodColors[entry.name]} />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <PieChart width={150} height={150}>
+                    <Pie
+                      data={donutData.filter(d => d.value > 0)}
+                      innerRadius={50}
+                      outerRadius={75}
+                      paddingAngle={3}
+                      dataKey="value"
+                      stroke="none"
+                      cornerRadius={4}
+                    >
+                      {donutData.filter(d => d.value > 0).map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={paymentMethodColors[entry.name]} />
+                      ))}
+                    </Pie>
+                  </PieChart>
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tổng</span>
                     <span className="text-[28px] font-black leading-none text-[#0b1c30]">{totalOrdersCount}</span>

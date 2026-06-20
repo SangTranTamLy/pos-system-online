@@ -9,6 +9,7 @@ import type {
   LoginPinRequestBody,
 } from "../types/auth.types";
 import { ApiError } from "../utils/apiError";
+import { createAuditLog } from "../repositories/audit-log.repository";
 
 interface LoginResult {
   token: string;
@@ -77,6 +78,14 @@ export async function loginService(
     expiresIn: "1d",
   });
 
+  // Log successful login
+  void createAuditLog(
+    authUser.id,
+    "DANG_NHAP",
+    "Thiết bị POS",
+    "Đăng nhập hệ thống (Email)"
+  );
+
   return {
     token,
     user: authUser,
@@ -120,6 +129,14 @@ export async function loginPinService(
         const token = jwt.sign(payload, getJwtSecret(), {
           expiresIn: "1d",
         });
+
+        // Log successful PIN login
+        void createAuditLog(
+          authUser.id,
+          "DANG_NHAP",
+          "Thiết bị POS",
+          "Đăng nhập hệ thống (Mã PIN)"
+        );
 
         return {
           token,

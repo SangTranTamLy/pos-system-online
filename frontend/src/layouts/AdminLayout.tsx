@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { fetchShifts } from "../api/shifts.api";
+import { createAuditLog } from "../api/audit-log.api";
 
 type MenuItem = {
   label: string;
@@ -298,10 +299,20 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
   const displayName = user.fullName?.trim() || "Admin Demo";
   const displayRole = user.roleName?.trim() || "admin";
 
-  const handleLogout = () => {
-    localStorage.removeItem("auth_token");
-    localStorage.removeItem("auth_user");
-    navigate("/login");
+  const handleLogout = async () => {
+    try {
+      await createAuditLog({
+        actionType: "DANG_XUAT",
+        targetObject: "Hệ thống",
+        description: "Nhân viên đăng xuất khỏi hệ thống."
+      });
+    } catch (err) {
+      console.error("Lỗi khi ghi nhận log đăng xuất:", err);
+    } finally {
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("auth_user");
+      navigate("/login");
+    }
   };
 
   return (

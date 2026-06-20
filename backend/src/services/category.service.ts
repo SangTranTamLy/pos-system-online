@@ -8,6 +8,7 @@ import {
   updateCategory,
   updateCategoryStatus,
 } from "../repositories/category.repository";
+import { createAuditLog } from "../repositories/audit-log.repository";
 import type {
   CreateCategoryBody,
   UpdateCategoryBody,
@@ -111,7 +112,7 @@ export async function uploadCategoryImageService(
   };
 }
 
-export async function createCategoryService(body: CreateCategoryBody) {
+export async function createCategoryService(body: CreateCategoryBody, userId?: string) {
   try {
   const name = normalizeName(body.name ?? "");
 
@@ -156,12 +157,25 @@ export async function createCategoryService(body: CreateCategoryBody) {
   isStockReturnable: body.isStockReturnable,
   });
 
-  return await createCategory({
+  const category = await createCategory({
     name,
     description: normalizeDescription(body.description),
     imageUrl: normalizeImageUrl(body.imageUrl),
     ...stockLogic,
   });
+
+  if (userId) {
+    void createAuditLog(
+      userId,
+      "SUA_DANH_MUC",
+      `Danh mục: ${category.name}`,
+      `Tạo mới danh mục sản phẩm: ${category.name}.`,
+      null,
+      category
+    );
+  }
+
+  return category;
   } catch (err) {
     if (err instanceof ApiError) throw err;
     throw new ApiError(500, "Lỗi khi tạo danh mục");
@@ -170,7 +184,8 @@ export async function createCategoryService(body: CreateCategoryBody) {
 
 export async function updateCategoryService(
   id: string,
-  body: UpdateCategoryBody
+  body: UpdateCategoryBody,
+  userId?: string
 ) {
   try {
   const currentCategory = await findCategoryById(id);
@@ -212,6 +227,17 @@ export async function updateCategoryService(
     throw new ApiError(404, "Không tìm thấy danh mục");
   }
 
+  if (userId) {
+    void createAuditLog(
+      userId,
+      "SUA_DANH_MUC",
+      `Danh mục: ${updatedCategory.name}`,
+      `Cập nhật danh mục sản phẩm: ${updatedCategory.name}.`,
+      currentCategory,
+      updatedCategory
+    );
+  }
+
   return updatedCategory;
   } catch (err) {
     if (err instanceof ApiError) throw err;
@@ -219,7 +245,7 @@ export async function updateCategoryService(
   }
 }
 
-export async function deleteCategoryService(id: string) {
+export async function deleteCategoryService(id: string, userId?: string) {
   const currentCategory = await findCategoryById(id);
 
   if (!currentCategory) {
@@ -237,21 +263,48 @@ export async function deleteCategoryService(id: string) {
   if (!isDeleted) {
     throw new ApiError(404, "Không tìm thấy danh mục");
   }
+
+  if (userId) {
+    void createAuditLog(
+      userId,
+      "SUA_DANH_MUC",
+      `Danh mục: ${currentCategory.name}`,
+      `Xóa danh mục sản phẩm: ${currentCategory.name}.`,
+      currentCategory,
+      null
+    );
+  }
+
   return currentCategory;
 }
 
 export async function updateCategoryStatusService(
   id: string,
-  body: UpdateCategoryStatusBody
+  body: UpdateCategoryStatusBody,
+  userId?: string
 ) {
   if (typeof body.isActive !== "boolean") {
     throw new ApiError(400, "Trạng thái danh mục không hợp lệ");
   }
 
+  const currentCategory = await findCategoryById(id);
+
   const updatedCategory = await updateCategoryStatus(id, body.isActive);
 
   if (!updatedCategory) {
     throw new ApiError(404, "Không tìm thấy danh mục");
+  }
+
+  if (userId && currentCategory) {
+    const statusLabel = body.isActive ? "Hoạt động" : "Tạm dừng";
+    void createAuditLog(
+      userId,
+      "SUA_DANH_MUC",
+      `Danh mục: ${updatedCategory.name}`,
+      `Thay đổi trạng thái danh mục sang: ${statusLabel}.`,
+      currentCategory,
+      updatedCategory
+    );
   }
 
   return updatedCategory;
