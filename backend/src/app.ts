@@ -3,6 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
 import morgan from "morgan";
+import jwt from "jsonwebtoken";
 import { db } from "./config/database";
 import apiRouter from "./routes";
 import {
@@ -17,6 +18,32 @@ const app = express();
 app.use(cors());
 app.use(morgan("dev"));
 app.use(express.json({ limit: "10mb" }));
+
+// Chặn các thao tác ghi (POST, PUT, PATCH, DELETE) đối với tài khoản demo để bảo vệ dữ liệu gốc
+app.use((req, res, next) => {
+  const authorization = req.headers.authorization;
+  if (authorization?.startsWith("Bearer ")) {
+    const token = authorization.replace("Bearer ", "");
+    try {
+      const payload = jwt.decode(token);
+      if (payload && typeof payload === "object" && payload.email === "demo@example.com") {
+        const isWriteMethod = ["POST", "PUT", "PATCH", "DELETE"].includes(req.method);
+        // Cho phép các endpoint auth (như đăng nhập, lấy thông tin cá nhân)
+        const isAuthRoute = req.path.startsWith("/api/auth");
+        if (isWriteMethod && !isAuthRoute) {
+          return res.status(403).json({
+            success: false,
+            message: "Tài khoản demo chỉ có quyền xem dữ liệu (Read-only) để tránh làm thay đổi dữ liệu gốc của hệ thống!"
+          });
+        }
+      }
+    } catch (e) {
+      // Bỏ qua lỗi decode, để auth.middleware.ts xác thực chính thức sau
+    }
+  }
+  next();
+});
+
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 app.get("/health", async (_req, res) => {
