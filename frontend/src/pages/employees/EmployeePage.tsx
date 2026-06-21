@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
 import AdminLayout from "../../layouts/AdminLayout";
+import { translateRole } from "../../utils/role";
 import {
   fetchUsers,
   fetchRoles,
@@ -216,7 +217,7 @@ export default function EmployeePage() {
                       </td>
                       <td className="p-4 text-center">
                         <span className="bg-orange-50 text-[#f97316] text-[11px] px-2.5 py-0.5 rounded-full font-bold">
-                          {user.roleName}
+                          {translateRole(user.roleName)}
                         </span>
                       </td>
                       <td className="p-4 text-center">
@@ -300,7 +301,7 @@ export default function EmployeePage() {
                         <option value="" disabled>Chọn vai trò</option>
                         {roles.map((role) => (
                           <option key={role.id} value={role.id}>
-                            {role.name}
+                            {translateRole(role.name)}
                           </option>
                         ))}
                       </select>

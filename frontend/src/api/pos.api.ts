@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://localhost:5000/api";
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || "http://localhost:5000/api";
 
 export type PosPaymentMethod = "cash" | "qr" | "card";
 
@@ -13,6 +13,8 @@ export type CreatePosOrderPayload = {
   }>;
   promotionCode?: string | null;
   changeAmount?: number;
+  shiftId?: string | null;
+  discountAmount?: number;
 };
 
 export type PosOrderDetail = {
@@ -52,6 +54,7 @@ export type PosOrderResult = {
   appliedPromotion: PosAppliedPromotion | null;
   details: PosOrderDetail[];
   payment: PosPayment;
+  alerts?: { name: string; stockQuantity: number; minStock: number }[];
 };
 
 type ApiResponse<T> = {

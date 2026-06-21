@@ -11,6 +11,8 @@ import {
   findProducts,
   updateProductById,
   updateProductStatusById,
+  findProductRecipe,
+  saveProductRecipe,
 } from "../repositories/product.repository";
 import { createAuditLog } from "../repositories/audit-log.repository";
 import type {
@@ -18,6 +20,8 @@ import type {
   Product,
   UpdateProductBody,
   UploadProductImageBody,
+  SaveProductRecipeBody,
+  ProductRecipeIngredient,
 } from "../types/product.types";
 import { ApiError } from "../utils/apiError";
 
@@ -330,4 +334,54 @@ export async function deleteProductService(id: string, userId?: string) {
   }
 
   return currentProduct;
+}
+
+export async function getProductRecipeService(productId: string): Promise<ProductRecipeIngredient[]> {
+  const product = await findProductById(productId);
+
+  if (!product) {
+    throw new ApiError(404, "Không tìm thấy sản phẩm");
+  }
+
+  return findProductRecipe(productId);
+}
+
+export async function saveProductRecipeService(
+  productId: string,
+  body: SaveProductRecipeBody,
+  userId?: string
+): Promise<void> {
+  const product = await findProductById(productId);
+
+  if (!product) {
+    throw new ApiError(404, "Không tìm thấy sản phẩm");
+  }
+
+  // Validate danh sách nguyên liệu đầu vào
+  if (!body.ingredients || !Array.isArray(body.ingredients)) {
+    throw new ApiError(400, "Danh sách nguyên liệu không hợp lệ");
+  }
+
+  for (const item of body.ingredients) {
+    if (!item.ingredientId?.trim()) {
+      throw new ApiError(400, "Thiếu mã nguyên liệu");
+    }
+    const qty = Number(item.quantityNeeded);
+    if (isNaN(qty) || qty <= 0) {
+      throw new ApiError(400, "Số lượng nguyên liệu tiêu hao phải là số dương lớn hơn 0");
+    }
+  }
+
+  await saveProductRecipe(productId, body.ingredients);
+
+  if (userId) {
+    void createAuditLog(
+      userId,
+      "SUA_SAN_PHAM",
+      `Món: ${product.name}`,
+      `Thiết lập công thức nguyên liệu cho sản phẩm: ${product.name} (${product.sku}). Tổng cộng có ${body.ingredients.length} nguyên liệu.`,
+      null,
+      null
+    );
+  }
 }

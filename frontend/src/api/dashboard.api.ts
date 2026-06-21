@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://localhost:5000/api";
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || "http://localhost:5000/api";
 
 export type DashboardRevenuePeriod = "month" | "year";
 
@@ -10,6 +10,7 @@ export type DashboardSummary = {
         lowStockProducts: number;
         totalCustomers: number;
         activeProducts: number;
+        totalStockValue: number;
     };
     revenueTrend: Array<{
         sort: number;
@@ -30,8 +31,9 @@ export type DashboardSummary = {
         createdAt: string;
     }>;
     stockAlerts: Array<{
-        productName: string;
+        name: string;
         stockQuantity: number;
+        minStock: number;
     }>;
     paymentMethods: Array<{
         method: string;

@@ -368,17 +368,17 @@ function LoginPage() {
 
           <footer className="flex flex-col items-center justify-between gap-4 shrink-0 border-t border-[#e0c0b1]/30 px-6 py-4 md:flex-row">
             <p className="text-sm font-semibold tracking-[0.02em] text-[#584237] opacity-60">
-              Copyright 2024 QuickServe Systems. All rights reserved.
+              Bản quyền © 2024 QuickServe Systems. Bảo lưu mọi quyền.
             </p>
             <div className="flex flex-wrap justify-center gap-6">
               <a href="#" className="text-sm font-semibold tracking-[0.02em] text-[#584237] transition-colors hover:text-[#9d4300]">
-                Privacy Policy
+                Chính sách bảo mật
               </a>
               <a href="#" className="text-sm font-semibold tracking-[0.02em] text-[#584237] transition-colors hover:text-[#9d4300]">
-                Terms of Service
+                Điều khoản dịch vụ
               </a>
               <a href="#" className="text-sm font-semibold tracking-[0.02em] text-[#584237] transition-colors hover:text-[#9d4300]">
-                Security Compliance
+                Tuân thủ bảo mật
               </a>
             </div>
           </footer>

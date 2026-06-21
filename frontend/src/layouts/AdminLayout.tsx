@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { fetchShifts } from "../api/shifts.api";
 import { createAuditLog } from "../api/audit-log.api";
+import { translateRole } from "../utils/role";
 
 type MenuItem = {
   label: string;
@@ -434,7 +435,7 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
               <div className="text-right">
                 <p className="text-sm font-bold text-[#0b1c30]">{displayName}</p>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-[#f97316]">
-                  {displayRole}
+                  {translateRole(displayRole)}
                 </p>
               </div>
               <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-100">

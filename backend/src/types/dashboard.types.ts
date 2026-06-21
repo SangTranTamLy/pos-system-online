@@ -5,6 +5,7 @@ export type DashboardStats = {
     lowStockProducts: number;
     totalCustomers: number;
     activeProducts: number;
+    totalStockValue: number;
 };
 
 export type DashboardRevenuePeriod = "month" | "year";
@@ -27,12 +28,13 @@ export type DashboardRecentOrder = {
     customerName: string;
     finalAmount: number;
     status: string;
-    createdAt: Date;
+    createdAt: Date | string;
 };
 
 export type DashboardStockAlert = {
-    productName: string;
+    name: string;
     stockQuantity: number;
+    minStock: number;
 };
 
 export type PaymentMethodStat = {
@@ -45,8 +47,8 @@ export type PaymentMethodStat = {
 export type CurrentShift = {
     id: string;
     userName: string;
-    expectedStartTime: Date;
-    expectedEndTime: Date;
+    expectedStartTime: Date | string;
+    expectedEndTime: Date | string;
 } | null;
 
 export type DashboardSummary = {

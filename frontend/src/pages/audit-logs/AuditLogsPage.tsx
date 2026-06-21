@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 import { getAuditLogs } from "../../api/audit-log.api";
+import { translateRole } from "../../utils/role";
+
 import { fetchShifts, type Shift } from "../../api/shifts.api";
 import type { AuditLog } from "../../types/audit-log";
 import { FilterBar } from "../../components/common/FilterBar";
@@ -385,7 +387,7 @@ export default function AuditLogsPage() {
                         })}
                       </td>
                       <td className="px-6 py-4 text-[#0b1c30]">
-                        {log.userName} <span className="font-semibold text-slate-400">({log.role})</span>
+                        {log.userName} <span className="font-semibold text-slate-400">({translateRole(log.role)})</span>
                       </td>
                       <td className="px-6 py-4">{getActionBadge(log.actionType)}</td>
                       <td className="px-6 py-4 text-[#f97316] font-extrabold">{log.targetObject}</td>

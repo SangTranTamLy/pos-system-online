@@ -14,8 +14,11 @@ import {
   getProducts,
   updateProduct,
   uploadProductImage,
+  getProductRecipe,
+  saveProductRecipe,
   type Product,
 } from "../../api/product.api";
+import { fetchMaterials, type Material } from "../../api/inventory.api";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 import { FilterBar } from "../../components/common/FilterBar";
 
@@ -141,6 +144,14 @@ function ProductPage() {
   const [showToast, setShowToast] = useState(false);
   const [formState, setFormState] = useState<ProductFormState>(defaultFormState);
   const [imageSource, setImageSource] = useState<"file" | "url">("file");
+
+  // States for recipe modal
+  const [isRecipeModalOpen, setIsRecipeModalOpen] = useState(false);
+  const [editingProductForRecipe, setEditingProductForRecipe] = useState<Product | null>(null);
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [recipeIngredients, setRecipeIngredients] = useState<Array<{ ingredientId: string; quantityNeeded: number }>>([]);
+  const [recipeErrorMessage, setRecipeErrorMessage] = useState("");
+  const [isRecipeSaving, setIsRecipeSaving] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -279,6 +290,104 @@ function ProductPage() {
     setFormState(defaultFormState);
     setImageSource("file");
     setIsModalOpen(false);
+  };
+
+  const openRecipeModal = async (product: Product) => {
+    setEditingProductForRecipe(product);
+    setRecipeErrorMessage("");
+    setRecipeIngredients([]);
+    setIsRecipeModalOpen(true);
+    try {
+      const [materialsResponse, recipeResponse] = await Promise.all([
+        fetchMaterials(),
+        getProductRecipe(product.id),
+      ]);
+      setMaterials(materialsResponse.data.filter((m) => m.isActive));
+      if (recipeResponse.data && recipeResponse.data.length > 0) {
+        setRecipeIngredients(
+          recipeResponse.data.map((item) => ({
+            ingredientId: item.ingredientId,
+            quantityNeeded: item.quantityNeeded,
+          }))
+        );
+      } else {
+        setRecipeIngredients([{ ingredientId: "", quantityNeeded: 0 }]);
+      }
+    } catch (error) {
+      setRecipeErrorMessage(error instanceof Error ? error.message : "Tải công thức hoặc danh sách nguyên liệu thất bại");
+    }
+  };
+
+  const handleAddRecipeIngredient = () => {
+    setRecipeIngredients((current) => [
+      ...current,
+      { ingredientId: "", quantityNeeded: 0 },
+    ]);
+  };
+
+  const handleRemoveRecipeIngredient = (index: number) => {
+    setRecipeIngredients((current) => current.filter((_, i) => i !== index));
+  };
+
+  const handleRecipeIngredientChange = (
+    index: number,
+    field: "ingredientId" | "quantityNeeded",
+    value: string | number
+  ) => {
+    setRecipeIngredients((current) =>
+      current.map((item, i) => {
+        if (i === index) {
+          return {
+            ...item,
+            [field]: value,
+          };
+        }
+        return item;
+      })
+    );
+  };
+
+  const handleSaveRecipe = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingProductForRecipe) {
+      return;
+    }
+
+    const validIngredients = recipeIngredients.filter(
+      (item) => item.ingredientId.trim() !== ""
+    );
+
+    const ids = validIngredients.map((item) => item.ingredientId);
+    const hasDuplicates = ids.some((id, index) => ids.indexOf(id) !== index);
+    if (hasDuplicates) {
+      setRecipeErrorMessage("Không thể chọn trùng nguyên liệu trong cùng một công thức");
+      return;
+    }
+
+    for (const item of validIngredients) {
+      if (item.quantityNeeded <= 0) {
+        setRecipeErrorMessage("Số lượng nguyên liệu phải lớn hơn 0");
+        return;
+      }
+    }
+
+    try {
+      setIsRecipeSaving(true);
+      setRecipeErrorMessage("");
+
+      await saveProductRecipe(editingProductForRecipe.id, {
+        ingredients: validIngredients,
+      });
+
+      setIsRecipeModalOpen(false);
+      setEditingProductForRecipe(null);
+      setRecipeIngredients([]);
+      setShowToast(true);
+    } catch (error) {
+      setRecipeErrorMessage(error instanceof Error ? error.message : "Lưu công thức thất bại");
+    } finally {
+      setIsRecipeSaving(false);
+    }
   };
 
   const handleImageFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -618,6 +727,19 @@ function ProductPage() {
                     {product.stockQuantity}
                   </td>
                   <td className="space-x-2 px-6 py-4 text-right">
+                    {product.requiresPreparation ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void openRecipeModal(product);
+                        }}
+                        className="rounded-lg p-2 text-indigo-600 transition-colors hover:bg-indigo-50"
+                        title="Định lượng"
+                        aria-label="Định lượng"
+                      >
+                        <Icon name="menu_book" className="text-xl" />
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => openEditModal(product)}
@@ -905,6 +1027,150 @@ function ProductPage() {
                   className="flex h-10 flex-1 items-center justify-center bg-[#f97316] px-4 text-sm font-bold text-white transition-colors hover:bg-[#ea580c]"
                 >
                   {editingProduct ? "Lưu thay đổi" : "Lưu sản phẩm"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {isRecipeModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[rgba(11,28,48,0.45)] p-4 backdrop-blur-[4px]">
+          <div className="w-full max-w-3xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-5">
+              <div className="flex items-center gap-3">
+                <span className="rounded-xl bg-orange-50 p-2 text-[#f97316]">
+                  <Icon name="menu_book" />
+                </span>
+                <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-bold text-[#0b1c30]">
+                  Định lượng nguyên liệu: {editingProductForRecipe?.name}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsRecipeModalOpen(false);
+                  setEditingProductForRecipe(null);
+                }}
+                className="p-1 text-slate-500 transition-colors hover:text-red-600"
+                aria-label="Đóng form"
+              >
+                <Icon name="close" className="text-2xl" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveRecipe} className="p-6">
+              {recipeErrorMessage ? (
+                <div className="mb-4 rounded-xl bg-red-50 p-4 text-sm font-semibold text-red-600">
+                  {recipeErrorMessage}
+                </div>
+              ) : null}
+
+              <div className="mb-4">
+                <p className="text-sm text-slate-500 mb-4">
+                  Thiết lập công thức định lượng nguyên liệu cho món <strong className="text-[#0b1c30]">{editingProductForRecipe?.name}</strong>. Khi món này được bán, lượng nguyên liệu tương ứng sẽ tự động trừ vào kho.
+                </p>
+              </div>
+
+              <div className="max-h-[350px] overflow-y-auto pr-1">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 font-semibold text-slate-500 sticky top-0 z-10">
+                    <tr>
+                      <th className="pb-3 pt-2 px-2">Nguyên liệu</th>
+                      <th className="pb-3 pt-2 px-2 w-[180px]">Định lượng</th>
+                      <th className="pb-3 pt-2 px-2 w-[80px]">Đơn vị</th>
+                      <th className="pb-3 pt-2 px-2 w-[60px] text-center">Xóa</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {recipeIngredients.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="py-6 text-center text-slate-400 text-sm">
+                          Chưa cấu hình nguyên liệu nào. Hãy bấm "Thêm nguyên liệu".
+                        </td>
+                      </tr>
+                    ) : (
+                      recipeIngredients.map((item, index) => {
+                        const selectedMaterial = materials.find((m) => m.id === item.ingredientId);
+                        const unit = selectedMaterial ? selectedMaterial.unit : "-";
+                        
+                        return (
+                          <tr key={index} className="align-middle">
+                            <td className="py-3 px-2">
+                              <select
+                                required
+                                value={item.ingredientId}
+                                onChange={(e) => handleRecipeIngredientChange(index, "ingredientId", e.target.value)}
+                                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100 bg-white"
+                              >
+                                <option value="">-- Chọn nguyên liệu --</option>
+                                {materials.map((material) => (
+                                  <option key={material.id} value={material.id}>
+                                    {material.name} ({material.sku})
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="py-3 px-2">
+                              <input
+                                required
+                                type="number"
+                                step="any"
+                                min="0.0001"
+                                value={item.quantityNeeded === 0 ? "" : item.quantityNeeded}
+                                onChange={(e) => handleRecipeIngredientChange(index, "quantityNeeded", parseFloat(e.target.value) || 0)}
+                                placeholder="VD: 0.150"
+                                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                              />
+                            </td>
+                            <td className="py-3 px-2 text-slate-600 font-medium">
+                              {unit}
+                            </td>
+                            <td className="py-3 px-2 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveRecipeIngredient(index)}
+                                className="rounded-lg p-1.5 text-red-500 transition-colors hover:bg-red-50"
+                              >
+                                <Icon name="delete" className="text-lg" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={handleAddRecipeIngredient}
+                  className="inline-flex items-center gap-1.5 text-sm font-bold text-[#f97316] hover:text-[#ea580c] transition-colors"
+                >
+                  <Icon name="add" className="text-lg" />
+                  Thêm nguyên liệu
+                </button>
+              </div>
+
+              <div className="flex gap-3 border-t border-slate-200 pt-5 mt-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsRecipeModalOpen(false);
+                    setEditingProductForRecipe(null);
+                  }}
+                  className="flex h-10 flex-1 items-center justify-center border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={isRecipeSaving}
+                  className="flex h-10 flex-1 items-center justify-center bg-[#f97316] px-4 text-sm font-bold text-white transition-colors hover:bg-[#ea580c] disabled:opacity-50"
+                >
+                  {isRecipeSaving ? "Đang lưu..." : "Lưu công thức"}
                 </button>
               </div>
             </form>

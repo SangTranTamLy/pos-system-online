@@ -36,15 +36,21 @@ export async function getDashboardStats(startDate?: string, endDate?: string) {
         WHERE is_active = TRUE) AS activeCategories,
 
         (SELECT COUNT(*)
-        FROM products
-        WHERE stock_quantity > 0 AND stock_quantity <= 10) AS lowStockProducts,
+        FROM raw_materials
+        WHERE stock_quantity <= min_stock AND is_active = 1) AS lowStockProducts,
 
         (SELECT COUNT(*)
         FROM customers) AS totalCustomers,
 
         (SELECT COUNT(*)
         FROM products
-        WHERE status = 'active') AS activeProducts
+        WHERE status = 'active') AS activeProducts,
+
+        (
+          (SELECT COALESCE(SUM(stock_quantity * import_price), 0) FROM raw_materials WHERE is_active = 1)
+          +
+          (SELECT COALESCE(SUM(stock_quantity * import_price), 0) FROM products WHERE requires_preparation = 0 AND status = 'active')
+        ) AS totalStockValue
     `, params);
 
     return rows[0];
@@ -129,11 +135,13 @@ export async function getRecentOrders(startDate?: string, endDate?: string) {
 export async function getStockAlerts() {
     const [rows] = await db.execute<RowDataPacket[]>(`
         SELECT
-        name AS productName,
-        stock_quantity AS stockQuantity
-        FROM products
-        WHERE stock_quantity <= 10
-        ORDER BY stock_quantity ASC
+        name AS name,
+        stock_quantity AS stockQuantity,
+        min_stock AS minStock
+        FROM raw_materials
+        WHERE stock_quantity <= min_stock
+          AND is_active = 1
+        ORDER BY (stock_quantity - min_stock) ASC
         LIMIT 5
     `);
 

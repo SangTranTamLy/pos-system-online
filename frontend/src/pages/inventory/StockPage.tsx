@@ -955,6 +955,7 @@ export function StockPage() {
                       <th className="px-5 py-4">Nguyên liệu</th>
                       <th className="px-5 py-4">Danh mục</th>
                       <th className="px-5 py-4">Đơn vị</th>
+                      <th className="px-5 py-4 text-right">Số lượng tồn</th>
                       <th className="px-5 py-4 text-right">Giá nhập mặc định</th>
                       <th className="px-5 py-4">Nhà cung cấp mặc định</th>
                       <th className="px-5 py-4">Trạng thái</th>
@@ -985,6 +986,18 @@ export function StockPage() {
                             </td>
                             <td className="px-5 py-4 font-bold text-slate-600">
                               {material.unit}
+                            </td>
+                            <td
+                              className={[
+                                "px-5 py-4 text-right font-extrabold",
+                                material.stockQuantity <= 0
+                                  ? "text-red-600"
+                                  : material.stockQuantity <= 5
+                                    ? "text-amber-600"
+                                    : "text-[#0b1c30]",
+                              ].join(" ")}
+                            >
+                              {material.stockQuantity}
                             </td>
                             <td className="px-5 py-4 text-right font-extrabold text-[#0b1c30]">
                               {formatCurrency(material.importPrice)}

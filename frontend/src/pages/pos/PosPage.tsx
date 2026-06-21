@@ -80,6 +80,9 @@ function PosPage() {
   const [showPaymentConfirmModal, setShowPaymentConfirmModal] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
   const [activeShift, setActiveShift] = useState<Shift | null>(null);
+  const [lowStockAlerts, setLowStockAlerts] = useState<
+    Array<{ name: string; stockQuantity: number; minStock: number }>
+  >([]);
 
   const loadProducts = useCallback(async () => {
     try {
@@ -423,11 +426,17 @@ function PosPage() {
         })),
         promotionCode: promotionCode.trim() || null,
         changeAmount,
+        discountAmount,
       });
 
       setShowPaymentConfirmModal(false);
       setShowQrModal(false);
       setCompletedOrder(response.data);
+      if (response.data.alerts && response.data.alerts.length > 0) {
+        setLowStockAlerts(response.data.alerts);
+      } else {
+        setLowStockAlerts([]);
+      }
       setPromotionPreview(null);
       setIsPromotionError(false);
       setPromotionCode("");
@@ -937,6 +946,50 @@ function PosPage() {
           order={completedOrder}
           onClose={() => setCompletedOrder(null)}
         />
+      ) : null}
+
+      {lowStockAlerts.length > 0 ? (
+        <div className="fixed top-6 right-6 z-[60] w-96 rounded-2xl border-2 border-red-500 bg-white/95 p-5 shadow-2xl shadow-red-100 backdrop-blur-md">
+          <div className="mb-3 flex items-start justify-between">
+            <div className="flex items-center gap-2 text-red-600">
+              {/* Chấm tròn hiệu ứng Ping nhấp nháy liên tục */}
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+              </span>
+              <Icon name="warning" className="text-xl" />
+              <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-sm font-extrabold uppercase tracking-wide">
+                Cảnh báo hết nguyên liệu!
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => setLowStockAlerts([])}
+              className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            >
+              <Icon name="close" className="text-sm font-bold" />
+            </button>
+          </div>
+          <p className="mb-4 text-xs font-semibold text-slate-500">
+            Các nguyên liệu thô sau đây đã chạm hoặc dưới ngưỡng cảnh báo an toàn. Vui lòng bổ sung kho gấp:
+          </p>
+          <div className="max-h-60 overflow-y-auto space-y-2.5 pr-1">
+            {lowStockAlerts.map((alert, idx) => (
+              <div
+                key={idx}
+                className="flex items-center justify-between rounded-xl bg-red-50 border border-red-100 p-3 text-xs"
+              >
+                <div className="font-bold text-[#0b1c30]">{alert.name}</div>
+                <div className="text-right">
+                  <span className="font-extrabold text-red-600">
+                    {alert.stockQuantity}
+                  </span>
+                  <span className="text-slate-400 font-medium"> / {alert.minStock} (tối thiểu)</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       ) : null}
     </AdminLayout>
   );

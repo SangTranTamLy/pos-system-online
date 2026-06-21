@@ -50,3 +50,19 @@ export interface UploadProductImageBody {
   fileName?: string;
   imageBase64?: string;
 }
+
+export interface SaveProductRecipeIngredient {
+  ingredientId: string;
+  quantityNeeded: number;
+}
+
+export interface SaveProductRecipeBody {
+  ingredients: SaveProductRecipeIngredient[];
+}
+
+export interface ProductRecipeIngredient {
+  ingredientId: string;
+  ingredientName: string;
+  quantityNeeded: number;
+  unit: string;
+}

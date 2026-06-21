@@ -300,7 +300,7 @@ export async function createMaterial(data: CreateMaterialBody): Promise<Material
       raw_materials.updated_at AS updatedAt
     FROM raw_materials
     LEFT JOIN suppliers ON suppliers.id = raw_materials.supplier_id
-    WHERE id = ?
+    WHERE raw_materials.id = ?
     LIMIT 1
     `,
     [id]
@@ -589,6 +589,17 @@ export async function createGoodsReceiptTransaction(
           detail.unitPrice,
           detail.lineTotal,
         ]
+      );
+
+      // Cập nhật tồn kho và giá nhập mới cho nguyên liệu
+      await connection.execute(
+        `
+        UPDATE raw_materials
+        SET stock_quantity = stock_quantity + ?,
+            import_price = ?
+        WHERE id = ?
+        `,
+        [detail.quantity, detail.unitPrice, detail.materialId]
       );
     }
 

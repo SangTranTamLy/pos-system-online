@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://localhost:5000/api";
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || "http://localhost:5000/api";
 
 export type ProductStatus = "active" | "paused" | "out_of_stock";
 
@@ -181,4 +181,37 @@ export async function uploadProductImage(file: File) {
   });
 
   return handleResponse<UploadProductImageResult>(response);
+}
+
+export type ProductRecipeIngredient = {
+  ingredientId: string;
+  ingredientName: string;
+  quantityNeeded: number;
+  unit: string;
+};
+
+export type SaveProductRecipePayload = {
+  ingredients: Array<{
+    ingredientId: string;
+    quantityNeeded: number;
+  }>;
+};
+
+export async function getProductRecipe(productId: string) {
+  const response = await fetch(`${API_BASE_URL}/products/${productId}/recipe`, {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+
+  return handleResponse<ProductRecipeIngredient[]>(response);
+}
+
+export async function saveProductRecipe(productId: string, payload: SaveProductRecipePayload) {
+  const response = await fetch(`${API_BASE_URL}/products/${productId}/recipe`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+
+  return handleResponse<{ success: boolean; message: string }>(response);
 }

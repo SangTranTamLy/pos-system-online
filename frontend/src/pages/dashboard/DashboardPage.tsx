@@ -45,8 +45,8 @@ function getOrderStatusClassName(status: string) {
   return classNames[status] ?? "bg-slate-100 text-slate-500";
 }
 
-function getStockRemainClassName(stockQuantity: number) {
-  return stockQuantity <= 5 ? "text-red-600" : "text-orange-600";
+function getStockRemainClassName(stockQuantity: number, minStock: number) {
+  return stockQuantity <= minStock / 2 ? "text-red-600" : "text-orange-600";
 }
 
 function DashboardPage() {
@@ -112,8 +112,9 @@ function DashboardPage() {
   const realStatsCards: StatsCardData[] = [
     { label: "Tổng doanh thu", value: formatCurrency(stats?.todayRevenue ?? 0), icon: "payments" },
     { label: "Tổng hóa đơn", value: String(stats?.todayOrders ?? 0), icon: "receipt_long" },
+    { label: "Tổng giá trị kho", value: formatCurrency(stats?.totalStockValue ?? 0), icon: "warehouse" },
     { label: "Danh mục đang bán", value: String(stats?.activeCategories ?? 0), icon: "category" },
-    { label: "Sản phẩm sắp hết", value: String(stats?.lowStockProducts ?? 0), icon: "priority_high" },
+    { label: "Nguyên liệu sắp hết", value: String(stats?.lowStockProducts ?? 0), icon: "priority_high" },
     { label: "Tổng khách hàng", value: String(stats?.totalCustomers ?? 0), icon: "group" },
     { label: "Sản phẩm đang bán", value: String(stats?.activeProducts ?? 0), icon: "inventory_2" },
   ];
@@ -128,11 +129,11 @@ function DashboardPage() {
   }));
 
   const realRecentOrders: RecentOrder[] = (dashboard?.recentOrders ?? []).map((order) => ({
-    code: `#HD-${order.id}`, customer: order.customerName, type: "POS", total: formatCurrency(order.finalAmount), status: getOrderStatusLabel(order.status), typeClassName: "bg-orange-50 text-[#f97316]", statusClassName: getOrderStatusClassName(order.status),
+    code: `#HD-${order.id.slice(0, 8).toUpperCase()}`, customer: order.customerName, type: "POS", total: formatCurrency(order.finalAmount), status: getOrderStatusLabel(order.status), typeClassName: "bg-orange-50 text-[#f97316]", statusClassName: getOrderStatusClassName(order.status),
   }));
 
   const realStockAlerts: StockAlert[] = (dashboard?.stockAlerts ?? []).map((item) => ({
-    product: item.productName, remain: String(item.stockQuantity), minimum: "10", remainClassName: getStockRemainClassName(item.stockQuantity),
+    product: item.name, remain: String(item.stockQuantity), minimum: String(item.minStock), remainClassName: getStockRemainClassName(item.stockQuantity, item.minStock),
   }));
 
   const paymentMethods = dashboard?.paymentMethods ?? [];
@@ -219,7 +220,7 @@ function DashboardPage() {
 
 
 
-      <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
+      <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
         {realStatsCards.map((card) => (<StatCard key={card.label} card={card} />))}
       </section>
 
@@ -272,7 +273,7 @@ function DashboardPage() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-104 text-left text-sm">
               <thead className="bg-slate-50/50 font-semibold text-slate-400">
-                <tr><th className="px-6 py-4 uppercase tracking-widest text-[10px]">Sản phẩm</th><th className="px-6 py-4 text-center uppercase tracking-widest text-[10px]">Còn lại</th><th className="px-6 py-4 text-center uppercase tracking-widest text-[10px]">Tối thiểu</th></tr>
+                <tr><th className="px-6 py-4 uppercase tracking-widest text-[10px]">Nguyên liệu</th><th className="px-6 py-4 text-center uppercase tracking-widest text-[10px]">Còn lại</th><th className="px-6 py-4 text-center uppercase tracking-widest text-[10px]">Tối thiểu</th></tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {realStockAlerts.length > 0 ? (
@@ -321,18 +322,21 @@ function DashboardPage() {
                 </div>
 
                 <div className="flex-1 flex flex-col gap-5">
-                  {donutData.map(item => (
-                    <div key={item.name} className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <span className="h-3 w-3 rounded-full shadow-sm" style={{ backgroundColor: paymentMethodColors[item.name] }}></span>
-                        <span className="text-[13px] font-bold text-slate-700">{paymentMethodLabels[item.name]}</span>
+                  {donutData.map(item => {
+                    const isZero = item.ordersCount === 0;
+                    return (
+                      <div key={item.name} className={`flex items-center justify-between transition-opacity duration-200 ${isZero ? "opacity-40" : ""}`}>
+                        <div className="flex items-center gap-3">
+                          <span className="h-3 w-3 rounded-full shadow-sm" style={{ backgroundColor: paymentMethodColors[item.name] }} />
+                          <span className="text-[13px] font-bold text-slate-700">{paymentMethodLabels[item.name]}</span>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[15px] font-black text-[#0b1c30]">{item.percentage}%</p>
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{item.ordersCount} đơn</p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-[15px] font-black text-[#0b1c30]">{item.percentage}%</p>
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{item.ordersCount} đơn</p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ) : (

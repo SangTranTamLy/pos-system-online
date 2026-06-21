@@ -82,6 +82,7 @@ export async function createPosOrderService(
     items,
     promotionCode: body.promotionCode?.trim() || null,
     changeAmount: body.changeAmount ?? 0,
+    discountAmount: Number(body.discountAmount) || 0,
     shiftId,
   });
 }

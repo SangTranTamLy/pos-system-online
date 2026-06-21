@@ -24,6 +24,7 @@ type ProductForSaleRow = RowDataPacket & {
   sale_price: string;
   stock_quantity: number;
   status: "active" | "paused" | "out_of_stock";
+  requires_preparation: number;
 };
 
 type CreatePosOrderTransactionData = {
@@ -34,6 +35,7 @@ type CreatePosOrderTransactionData = {
   items: NormalizedPosOrderItem[];
   promotionCode?: string | null;
   changeAmount?: number;
+  discountAmount?: number;
   shiftId: string | null;
 };
 
@@ -50,7 +52,8 @@ async function findProductForUpdate(
       products.name,
       products.sale_price,
       products.stock_quantity,
-      products.status
+      products.status,
+      products.requires_preparation
     FROM products
     JOIN categories ON categories.id = products.category_id
     WHERE products.id = ?
@@ -82,6 +85,7 @@ export async function createPosOrderTransaction(
 
     const orderId = randomUUID();
     const details: PosOrderDetail[] = [];
+    const alertsList: { name: string; stockQuantity: number; minStock: number }[] = [];
 
     for (const item of data.items) {
       const product = await findProductForUpdate(connection, item.productId);
@@ -94,7 +98,8 @@ export async function createPosOrderTransaction(
         throw new ApiError(409, `Sản phẩm "${product.name}" hiện không bán.`);
       }
 
-      if (product.stock_quantity < item.quantity) {
+      // Chỉ kiểm tra tồn kho nếu sản phẩm là món ăn liền (requires_preparation = 0)
+      if (!product.requires_preparation && product.stock_quantity < item.quantity) {
         throw new ApiError(409, `Sản phẩm "${product.name}" không đủ tồn kho.`);
       }
 
@@ -110,6 +115,7 @@ export async function createPosOrderTransaction(
         quantity: item.quantity,
         unitPrice,
         lineTotal,
+        requiresPreparation: Boolean(product.requires_preparation),
       });
     }
 
@@ -118,7 +124,7 @@ export async function createPosOrderTransaction(
       0
     );
 
-    let discountAmount = 0;
+    let discountAmount = Number(data.discountAmount) || 0;
     let promotionId: string | null = null;
     const appliedPromotion = await calculateBestPosPromotion(
       connection,
@@ -132,7 +138,7 @@ export async function createPosOrderTransaction(
     }
 
     if (appliedPromotion) {
-      discountAmount = appliedPromotion.discountAmount;
+      discountAmount += appliedPromotion.discountAmount;
       promotionId =
         appliedPromotion.ruleType === "product_code" ? appliedPromotion.id : null;
     }
@@ -192,40 +198,110 @@ export async function createPosOrderTransaction(
         ]
       );
 
-      await connection.execute(
-        `
-        UPDATE products
-        SET
-          stock_quantity = stock_quantity - ?,
-          status = CASE
-            WHEN stock_quantity - ? <= 0 THEN 'out_of_stock'
-            ELSE status
-          END
-        WHERE id = ?
-        `,
-        [detail.quantity, detail.quantity, detail.productId]
-      );
+      // Chỉ cập nhật tồn kho và tạo transaction xuất kho sản phẩm khi là món ăn liền (requiresPreparation = false)
+      if (!detail.requiresPreparation) {
+        await connection.execute(
+          `
+          UPDATE products
+          SET
+            stock_quantity = stock_quantity - ?,
+            status = CASE
+              WHEN stock_quantity - ? <= 0 THEN 'out_of_stock'
+              ELSE status
+            END
+          WHERE id = ?
+          `,
+          [detail.quantity, detail.quantity, detail.productId]
+        );
 
-      await connection.execute(
-        `
-        INSERT INTO stock_transactions (
-          id,
-          product_id,
-          created_by,
-          transaction_type,
-          quantity,
-          note
-        )
-        VALUES (?, ?, ?, 'export', ?, ?)
-        `,
-        [
-          randomUUID(),
-          detail.productId,
-          data.createdBy,
-          detail.quantity,
-          `Bán hàng tại quầy - đơn ${orderId}`,
-        ]
-      );
+        await connection.execute(
+          `
+          INSERT INTO stock_transactions (
+            id,
+            product_id,
+            created_by,
+            transaction_type,
+            quantity,
+            note
+          )
+          VALUES (?, ?, ?, 'export', ?, ?)
+          `,
+          [
+            randomUUID(),
+            detail.productId,
+            data.createdBy,
+            detail.quantity,
+            `Bán hàng tại quầy - đơn ${orderId}`,
+          ]
+        );
+      }
+
+      // TRỪ KHO NGUYÊN LIỆU THEO ĐỊNH LƯỢNG (RECIPES) REAL-TIME
+      // Chỉ thực hiện trừ kho nguyên liệu đối với món cần chế biến (requiresPreparation = true)
+      if (detail.requiresPreparation) {
+        // Bước 1: Tìm các nguyên liệu cấu thành từ bảng recipes
+        const [recipeRows] = await connection.execute<RowDataPacket[]>(
+          `
+          SELECT ingredient_id AS ingredientId, quantity_needed AS quantityNeeded
+          FROM recipes
+          WHERE product_id = ?
+          `,
+          [detail.productId]
+        );
+
+        for (const recipe of recipeRows) {
+          const requiredQty = Number(recipe.quantityNeeded) * detail.quantity;
+          
+          // Lấy thông tin tồn kho hiện tại và khóa dòng (FOR UPDATE) để đảm bảo concurrency
+          const [ingRows] = await connection.execute<RowDataPacket[]>(
+            `
+            SELECT name, stock_quantity AS stockQuantity, min_stock AS minStock
+            FROM raw_materials
+            WHERE id = ?
+            FOR UPDATE
+            `,
+            [recipe.ingredientId]
+          );
+
+          const ingredient = ingRows[0];
+          if (ingredient) {
+            const currentQty = Number(ingredient.stockQuantity);
+
+            // Chặn hành vi "Xuất âm" kho nguyên liệu thô
+            if (currentQty < requiredQty) {
+              throw new ApiError(
+                409,
+                `Nguyên liệu thô "${ingredient.name}" không đủ để chế biến món ăn (còn ${currentQty}, cần ${requiredQty}).`
+              );
+            }
+
+            const newQty = currentQty - requiredQty;
+
+            // Bước 2: Thực hiện trừ kho nguyên liệu
+            await connection.execute(
+              `
+              UPDATE raw_materials
+              SET stock_quantity = stock_quantity - ?
+              WHERE id = ?
+              `,
+              [requiredQty, recipe.ingredientId]
+            );
+
+            // Bước 3: Kiểm tra ngưỡng cảnh báo sắp hết nguyên liệu (min_stock)
+            const minStockLimit = Number(ingredient.minStock);
+            if (newQty <= minStockLimit) {
+              const exists = alertsList.some(alt => alt.name === ingredient.name);
+              if (!exists) {
+                alertsList.push({
+                  name: ingredient.name,
+                  stockQuantity: newQty,
+                  minStock: minStockLimit
+                });
+              }
+            }
+          }
+        }
+      }
     }
 
     if (customer) {
@@ -325,6 +401,7 @@ export async function createPosOrderTransaction(
         amount: finalAmount,
         paymentStatus: "paid",
       },
+      alerts: alertsList,
     };
   } catch (error) {
     await connection.rollback();

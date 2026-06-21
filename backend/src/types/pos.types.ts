@@ -13,6 +13,7 @@ export type CreatePosOrderBody = {
   items?: CreatePosOrderItemBody[];
   promotionCode?: string | null;
   changeAmount?: number;
+  discountAmount?: number;
 };
 
 export type NormalizedPosOrderItem = {
@@ -29,6 +30,7 @@ export type PosOrderDetail = {
   quantity: number;
   unitPrice: number;
   lineTotal: number;
+  requiresPreparation?: boolean;
 };
 
 export type PosPayment = {
@@ -59,4 +61,5 @@ export type PosOrderResult = {
   appliedPromotion: PosAppliedPromotion | null;
   details: PosOrderDetail[];
   payment: PosPayment;
+  alerts?: { name: string; stockQuantity: number; minStock: number }[];
 };

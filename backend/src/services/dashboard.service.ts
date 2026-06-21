@@ -62,6 +62,7 @@ export async function getDashboardSummaryService(
         lowStockProducts: Number(stats.lowStockProducts ?? 0),
         totalCustomers: Number(stats.totalCustomers ?? 0),
         activeProducts: Number(stats.activeProducts ?? 0),
+        totalStockValue: Number(stats.totalStockValue ?? 0),
         },
         revenueTrend: revenueRows.map(row => ({
             sort: Number(row.sort),
@@ -82,8 +83,9 @@ export async function getDashboardSummaryService(
         createdAt: item.createdAt as Date,
         })),
         stockAlerts: stockAlerts.map((item) => ({
-        productName: String(item.productName),
+        name: String(item.name),
         stockQuantity: Number(item.stockQuantity ?? 0),
+        minStock: Number(item.minStock ?? 0),
         })),
         paymentMethods,
         currentShift,

@@ -1,6 +1,7 @@
-import type { RowDataPacket,ResultSetHeader } from "mysql2";
+import type { RowDataPacket, ResultSetHeader } from "mysql2";
+import type { PoolConnection } from "mysql2/promise";
 import { db } from "../config/database";
-import type { CreateProductBody, Product, UpdateProductBody } from "../types/product.types";
+import type { CreateProductBody, Product, UpdateProductBody, SaveProductRecipeIngredient, ProductRecipeIngredient } from "../types/product.types";
 import crypto from "crypto";
 type ProductRow = RowDataPacket & {
     id: string;
@@ -248,4 +249,64 @@ export async function deleteProductById(id: string): Promise<boolean> {
     );
 
     return result.affectedRows > 0;
+}
+
+export async function findProductRecipe(productId: string): Promise<ProductRecipeIngredient[]> {
+    const [rows] = await db.execute<RowDataPacket[]>(
+        `
+        SELECT 
+          recipes.ingredient_id AS ingredientId,
+          raw_materials.name AS ingredientName,
+          recipes.quantity_needed AS quantityNeeded,
+          raw_materials.unit AS unit
+        FROM recipes
+        JOIN raw_materials ON recipes.ingredient_id = raw_materials.id
+        WHERE recipes.product_id = ?
+        `,
+        [productId]
+    );
+
+    return rows.map(row => ({
+        ingredientId: String(row.ingredientId),
+        ingredientName: String(row.ingredientName),
+        quantityNeeded: Number(row.quantityNeeded),
+        unit: String(row.unit)
+    }));
+}
+
+export async function saveProductRecipe(
+    productId: string, 
+    ingredients: SaveProductRecipeIngredient[]
+): Promise<void> {
+    const connection = await db.getConnection();
+
+    try {
+        await connection.beginTransaction();
+
+        // Bước 1: Xóa công thức cũ để ghi đè tránh uq_product_ingredient UNIQUE constraint error
+        await connection.execute(
+            `DELETE FROM recipes WHERE product_id = ?`,
+            [productId]
+        );
+
+        // Bước 2: Thêm công thức mới
+        for (const item of ingredients) {
+            await connection.execute(
+                `INSERT INTO recipes (id, product_id, ingredient_id, quantity_needed) VALUES (?, ?, ?, ?)`,
+                [
+                    crypto.randomUUID(),
+                    productId,
+                    item.ingredientId,
+                    item.quantityNeeded
+                ]
+            );
+        }
+
+        await connection.commit();
+    } catch (error) {
+        await connection.rollback();
+        throw error;
+    } finally {
+        connection.release();
+    }
 }
