@@ -2,7 +2,7 @@ export type DashboardStats = {
     todayRevenue: number;
     todayOrders: number;
     activeCategories: number;
-    lowStockProducts: number;
+    totalMaterials: number;
     totalCustomers: number;
     activeProducts: number;
     totalStockValue: number;
@@ -31,10 +31,11 @@ export type DashboardRecentOrder = {
     createdAt: Date | string;
 };
 
-export type DashboardStockAlert = {
+export type DashboardMaterial = {
     name: string;
-    stockQuantity: number;
-    minStock: number;
+    sku: string;
+    category: string;
+    importPrice: number;
 };
 
 export type PaymentMethodStat = {
@@ -56,7 +57,7 @@ export type DashboardSummary = {
     revenueTrend: DashboardRevenuePoint[];
     topProducts: DashboardTopProduct[];
     recentOrders: DashboardRecentOrder[];
-    stockAlerts: DashboardStockAlert[];
+    materials: DashboardMaterial[];
     paymentMethods: PaymentMethodStat[];
     currentShift: CurrentShift;
 };

@@ -12,19 +12,22 @@ function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
     return <Navigate to="/login" replace />;
   }
 
+  // Tính toán redirect path bên trong try/catch (không dùng JSX trong try/catch)
+  let redirectTo: string | null = null;
   try {
-    const user = JSON.parse(storedUser);
+    const user = JSON.parse(storedUser) as { roleName?: string };
     const userRole = user.roleName?.toLowerCase();
 
     if (allowedRoles && userRole && !allowedRoles.includes(userRole)) {
-      // Redirect to a safe default page based on role if unauthorized
-      if (userRole === "staff") {
-        return <Navigate to="/pos" replace />;
-      }
-      return <Navigate to="/dashboard" replace />;
+      redirectTo = userRole === "staff" ? "/pos" : "/dashboard";
     }
-  } catch (error) {
-    return <Navigate to="/login" replace />;
+  } catch {
+    redirectTo = "/login";
+  }
+
+  // Render JSX bên ngoài try/catch
+  if (redirectTo) {
+    return <Navigate to={redirectTo} replace />;
   }
 
   return <Outlet />;

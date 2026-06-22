@@ -1,4 +1,4 @@
-﻿const API_BASE_URL = "http://localhost:5000/api";
+const API_BASE_URL = "http://localhost:5000/api";
 
 export type Category = {
   id: string;
@@ -7,8 +7,7 @@ export type Category = {
   imageUrl: string | null;
   productCount: number;
   isActive: boolean;
-  requiresPreparation: boolean;
-  isStockReturnable: boolean;
+  isTrackedStock: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -17,16 +16,14 @@ export type CreateCategoryPayload = {
   name: string;
   description?: string | null;
   imageUrl?: string | null;
-  requiresPreparation?: boolean;
-  isStockReturnable?: boolean;
+  isTrackedStock?: boolean;
 };
 
 export type UpdateCategoryPayload = {
   name: string;
   description?: string | null;
   imageUrl?: string | null;
-  requiresPreparation?: boolean;
-  isStockReturnable?: boolean;
+  isTrackedStock?: boolean;
 };
 
 export type UpdateCategoryStatusPayload = {

@@ -59,8 +59,7 @@ type CancelOrderItemRow = RowDataPacket & {
   product_id: string;
   product_name: string;
   quantity: number;
-  requires_preparation: boolean | number | string;
-  is_stock_returnable: boolean | number | string;
+  is_tracked_stock: boolean | number | string;
 };
 
 function mapOrderListItem(row: OrderListRow): OrderListItem {
@@ -295,8 +294,7 @@ async function findOrderItemsForCancel(connection: PoolConnection, orderId: stri
       od.product_id,
       p.name AS product_name,
       od.quantity,
-      p.requires_preparation,
-      COALESCE(p.is_stock_returnable, 0) AS is_stock_returnable
+      COALESCE(p.is_tracked_stock, 0) AS is_tracked_stock
     FROM order_details od
     JOIN products p ON p.id = od.product_id
     WHERE od.order_id = ?
@@ -312,8 +310,7 @@ function toBooleanFlag(value: boolean | number | string) {
 }
 
 function shouldRestoreStock(item: CancelOrderItemRow) {
-  // Chỉ hàng có sẵn/đóng chai/lon được đánh dấu rõ ràng mới hoàn kho.
-  return toBooleanFlag(item.is_stock_returnable);
+  return toBooleanFlag(item.is_tracked_stock);
 }
 
 export async function cancelOrderById(
@@ -344,27 +341,7 @@ export async function cancelOrderById(
 
     for (const item of items) {
       if (!shouldRestoreStock(item)) {
-        await connection.execute(
-          `
-          INSERT INTO waste_transactions (
-            id,
-            order_id,
-            product_id,
-            created_by,
-            quantity,
-            reason
-          )
-          VALUES (?, ?, ?, ?, ?, ?)
-          `,
-          [randomUUID(), orderId, item.product_id, cancelledBy, item.quantity, cancelReason]
-        );
-
-        wasteItems.push({
-          productId: item.product_id,
-          productName: item.product_name,
-          quantity: item.quantity,
-        });
-
+        // Món tự làm/tự pha (không quản lý kho) thì không thực hiện hoàn kho hay ghi nhận hao hụt/waste
         continue;
       }
 
@@ -373,10 +350,7 @@ export async function cancelOrderById(
         UPDATE products
         SET
           stock_quantity = stock_quantity + ?,
-          status = CASE
-            WHEN status = 'out_of_stock' THEN 'active'
-            ELSE status
-          END
+          is_available = 1
         WHERE id = ?
         `,
         [item.quantity, item.product_id]

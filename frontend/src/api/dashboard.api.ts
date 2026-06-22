@@ -7,7 +7,7 @@ export type DashboardSummary = {
         todayRevenue: number;
         todayOrders: number;
         activeCategories: number;
-        lowStockProducts: number;
+        totalMaterials: number;
         totalCustomers: number;
         activeProducts: number;
         totalStockValue: number;
@@ -30,10 +30,11 @@ export type DashboardSummary = {
         status: string;
         createdAt: string;
     }>;
-    stockAlerts: Array<{
+    materials: Array<{
         name: string;
-        stockQuantity: number;
-        minStock: number;
+        sku: string;
+        category: string;
+        importPrice: number;
     }>;
     paymentMethods: Array<{
         method: string;

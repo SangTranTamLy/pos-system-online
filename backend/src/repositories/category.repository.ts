@@ -3,10 +3,10 @@ import { randomUUID } from "crypto";
 import { db } from "../config/database";
 import type { Category } from "../types/category.types";
 
-let _hasCategoryFlags: boolean | null = null;
+let _hasCategoryTrackedStock: boolean | null = null;
 
-async function hasCategoryFlags(): Promise<boolean> {
-  if (_hasCategoryFlags !== null) return _hasCategoryFlags;
+async function hasCategoryTrackedStock(): Promise<boolean> {
+  if (_hasCategoryTrackedStock !== null) return _hasCategoryTrackedStock;
 
   const [rows] = await db.execute<RowDataPacket[]>(
     `
@@ -14,13 +14,13 @@ async function hasCategoryFlags(): Promise<boolean> {
     FROM information_schema.COLUMNS
     WHERE TABLE_SCHEMA = DATABASE()
       AND TABLE_NAME = 'categories'
-      AND COLUMN_NAME IN ('requires_preparation', 'is_stock_returnable')
+      AND COLUMN_NAME = 'is_tracked_stock'
     `
   );
 
   const cnt = Number((rows as any)[0]?.cnt ?? 0);
-  _hasCategoryFlags = cnt === 2;
-  return _hasCategoryFlags;
+  _hasCategoryTrackedStock = cnt === 1;
+  return _hasCategoryTrackedStock;
 }
 
 type CategoryRow = RowDataPacket & {
@@ -30,8 +30,7 @@ type CategoryRow = RowDataPacket & {
   image_url: string | null;
   product_count: number | string;
   is_active: number;
-  requires_preparation: number;
-  is_stock_returnable: number;
+  is_tracked_stock: number;
   created_at: Date;
   updated_at: Date;
 };
@@ -44,21 +43,20 @@ function mapCategory(row: CategoryRow): Category {
     imageUrl: row.image_url,
     productCount: Number(row.product_count ?? 0),
     isActive: Boolean(row.is_active),
-    requiresPreparation: Boolean(row.requires_preparation),
-    isStockReturnable: Boolean(row.is_stock_returnable),
+    isTrackedStock: Boolean(row.is_tracked_stock),
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
 }
 
 export async function findAllCategories(): Promise<Category[]> {
-  const flags = await hasCategoryFlags();
+  const hasCol = await hasCategoryTrackedStock();
 
-  const selectFlags = flags
-    ? "c.requires_preparation, c.is_stock_returnable,"
-    : "0 AS requires_preparation, 0 AS is_stock_returnable,";
+  const selectFlag = hasCol
+    ? "c.is_tracked_stock,"
+    : "0 AS is_tracked_stock,";
 
-  const groupByFlags = flags ? "c.requires_preparation, c.is_stock_returnable," : "";
+  const groupByFlag = hasCol ? "c.is_tracked_stock," : "";
 
   const [rows] = await db.execute<CategoryRow[]>(
     `
@@ -67,7 +65,7 @@ export async function findAllCategories(): Promise<Category[]> {
       c.name,
       c.description,
       c.image_url,
-      ${selectFlags}
+      ${selectFlag}
       c.is_active,
       c.created_at,
       c.updated_at,
@@ -80,7 +78,7 @@ export async function findAllCategories(): Promise<Category[]> {
       c.description,
       c.image_url,
       c.is_active,
-      ${groupByFlags}
+      ${groupByFlag}
       c.created_at,
       c.updated_at
     ORDER BY c.created_at DESC
@@ -91,13 +89,13 @@ export async function findAllCategories(): Promise<Category[]> {
 }
 
 export async function findCategoryById(id: string): Promise<Category | null> {
-  const flags = await hasCategoryFlags();
+  const hasCol = await hasCategoryTrackedStock();
 
-  const selectFlags = flags
-    ? "c.requires_preparation, c.is_stock_returnable,"
-    : "0 AS requires_preparation, 0 AS is_stock_returnable,";
+  const selectFlag = hasCol
+    ? "c.is_tracked_stock,"
+    : "0 AS is_tracked_stock,";
 
-  const groupByFlags = flags ? "c.requires_preparation, c.is_stock_returnable," : "";
+  const groupByFlag = hasCol ? "c.is_tracked_stock," : "";
 
   const [rows] = await db.execute<CategoryRow[]>(
     `
@@ -106,7 +104,7 @@ export async function findCategoryById(id: string): Promise<Category | null> {
       c.name,
       c.description,
       c.image_url,
-      ${selectFlags}
+      ${selectFlag}
       c.is_active,
       c.created_at,
       c.updated_at,
@@ -120,7 +118,7 @@ export async function findCategoryById(id: string): Promise<Category | null> {
       c.description,
       c.image_url,
       c.is_active,
-      ${groupByFlags}
+      ${groupByFlag}
       c.created_at,
       c.updated_at
     LIMIT 1
@@ -138,15 +136,15 @@ export async function findCategoryById(id: string): Promise<Category | null> {
 }
 
 export async function findCategoryByName(name: string): Promise<Category | null> {
-  const flags = await hasCategoryFlags();
+  const hasCol = await hasCategoryTrackedStock();
 
-  const selectFlags = flags
-    ? "requires_preparation, is_stock_returnable,"
-    : "0 AS requires_preparation, 0 AS is_stock_returnable,";
+  const selectFlag = hasCol
+    ? "is_tracked_stock,"
+    : "0 AS is_tracked_stock,";
 
   const [rows] = await db.execute<CategoryRow[]>(
     `
-    SELECT id, name, description, image_url, ${selectFlags} is_active, created_at, updated_at, 0 AS product_count
+    SELECT id, name, description, image_url, ${selectFlag} is_active, created_at, updated_at, 0 AS product_count
     FROM categories
     WHERE name = ?
     LIMIT 1
@@ -167,22 +165,21 @@ export async function createCategory(data: {
   name: string;
   description: string | null;
   imageUrl: string | null;
-  requiresPreparation?: boolean;
-  isStockReturnable?: boolean;
+  isTrackedStock?: boolean;
 }): Promise<Category> {
   const id = randomUUID();
 
-  const flags = await hasCategoryFlags();
+  const hasCol = await hasCategoryTrackedStock();
 
   let result;
 
-  if (flags) {
+  if (hasCol) {
     [result] = await db.execute<ResultSetHeader>(
       `
-      INSERT INTO categories (id, name, description, image_url, requires_preparation, is_stock_returnable)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO categories (id, name, description, image_url, is_tracked_stock)
+      VALUES (?, ?, ?, ?, ?)
       `,
-      [id, data.name, data.description, data.imageUrl, data.requiresPreparation ? 1 : 0, data.isStockReturnable ? 1 : 0]
+      [id, data.name, data.description, data.imageUrl, data.isTrackedStock ? 1 : 0]
     );
   } else {
     [result] = await db.execute<ResultSetHeader>(
@@ -213,14 +210,12 @@ export async function updateCategory(
     name: string;
     description: string | null;
     imageUrl: string | null;
-    requiresPreparation?: boolean;
-    isStockReturnable?: boolean;
+    isTrackedStock?: boolean;
   }
 ): Promise<Category | null> {
-  const flags = await hasCategoryFlags();
+  const hasCol = await hasCategoryTrackedStock();
 
-  if (!flags) {
-    // If DB doesn't have flag columns, update only name/description/image
+  if (!hasCol) {
     await db.execute<ResultSetHeader>(
       `
       UPDATE categories
@@ -240,15 +235,14 @@ export async function updateCategory(
     await conn.execute<ResultSetHeader>(
       `
       UPDATE categories
-      SET name = ?, description = ?, image_url = ?, requires_preparation = ?, is_stock_returnable = ?
+      SET name = ?, description = ?, image_url = ?, is_tracked_stock = ?
       WHERE id = ?
       `,
       [
         data.name,
         data.description,
         data.imageUrl,
-        data.requiresPreparation ? 1 : 0,
-        data.isStockReturnable ? 1 : 0,
+        data.isTrackedStock ? 1 : 0,
         id,
       ]
     );
@@ -256,10 +250,11 @@ export async function updateCategory(
     await conn.execute<ResultSetHeader>(
       `
       UPDATE products
-      SET requires_preparation = ?, is_stock_returnable = ?
+      SET is_tracked_stock = ?,
+          stock_quantity = CASE WHEN ? = 1 THEN COALESCE(stock_quantity, 10) ELSE NULL END
       WHERE category_id = ?
       `,
-      [data.requiresPreparation ? 1 : 0, data.isStockReturnable ? 1 : 0, id]
+      [data.isTrackedStock ? 1 : 0, data.isTrackedStock ? 1 : 0, id]
     );
 
     await conn.commit();

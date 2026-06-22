@@ -55,14 +55,14 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
     searchPlaceholder: "Tìm sản phẩm hoặc mã giao dịch...",
     emptyText: "Chưa có giao dịch kho phù hợp.",
     stats: [
-      { label: "Sản phẩm tồn kho", value: "12", icon: "inventory_2", tone: "bg-orange-50 text-[#f97316]" },
+      { label: "Sản phẩm tồn kho", value: "12", icon: "inventory_2", tone: "bg-orange-50 text-[#9d4300]" },
       { label: "Sắp hết hàng", value: "0", icon: "warning", tone: "bg-red-50 text-red-600" },
       { label: "Phiếu nhập hôm nay", value: "0", icon: "assignment_returned", tone: "bg-green-50 text-green-600" },
       { label: "Điều chỉnh", value: "0", icon: "tune", tone: "bg-slate-50 text-slate-600" },
     ],
     rows: [
       { id: "stock-1", title: "Trà sữa Ô long", subtitle: "Tồn hiện tại: 18", value: "+10", status: "Nhập kho", statusClassName: "bg-green-50 text-green-600" },
-      { id: "stock-2", title: "Trà đào cam sả", subtitle: "Tồn hiện tại: 9", value: "-4", status: "Bán POS", statusClassName: "bg-orange-50 text-[#f97316]" },
+      { id: "stock-2", title: "Trà đào cam sả", subtitle: "Tồn hiện tại: 9", value: "-4", status: "Bán POS", statusClassName: "bg-orange-50 text-[#9d4300]" },
     ],
     nextSteps: ["Tạo API stock-transactions", "Nối bảng products.stock_quantity", "Thêm phiếu nhập/xuất kho"],
   },
@@ -78,7 +78,7 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
     emptyText: "Chưa có khách hàng phù hợp.",
     stats: [
       { label: "Tổng khách", value: "0", icon: "group", tone: "bg-green-50 text-green-600" },
-      { label: "Khách mới", value: "0", icon: "person_add", tone: "bg-orange-50 text-[#f97316]" },
+      { label: "Khách mới", value: "0", icon: "person_add", tone: "bg-orange-50 text-[#9d4300]" },
       { label: "Hóa đơn", value: "0", icon: "receipt_long", tone: "bg-amber-50 text-amber-600" },
       { label: "Doanh thu khách", value: "0 đ", icon: "payments", tone: "bg-slate-50 text-slate-600" },
     ],
@@ -98,7 +98,7 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
     searchPlaceholder: "Tìm mã hóa đơn hoặc khách hàng...",
     emptyText: "Chưa có hóa đơn phù hợp.",
     stats: [
-      { label: "Hóa đơn hôm nay", value: "5", icon: "receipt_long", tone: "bg-orange-50 text-[#f97316]" },
+      { label: "Hóa đơn hôm nay", value: "5", icon: "receipt_long", tone: "bg-orange-50 text-[#9d4300]" },
       { label: "Đã thanh toán", value: "5", icon: "paid", tone: "bg-green-50 text-green-600" },
       { label: "Đã hủy", value: "0", icon: "cancel", tone: "bg-red-50 text-red-600" },
       { label: "Doanh thu", value: "385.000 đ", icon: "payments", tone: "bg-slate-50 text-slate-600" },
@@ -120,7 +120,7 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
     searchPlaceholder: "Tìm mã hoặc tên khuyến mãi...",
     emptyText: "Chưa có khuyến mãi phù hợp.",
     stats: [
-      { label: "Đang hoạt động", value: "0", icon: "redeem", tone: "bg-orange-50 text-[#f97316]" },
+      { label: "Đang hoạt động", value: "0", icon: "redeem", tone: "bg-orange-50 text-[#9d4300]" },
       { label: "Sắp hết hạn", value: "0", icon: "schedule", tone: "bg-amber-50 text-amber-600" },
       { label: "Đã dùng", value: "0", icon: "local_activity", tone: "bg-green-50 text-green-600" },
       { label: "Giảm giá", value: "0 đ", icon: "sell", tone: "bg-slate-50 text-slate-600" },
@@ -141,7 +141,7 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
     searchPlaceholder: "Tìm tên, email hoặc vai trò...",
     emptyText: "Chưa có nhân viên phù hợp.",
     stats: [
-      { label: "Tài khoản", value: "1", icon: "badge", tone: "bg-orange-50 text-[#f97316]" },
+      { label: "Tài khoản", value: "1", icon: "badge", tone: "bg-orange-50 text-[#9d4300]" },
       { label: "Đang hoạt động", value: "1", icon: "verified_user", tone: "bg-green-50 text-green-600" },
       { label: "Bị khóa", value: "0", icon: "lock", tone: "bg-red-50 text-red-600" },
       { label: "Vai trò", value: "1", icon: "admin_panel_settings", tone: "bg-slate-50 text-slate-600" },
@@ -162,7 +162,7 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
     searchPlaceholder: "Tìm nhân viên hoặc mã ca...",
     emptyText: "Chưa có ca làm phù hợp.",
     stats: [
-      { label: "Ca đang mở", value: "0", icon: "work_history", tone: "bg-orange-50 text-[#f97316]" },
+      { label: "Ca đang mở", value: "0", icon: "work_history", tone: "bg-orange-50 text-[#9d4300]" },
       { label: "Doanh thu ca", value: "0 đ", icon: "payments", tone: "bg-green-50 text-green-600" },
       { label: "Tiền mặt", value: "0 đ", icon: "account_balance_wallet", tone: "bg-amber-50 text-amber-600" },
       { label: "Đã đóng", value: "0", icon: "task_alt", tone: "bg-slate-50 text-slate-600" },
@@ -183,7 +183,7 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
     searchPlaceholder: "Tìm hành động, người dùng hoặc đối tượng...",
     emptyText: "Chưa có log phù hợp.",
     stats: [
-      { label: "Log hôm nay", value: "0", icon: "history", tone: "bg-orange-50 text-[#f97316]" },
+      { label: "Log hôm nay", value: "0", icon: "history", tone: "bg-orange-50 text-[#9d4300]" },
       { label: "Thao tác kho", value: "0", icon: "inventory", tone: "bg-green-50 text-green-600" },
       { label: "Bảo mật", value: "0", icon: "security", tone: "bg-red-50 text-red-600" },
       { label: "Người dùng", value: "0", icon: "person", tone: "bg-slate-50 text-slate-600" },
@@ -204,7 +204,7 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
     searchPlaceholder: "Tìm báo cáo hoặc chỉ số...",
     emptyText: "Chưa có báo cáo phù hợp.",
     stats: [
-      { label: "Doanh thu tháng", value: "385.000 đ", icon: "monitoring", tone: "bg-orange-50 text-[#f97316]" },
+      { label: "Doanh thu tháng", value: "385.000 đ", icon: "monitoring", tone: "bg-orange-50 text-[#9d4300]" },
       { label: "Hóa đơn", value: "5", icon: "receipt_long", tone: "bg-green-50 text-green-600" },
       { label: "Món bán chạy", value: "2", icon: "restaurant", tone: "bg-amber-50 text-amber-600" },
       { label: "Tồn thấp", value: "0", icon: "warning", tone: "bg-red-50 text-red-600" },
@@ -225,7 +225,7 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
     searchPlaceholder: "Tìm thiết lập...",
     emptyText: "Chưa có thiết lập phù hợp.",
     stats: [
-      { label: "Cửa hàng", value: "1", icon: "store", tone: "bg-orange-50 text-[#f97316]" },
+      { label: "Cửa hàng", value: "1", icon: "store", tone: "bg-orange-50 text-[#9d4300]" },
       { label: "Thanh toán", value: "3", icon: "credit_card", tone: "bg-green-50 text-green-600" },
       { label: "Thuế", value: "0%", icon: "request_quote", tone: "bg-amber-50 text-amber-600" },
       { label: "Bảo mật", value: "JWT", icon: "shield", tone: "bg-slate-50 text-slate-600" },
@@ -246,7 +246,7 @@ function ModuleStatCard({ stat }: { stat: StatCard }) {
         </div>
       </div>
       <p className="text-xs font-bold uppercase tracking-tight text-slate-500">{stat.label}</p>
-      <h3 className="mt-1 text-2xl font-extrabold text-[#0b1c30]">{stat.value}</h3>
+      <h3 className="mt-1 text-2xl font-extrabold text-[#2a1b14]">{stat.value}</h3>
     </article>
   );
 }
@@ -290,10 +290,10 @@ function ModuleScaffoldPage({ moduleKey }: { moduleKey: ModuleKey }) {
     <AdminLayout title={config.title} subtitle={config.subtitle}>
       <section className="mb-8 flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="mb-2 text-xs font-bold uppercase tracking-widest text-[#f97316]">
+          <p className="mb-2 text-xs font-bold uppercase tracking-widest text-[#9d4300]">
             {config.eyebrow}
           </p>
-          <h1 className="font-['Plus_Jakarta_Sans',sans-serif] text-3xl font-extrabold text-[#0b1c30]">
+          <h1 className="font-['Plus_Jakarta_Sans',sans-serif] text-3xl font-extrabold text-[#2a1b14]">
             {config.heroTitle}
           </h1>
           <p className="mt-2 max-w-3xl text-sm text-slate-500">{config.heroDescription}</p>
@@ -301,7 +301,7 @@ function ModuleScaffoldPage({ moduleKey }: { moduleKey: ModuleKey }) {
         <button
           type="button"
           onClick={handlePrimaryAction}
-          className="inline-flex h-10 items-center justify-center gap-2 bg-[#f97316] px-4 text-sm font-bold text-white transition-colors hover:bg-[#ea580c]"
+          className="inline-flex h-10 items-center justify-center gap-2 bg-[#9d4300] px-4 text-sm font-bold text-white transition-colors hover:bg-[#803600]"
         >
           <Icon name="add" />
           {config.primaryAction}
@@ -323,7 +323,7 @@ function ModuleScaffoldPage({ moduleKey }: { moduleKey: ModuleKey }) {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder={config.searchPlaceholder}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pr-4 pl-10 text-sm outline-none transition-all focus:border-[#f97316] focus:bg-white focus:ring-2 focus:ring-orange-100"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pr-4 pl-10 text-sm outline-none transition-all focus:border-[#9d4300] focus:bg-white focus:ring-2 focus:ring-orange-100"
               />
             </div>
           </div>
@@ -342,17 +342,17 @@ function ModuleScaffoldPage({ moduleKey }: { moduleKey: ModuleKey }) {
                 {filteredRows.map((row) => (
                   <tr key={row.id} className="transition-colors hover:bg-slate-50">
                     <td className="px-6 py-4">
-                      <p className="font-bold text-[#0b1c30]">{row.title}</p>
+                      <p className="font-bold text-[#2a1b14]">{row.title}</p>
                       <p className="mt-1 text-xs text-slate-400">{row.subtitle}</p>
                     </td>
-                    <td className="px-6 py-4 text-right font-extrabold text-[#0b1c30]">{row.value}</td>
+                    <td className="px-6 py-4 text-right font-extrabold text-[#2a1b14]">{row.value}</td>
                     <td className="px-6 py-4 text-center">
                       <span className={`rounded-full px-3 py-1 text-xs font-bold ${row.statusClassName}`}>
                         {row.status}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button type="button" className="rounded-lg p-2 text-[#f97316] hover:bg-orange-50">
+                      <button type="button" className="rounded-lg p-2 text-[#9d4300] hover:bg-orange-50">
                         <Icon name="visibility" className="text-xl" />
                       </button>
                     </td>
@@ -369,12 +369,12 @@ function ModuleScaffoldPage({ moduleKey }: { moduleKey: ModuleKey }) {
 
         <aside className="rounded-3xl border border-orange-100 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center gap-3">
-            <div className="rounded-xl bg-orange-50 p-3 text-[#f97316]">
+            <div className="rounded-xl bg-orange-50 p-3 text-[#9d4300]">
               <Icon name="schema" />
             </div>
             <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-[#f97316]">Bước tiếp theo</p>
-              <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-lg font-extrabold text-[#0b1c30]">
+              <p className="text-xs font-bold uppercase tracking-widest text-[#9d4300]">Bước tiếp theo</p>
+              <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-lg font-extrabold text-[#2a1b14]">
                 Backend & Database
               </h3>
             </div>
@@ -382,7 +382,7 @@ function ModuleScaffoldPage({ moduleKey }: { moduleKey: ModuleKey }) {
           <div className="space-y-3">
             {config.nextSteps.map((step, index) => (
               <div key={step} className="flex gap-3 rounded-2xl bg-slate-50 p-4">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f97316] text-xs font-extrabold text-white">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#9d4300] text-xs font-extrabold text-white">
                   {index + 1}
                 </span>
                 <p className="text-sm font-semibold text-slate-600">{step}</p>

@@ -4,13 +4,13 @@ export interface Product {
   id: string;
   categoryId: string;
   categoryName?: string;
-  requiresPreparation: boolean;
-  isStockReturnable: boolean;
+  isTrackedStock: boolean;
+  isAvailable: boolean;
   sku: string;
   name: string;
   importPrice: number;
   salePrice: number;
-  stockQuantity: number;
+  stockQuantity: number | null;
   status: ProductStatus;
   description: string | null;
   imageUrl: string | null;
@@ -22,11 +22,11 @@ export interface CreateProductBody {
   categoryId: string;
   sku: string;
   name: string;
-  requiresPreparation?: boolean;
-  isStockReturnable?: boolean;
+  isTrackedStock?: boolean;
+  isAvailable?: boolean;
   importPrice?: number;
   salePrice: number;
-  stockQuantity?: number;
+  stockQuantity?: number | null;
   status?: ProductStatus;
   description?: string | null;
   imageUrl?: string | null;
@@ -36,11 +36,11 @@ export interface UpdateProductBody {
   categoryId?: string;
   sku?: string;
   name?: string;
-  requiresPreparation?: boolean;
-  isStockReturnable?: boolean;
+  isTrackedStock?: boolean;
+  isAvailable?: boolean;
   importPrice?: number;
   salePrice?: number;
-  stockQuantity?: number;
+  stockQuantity?: number | null;
   status?: ProductStatus;
   description?: string | null;
   imageUrl?: string | null;
@@ -49,20 +49,4 @@ export interface UpdateProductBody {
 export interface UploadProductImageBody {
   fileName?: string;
   imageBase64?: string;
-}
-
-export interface SaveProductRecipeIngredient {
-  ingredientId: string;
-  quantityNeeded: number;
-}
-
-export interface SaveProductRecipeBody {
-  ingredients: SaveProductRecipeIngredient[];
-}
-
-export interface ProductRecipeIngredient {
-  ingredientId: string;
-  ingredientName: string;
-  quantityNeeded: number;
-  unit: string;
 }

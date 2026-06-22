@@ -684,13 +684,17 @@ export async function createStockAdjustmentTransaction(
     await connection.beginTransaction();
 
     const [products] = await connection.execute<RowDataPacket[]>(
-      "SELECT id, name, stock_quantity, status FROM products WHERE id = ? LIMIT 1 FOR UPDATE",
+      "SELECT id, name, stock_quantity, status, is_tracked_stock FROM products WHERE id = ? LIMIT 1 FOR UPDATE",
       [productId]
     );
 
     const product = products[0];
     if (!product) {
       throw new ApiError(404, "Không tìm thấy sản phẩm");
+    }
+
+    if (!product.is_tracked_stock) {
+      throw new ApiError(400, "Sản phẩm tự chế biến không quản lý kho, không thể điều chỉnh tồn kho.");
     }
 
     const oldQuantity = Number(product.stock_quantity);

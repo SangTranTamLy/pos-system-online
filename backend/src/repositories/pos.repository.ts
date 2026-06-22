@@ -22,9 +22,10 @@ type ProductForSaleRow = RowDataPacket & {
   category_name: string;
   name: string;
   sale_price: string;
-  stock_quantity: number;
+  stock_quantity: number | null;
   status: "active" | "paused" | "out_of_stock";
-  requires_preparation: number;
+  is_tracked_stock: number;
+  is_available: number;
 };
 
 type CreatePosOrderTransactionData = {
@@ -53,7 +54,8 @@ async function findProductForUpdate(
       products.sale_price,
       products.stock_quantity,
       products.status,
-      products.requires_preparation
+      products.is_tracked_stock,
+      products.is_available
     FROM products
     JOIN categories ON categories.id = products.category_id
     WHERE products.id = ?
@@ -94,12 +96,12 @@ export async function createPosOrderTransaction(
         throw new ApiError(404, "Không tìm thấy sản phẩm.");
       }
 
-      if (product.status !== "active") {
-        throw new ApiError(409, `Sản phẩm "${product.name}" hiện không bán.`);
+      if (!product.is_available) {
+        throw new ApiError(409, `Sản phẩm "${product.name}" hiện không bán hoặc hết hàng.`);
       }
 
-      // Chỉ kiểm tra tồn kho nếu sản phẩm là món ăn liền (requires_preparation = 0)
-      if (!product.requires_preparation && product.stock_quantity < item.quantity) {
+      // Chỉ kiểm tra tồn kho nếu sản phẩm là nước đóng lon/chai cần quản lý tồn kho (is_tracked_stock = 1)
+      if (product.is_tracked_stock && (product.stock_quantity === null || product.stock_quantity < item.quantity)) {
         throw new ApiError(409, `Sản phẩm "${product.name}" không đủ tồn kho.`);
       }
 
@@ -115,7 +117,7 @@ export async function createPosOrderTransaction(
         quantity: item.quantity,
         unitPrice,
         lineTotal,
-        requiresPreparation: Boolean(product.requires_preparation),
+        isTrackedStock: Boolean(product.is_tracked_stock),
       });
     }
 
@@ -198,16 +200,16 @@ export async function createPosOrderTransaction(
         ]
       );
 
-      // Chỉ cập nhật tồn kho và tạo transaction xuất kho sản phẩm khi là món ăn liền (requiresPreparation = false)
-      if (!detail.requiresPreparation) {
+      // Chỉ cập nhật tồn kho và tạo transaction xuất kho sản phẩm khi cần quản lý tồn kho (isTrackedStock = true)
+      if (detail.isTrackedStock) {
         await connection.execute(
           `
           UPDATE products
           SET
             stock_quantity = stock_quantity - ?,
-            status = CASE
-              WHEN stock_quantity - ? <= 0 THEN 'out_of_stock'
-              ELSE status
+            is_available = CASE
+              WHEN stock_quantity - ? <= 0 THEN 0
+              ELSE is_available
             END
           WHERE id = ?
           `,
@@ -234,73 +236,6 @@ export async function createPosOrderTransaction(
             `Bán hàng tại quầy - đơn ${orderId}`,
           ]
         );
-      }
-
-      // TRỪ KHO NGUYÊN LIỆU THEO ĐỊNH LƯỢNG (RECIPES) REAL-TIME
-      // Chỉ thực hiện trừ kho nguyên liệu đối với món cần chế biến (requiresPreparation = true)
-      if (detail.requiresPreparation) {
-        // Bước 1: Tìm các nguyên liệu cấu thành từ bảng recipes
-        const [recipeRows] = await connection.execute<RowDataPacket[]>(
-          `
-          SELECT ingredient_id AS ingredientId, quantity_needed AS quantityNeeded
-          FROM recipes
-          WHERE product_id = ?
-          `,
-          [detail.productId]
-        );
-
-        for (const recipe of recipeRows) {
-          const requiredQty = Number(recipe.quantityNeeded) * detail.quantity;
-          
-          // Lấy thông tin tồn kho hiện tại và khóa dòng (FOR UPDATE) để đảm bảo concurrency
-          const [ingRows] = await connection.execute<RowDataPacket[]>(
-            `
-            SELECT name, stock_quantity AS stockQuantity, min_stock AS minStock
-            FROM raw_materials
-            WHERE id = ?
-            FOR UPDATE
-            `,
-            [recipe.ingredientId]
-          );
-
-          const ingredient = ingRows[0];
-          if (ingredient) {
-            const currentQty = Number(ingredient.stockQuantity);
-
-            // Chặn hành vi "Xuất âm" kho nguyên liệu thô
-            if (currentQty < requiredQty) {
-              throw new ApiError(
-                409,
-                `Nguyên liệu thô "${ingredient.name}" không đủ để chế biến món ăn (còn ${currentQty}, cần ${requiredQty}).`
-              );
-            }
-
-            const newQty = currentQty - requiredQty;
-
-            // Bước 2: Thực hiện trừ kho nguyên liệu
-            await connection.execute(
-              `
-              UPDATE raw_materials
-              SET stock_quantity = stock_quantity - ?
-              WHERE id = ?
-              `,
-              [requiredQty, recipe.ingredientId]
-            );
-
-            // Bước 3: Kiểm tra ngưỡng cảnh báo sắp hết nguyên liệu (min_stock)
-            const minStockLimit = Number(ingredient.minStock);
-            if (newQty <= minStockLimit) {
-              const exists = alertsList.some(alt => alt.name === ingredient.name);
-              if (!exists) {
-                alertsList.push({
-                  name: ingredient.name,
-                  stockQuantity: newQty,
-                  minStock: minStockLimit
-                });
-              }
-            }
-          }
-        }
       }
     }
 

@@ -24,7 +24,7 @@ const baseStatCards: CategoryStatCard[] = [
     value: "0",
     icon: "folder_zip",
     iconBg: "bg-orange-50",
-    iconText: "text-[#f97316]",
+    iconText: "text-[#9d4300]",
   },
   {
     label: "Đang hoạt động",
@@ -41,16 +41,11 @@ const defaultFormState = {
   imageUrl: "",
   displayOrder: "1",
   logicType: "prepared" as CategoryLogicType,
-  requiresPreparation: true,
-  isStockReturnable: false,
 };
 type CategoryLogicType = "prepared" | "stock_returnable";
 
-function getCategoryLogicType(category: { /**fix logic xử lý tồn kho */
-  requiresPreparation: boolean;
-  isStockReturnable: boolean;
-}): CategoryLogicType {
-  if (category.isStockReturnable) {
+function getCategoryLogicType(category: ApiCategory): CategoryLogicType {
+  if (category.isTrackedStock) {
     return "stock_returnable";
   }
 
@@ -67,7 +62,7 @@ function CategoryStatCard({ card }: { card: CategoryStatCard }) {
       <p className="text-xs font-semibold uppercase tracking-tight text-slate-500">
         {card.label}
       </p>
-      <h3 className="mt-1 text-xl font-bold text-[#0b1c30]">{card.value}</h3>
+      <h3 className="mt-1 text-xl font-bold text-[#2a1b14]">{card.value}</h3>
     </article>
   );
 }
@@ -185,8 +180,6 @@ function CategoryPage() {
       imageUrl: category.imageUrl ?? "",
       displayOrder: "1",
       logicType,
-      requiresPreparation: logicType === "prepared",
-      isStockReturnable: logicType === "stock_returnable",
     });
     setIsModalOpen(true);
   };
@@ -203,14 +196,13 @@ function CategoryPage() {
     try {
       setErrorMessage("");
 
-      const isPrepared = formState.logicType === "prepared";
+      const isTracked = formState.logicType === "stock_returnable";
 
       const payload = {
         name: formState.name.trim(),
         description: formState.description.trim() || null,
         imageUrl: formState.imageUrl.trim() || null,
-        requiresPreparation: isPrepared,
-        isStockReturnable: !isPrepared,
+        isTrackedStock: isTracked,
       };
 
       if (editingCategory) {
@@ -304,7 +296,7 @@ function CategoryPage() {
                   setPage(1);
                 }}
                 placeholder="Tìm kiếm danh mục..."
-                className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pr-4 pl-10 text-sm outline-none transition-all focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pr-4 pl-10 text-sm outline-none transition-all focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
               />
             </div>
 
@@ -313,7 +305,7 @@ function CategoryPage() {
           <button
             type="button"
             onClick={openCreateModal}
-            className="inline-flex h-10 items-center justify-center gap-2 bg-[#f97316] px-4 text-sm font-bold text-white transition-colors hover:bg-[#ea580c]"
+            className="inline-flex h-10 items-center justify-center gap-2 bg-[#9d4300] px-4 text-sm font-bold text-white transition-colors hover:bg-[#803600]"
           >
             <Icon name="add" />
             Thêm danh mục
@@ -352,19 +344,24 @@ function CategoryPage() {
                             className="h-12 w-12 rounded-lg object-cover ring-1 ring-slate-200"
                           />
                         ) : (
-                          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-orange-50 text-[#f97316]">
+                          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-orange-50 text-[#9d4300]">
                             <Icon name="restaurant" />
                           </div>
                         )}
-                        <span className="font-bold text-[#0b1c30]">
-                          {category.name}
-                        </span>
+                        <div className="flex flex-col">
+                          <span className="font-bold text-[#2a1b14]">
+                            {category.name}
+                          </span>
+                          <span className="text-[11px] font-semibold text-slate-400">
+                            {category.isTrackedStock ? "Có quản lý số lượng" : "Không quản lý số lượng"}
+                          </span>
+                        </div>
                       </div>
                     </td>
                     <td className="max-w-60 truncate px-6 py-4 text-slate-600">
                       {category.description || "Chưa có mô tả"}
                     </td>
-                    <td className="px-6 py-4 text-center font-medium text-[#0b1c30]">
+                    <td className="px-6 py-4 text-center font-medium text-[#2a1b14]">
                       {category.productCount}
                     </td>
                     <td className="px-6 py-4 text-slate-500">
@@ -383,7 +380,7 @@ function CategoryPage() {
                       <button
                         type="button"
                         onClick={() => openEditModal(category)}
-                        className="rounded-lg p-2 text-[#f97316] transition-colors hover:bg-orange-50"
+                        className="rounded-lg p-2 text-[#9d4300] transition-colors hover:bg-orange-50"
                         aria-label="Sửa danh mục"
                       >
                         <Icon name="edit" className="text-xl" />
@@ -408,11 +405,11 @@ function CategoryPage() {
         <div className="flex flex-col items-start justify-between gap-4 border-t border-slate-200 bg-white p-4 sm:flex-row sm:items-center">
           <p className="text-sm text-slate-500">
             Hiển thị{" "}
-            <span className="font-bold text-[#0b1c30]">
+            <span className="font-bold text-[#2a1b14]">
               {paginatedCategories.length}
             </span>{" "}
             trên{" "}
-            <span className="font-bold text-[#0b1c30]">
+            <span className="font-bold text-[#2a1b14]">
               {filteredCategories.length}
             </span>{" "}
             danh mục
@@ -432,12 +429,12 @@ function CategoryPage() {
                   key={pageNumber}
                   type="button"
                   onClick={() => setPage(pageNumber)}
-                  className={[
-                    "flex h-8 w-8 items-center justify-center rounded-lg text-xs font-medium transition-colors",
-                    page === pageNumber
-                      ? "bg-[#f97316] font-bold text-white"
-                      : "text-[#0b1c30] hover:bg-slate-50",
-                  ].join(" ")}
+                    className={[
+                      "flex h-8 w-8 items-center justify-center rounded-lg text-xs font-medium transition-colors",
+                      page === pageNumber
+                        ? "bg-[#9d4300] font-bold text-white"
+                        : "text-[#2a1b14] hover:bg-slate-50",
+                    ].join(" ")}
                 >
                   {pageNumber}
                 </button>
@@ -460,10 +457,10 @@ function CategoryPage() {
           <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-5">
               <div className="flex items-center gap-3">
-                <span className="rounded-lg bg-orange-50 p-2 text-[#f97316]">
+                <span className="rounded-lg bg-orange-50 p-2 text-[#9d4300]">
                   <Icon name="category" />
                 </span>
-                <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-bold text-[#0b1c30]">
+                <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-bold text-[#2a1b14]">
                   {editingCategory ? "Sửa danh mục" : "Thêm danh mục mới"}
                 </h3>
               </div>
@@ -480,7 +477,7 @@ function CategoryPage() {
 
             <form className="space-y-6 p-6" onSubmit={handleSubmit}>
               <div className="space-y-2">
-                <label className="block text-sm font-semibold text-[#0b1c30]">
+                <label className="block text-sm font-semibold text-[#2a1b14]">
                   Tên danh mục <span className="text-red-600">*</span>
                 </label>
                 <input
@@ -491,12 +488,12 @@ function CategoryPage() {
                     setFormState((current) => ({ ...current, name: event.target.value }))
                   }
                   placeholder="VD: Món nước"
-                  className="w-full rounded-lg border border-slate-200 px-4 py-3 text-sm outline-none transition-all focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                  className="w-full rounded-lg border border-slate-200 px-4 py-3 text-sm outline-none transition-all focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="block text-sm font-semibold text-[#0b1c30]">
+                <label className="block text-sm font-semibold text-[#2a1b14]">
                   Mô tả chi tiết
                 </label>
                 <textarea
@@ -509,13 +506,13 @@ function CategoryPage() {
                     }))
                   }
                   placeholder="Nhập mô tả cho danh mục này..."
-                  className="w-full resize-none rounded-lg border border-slate-200 px-4 py-3 text-sm outline-none transition-all focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                  className="w-full resize-none rounded-lg border border-slate-200 px-4 py-3 text-sm outline-none transition-all focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
                 />
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-[#0b1c30]">
+                  <label className="block text-sm font-semibold text-[#2a1b14]">
                     Ảnh danh mục
                   </label>
                   <input
@@ -524,7 +521,7 @@ function CategoryPage() {
                     onChange={(event) => {
                       void handleImageFileChange(event);
                     }}
-                    className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm outline-none transition-all focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                    className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm outline-none transition-all focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
                   />
                   <p className="text-xs text-slate-500">
                     {isUploadingImage
@@ -534,7 +531,7 @@ function CategoryPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-[#0b1c30]">
+                  <label className="block text-sm font-semibold text-[#2a1b14]">
                       Thứ tự hiển thị
                     </label>
                     <input
@@ -546,13 +543,13 @@ function CategoryPage() {
                           displayOrder: event.target.value,
                         }))
                       }
-                      className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm outline-none transition-all focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                      className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm outline-none transition-all focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
                     />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="block text-sm font-semibold text-[#0b1c30]">
+                <label className="block text-sm font-semibold text-[#2a1b14]">
                   Loại danh mục <span className="text-red-600">*</span>
                 </label>
 
@@ -564,23 +561,20 @@ function CategoryPage() {
                     setFormState((current) => ({
                       ...current,
                       logicType,
-                      requiresPreparation: logicType === "prepared",
-                      isStockReturnable: logicType === "stock_returnable",
                     }));
                   }}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition-all focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition-all focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
                 >
                   <option value="prepared">
-                    Món cần chế biến / pha chế
+                    Món cần chế biến / pha chế (Không quản lý số lượng sản phẩm)
                   </option>
                   <option value="stock_returnable">
-                    Hàng có sẵn / đóng chai / hoàn kho được
+                    Hàng có sẵn / đóng chai / hoàn kho được (Có quản lý số lượng sản phẩm)
                   </option>
                 </select>
 
                 <p className="text-xs text-slate-500">
-                  Món cần chế biến sẽ không hoàn kho khi hủy hóa đơn. Hàng có sẵn như nước chai,
-                  nước lon sẽ được hoàn lại tồn kho khi hủy hóa đơn.
+                  Món cần chế biến sẽ không quản lý số lượng sản phẩm và không hoàn kho khi hủy hóa đơn. Hàng có sẵn như nước chai, nước lon sẽ quản lý số lượng sản phẩm và được hoàn lại tồn kho khi hủy hóa đơn.
                 </p>
               </div>
 
@@ -605,7 +599,7 @@ function CategoryPage() {
                 </button>
                 <button
                   type="submit"
-                  className="flex h-10 flex-1 items-center justify-center bg-[#f97316] px-4 text-sm font-bold text-white transition-colors hover:bg-[#ea580c]"
+                  className="flex h-10 flex-1 items-center justify-center bg-[#9d4300] px-4 text-sm font-bold text-white transition-colors hover:bg-[#803600]"
                 >
                   {editingCategory ? "Lưu thay đổi" : "Lưu danh mục"}
                 </button>
@@ -622,7 +616,7 @@ function CategoryPage() {
               <Icon name="check" className="text-sm" />
             </div>
             <div>
-              <p className="text-sm font-bold text-[#0b1c30]">
+              <p className="text-sm font-bold text-[#2a1b14]">
                 Dữ liệu đã đồng bộ
               </p>
               <p className="text-[10px] text-slate-500">

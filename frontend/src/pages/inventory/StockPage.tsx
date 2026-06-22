@@ -30,7 +30,7 @@ type NoticeState = {
 };
 
 const inputClass =
-  "h-10 w-full border border-slate-200 bg-white px-3 text-sm font-semibold text-[#0b1c30] outline-none transition-colors focus:border-[#f97316]";
+  "h-10 w-full border border-slate-200 bg-white px-3 text-sm font-semibold text-[#2a1b14] outline-none transition-colors focus:border-[#9d4300]";
 const labelClass =
   "mb-2 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500";
 
@@ -140,7 +140,7 @@ function StatCard({
         <p className="text-[11px] font-extrabold uppercase tracking-wide text-slate-400">
           {label}
         </p>
-        <p className="mt-1 text-xl font-extrabold text-[#0b1c30]">{value}</p>
+        <p className="mt-1 text-xl font-extrabold text-[#2a1b14]">{value}</p>
       </div>
     </article>
   );
@@ -541,13 +541,13 @@ export function StockPage() {
             <button
               type="button"
               onClick={() => navigate("/stock/history")}
-              className="flex h-10 w-10 items-center justify-center border border-slate-200 bg-white text-slate-600 hover:border-[#f97316] hover:text-[#f97316]"
+              className="flex h-10 w-10 items-center justify-center border border-slate-200 bg-white text-slate-600 hover:border-[#9d4300] hover:text-[#9d4300]"
               aria-label="Quay lai"
             >
               <Icon name="arrow_back" />
             </button>
             <div>
-              <h1 className="text-2xl font-extrabold text-[#0b1c30]">
+              <h1 className="text-2xl font-extrabold text-[#2a1b14]">
                 Tạo Phiếu Nhập Kho
               </h1>
               <p className="mt-1 text-sm font-medium text-slate-500">
@@ -569,7 +569,7 @@ export function StockPage() {
               <div className="space-y-6">
                 <section className="border border-slate-200 bg-white p-5">
                   <div className="mb-4 flex items-center justify-between">
-                    <h2 className="text-sm font-extrabold uppercase tracking-wide text-[#0b1c30]">
+                    <h2 className="text-sm font-extrabold uppercase tracking-wide text-[#2a1b14]">
                       Tìm nguyên liệu nhập kho
                     </h2>
                   </div>
@@ -582,7 +582,7 @@ export function StockPage() {
                       value={materialSearch}
                       onChange={(event) => setMaterialSearch(event.target.value)}
                       placeholder="Nhập tên, mã hoặc danh mục nguyên liệu..."
-                      className="h-12 w-full border border-slate-200 bg-slate-50 pl-12 pr-4 text-sm font-bold outline-none focus:border-[#f97316]"
+                      className="h-12 w-full border border-slate-200 bg-slate-50 pl-12 pr-4 text-sm font-bold outline-none focus:border-[#9d4300]"
                     />
                   </div>
 
@@ -598,16 +598,16 @@ export function StockPage() {
                           key={material.id}
                           type="button"
                           onClick={() => addMaterialToReceipt(material)}
-                          className="flex items-center justify-between border border-slate-200 bg-white p-3 text-left hover:border-[#f97316]"
+                          className="flex items-center justify-between border border-slate-200 bg-white p-3 text-left hover:border-[#9d4300]"
                         >
                           <div>
-                            <p className="font-extrabold text-[#0b1c30]">{material.name}</p>
+                            <p className="font-extrabold text-[#2a1b14]">{material.name}</p>
                             <p className="text-xs font-semibold text-slate-400">
                               SKU: {material.sku} - Ton hien tai: {material.stockQuantity} - Giá nhập:{" "}
                               {formatCurrency(material.importPrice)}
                             </p>
                           </div>
-                          <Icon name="add" className="text-[#f97316]" />
+                          <Icon name="add" className="text-[#9d4300]" />
                         </button>
                       ))}
                       {materialResults.length === 0 ? (
@@ -620,7 +620,7 @@ export function StockPage() {
                 </section>
 
                 <section className="border border-slate-200 bg-white p-5">
-                  <h2 className="mb-4 text-sm font-extrabold uppercase tracking-wide text-[#0b1c30]">
+                  <h2 className="mb-4 text-sm font-extrabold uppercase tracking-wide text-[#2a1b14]">
                     Nguyên liệu nhập kho
                   </h2>
 
@@ -644,7 +644,7 @@ export function StockPage() {
                           {receiptItems.map((item) => (
                             <tr key={item.material.id}>
                               <td className="py-3">
-                                <p className="font-extrabold text-[#0b1c30]">
+                                <p className="font-extrabold text-[#2a1b14]">
                                   {item.material.name}
                                 </p>
                                 <p className="text-xs font-semibold text-slate-400">
@@ -681,7 +681,7 @@ export function StockPage() {
                                   className={inputClass}
                                 />
                               </td>
-                              <td className="py-3 text-right font-extrabold text-[#0b1c30]">
+                              <td className="py-3 text-right font-extrabold text-[#2a1b14]">
                                 {formatCurrency(item.quantity * item.unitPrice)}
                               </td>
                               <td className="py-3 text-right">
@@ -705,7 +705,7 @@ export function StockPage() {
 
               <aside className="space-y-6">
                 <section className="border border-slate-200 bg-white p-5">
-                  <h2 className="mb-4 border-b border-slate-100 pb-4 text-sm font-extrabold uppercase tracking-wide text-[#0b1c30]">
+                  <h2 className="mb-4 border-b border-slate-100 pb-4 text-sm font-extrabold uppercase tracking-wide text-[#2a1b14]">
                     Thông tin phiếu
                   </h2>
                   <div className="space-y-4">
@@ -719,7 +719,7 @@ export function StockPage() {
                         <select
                           value={formSupplierId}
                           onChange={(event) => setFormSupplierId(event.target.value)}
-                          className="h-10 w-full border border-slate-200 bg-white pl-10 pr-3 text-sm font-extrabold text-[#0b1c30] outline-none transition-colors focus:border-[#f97316]"
+                          className="h-10 w-full border border-slate-200 bg-white pl-10 pr-3 text-sm font-extrabold text-[#2a1b14] outline-none transition-colors focus:border-[#9d4300]"
                           required
                         >
                           <option value="">Chọn nhà cung cấp</option>
@@ -740,7 +740,7 @@ export function StockPage() {
                           onChange={(event) => setFormNote(event.target.value)}
                           placeholder="Lý do nhập hàng, đợt khuyến mãi..."
                           rows={4}
-                          className="w-full border border-slate-200 bg-white py-3 pl-10 pr-3 text-sm font-semibold outline-none focus:border-[#f97316]"
+                          className="w-full border border-slate-200 bg-white py-3 pl-10 pr-3 text-sm font-semibold outline-none focus:border-[#9d4300]"
                         />
                       </div>
                     </div>
@@ -757,7 +757,7 @@ export function StockPage() {
                           max={totalAmount}
                           value={formPaidAmount}
                           onChange={(event) => setFormPaidAmount(event.target.value)}
-                          className="h-10 w-full border border-slate-300 bg-white pl-10 pr-3 text-sm font-extrabold text-[#0b1c30] outline-none transition-colors focus:border-[#f97316]"
+                          className="h-10 w-full border border-slate-300 bg-white pl-10 pr-3 text-sm font-extrabold text-[#2a1b14] outline-none transition-colors focus:border-[#9d4300]"
                         />
                       </div>
                     </div>
@@ -802,7 +802,7 @@ export function StockPage() {
                 <button
                   type="submit"
                   disabled={isSubmitting || receiptItems.length === 0}
-                  className="flex h-12 w-full items-center justify-center gap-2 bg-[#f97316] text-sm font-extrabold text-white shadow-sm hover:bg-[#ea6c0a] disabled:cursor-not-allowed disabled:bg-slate-300"
+                  className="flex h-12 w-full items-center justify-center gap-2 bg-[#9d4300] text-sm font-extrabold text-white shadow-sm hover:bg-[#ea6c0a] disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
                   <Icon name="check" />
                   {isSubmitting ? "Đang xử lý..." : "Xác nhận nhập kho."}
@@ -822,8 +822,8 @@ export function StockPage() {
         <div className="space-y-6">
           <section className="flex flex-col gap-4 border-b border-slate-200 pb-6 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h1 className="flex items-center gap-3 text-3xl font-extrabold text-[#0b1c30]">
-                <Icon name="local_shipping" className="text-[#f97316]" />
+              <h1 className="flex items-center gap-3 text-3xl font-extrabold text-[#2a1b14]">
+                <Icon name="local_shipping" className="text-[#9d4300]" />
                 Nhập kho và Công nợ
               </h1>
               <p className="mt-1 text-sm font-medium text-slate-500">
@@ -834,7 +834,7 @@ export function StockPage() {
               <button
                 type="button"
                 onClick={() => navigate("/stock/import")}
-                className="flex h-10 items-center gap-2 bg-[#f97316] px-5 text-sm font-extrabold text-white shadow-sm hover:bg-[#ea6c0a]"
+                className="flex h-10 items-center gap-2 bg-[#9d4300] px-5 text-sm font-extrabold text-white shadow-sm hover:bg-[#ea6c0a]"
               >
                 <Icon name="add" />
                 Lập phiếu nhập mới
@@ -842,7 +842,7 @@ export function StockPage() {
               <button
                 type="button"
                 onClick={() => void loadAllData()}
-                className="flex h-10 w-10 items-center justify-center border border-slate-200 bg-white text-slate-600 hover:border-[#f97316] hover:text-[#f97316]"
+                className="flex h-10 w-10 items-center justify-center border border-slate-200 bg-white text-slate-600 hover:border-[#9d4300] hover:text-[#9d4300]"
                 aria-label="Lam moi"
               >
                 <Icon name="refresh" />
@@ -857,8 +857,8 @@ export function StockPage() {
               className={[
                 "h-10 border px-4 text-sm font-extrabold transition-colors",
                 (currentTab !== "suppliers" && currentTab !== "materials")
-                  ? "border-[#f97316] bg-[#f97316] text-white"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-[#f97316] hover:text-[#f97316]",
+                  ? "border-[#9d4300] bg-[#9d4300] text-white"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-[#9d4300] hover:text-[#9d4300]",
               ].join(" ")}
             >
               Lịch sử nhập hàng
@@ -869,8 +869,8 @@ export function StockPage() {
               className={[
                 "h-10 border px-4 text-sm font-extrabold transition-colors",
                 currentTab === "materials"
-                  ? "border-[#f97316] bg-[#f97316] text-white"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-[#f97316] hover:text-[#f97316]",
+                  ? "border-[#9d4300] bg-[#9d4300] text-white"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-[#9d4300] hover:text-[#9d4300]",
               ].join(" ")}
             >
               Nguyên liệu
@@ -881,8 +881,8 @@ export function StockPage() {
               className={[
                 "h-10 border px-4 text-sm font-extrabold transition-colors",
                 currentTab === "suppliers"
-                  ? "border-[#f97316] bg-[#f97316] text-white"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-[#f97316] hover:text-[#f97316]",
+                  ? "border-[#9d4300] bg-[#9d4300] text-white"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-[#9d4300] hover:text-[#9d4300]",
               ].join(" ")}
             >
               Nhà cung cấp
@@ -931,7 +931,7 @@ export function StockPage() {
                       value={searchQuery}
                       onChange={(event) => setSearchQuery(event.target.value)}
                       placeholder="Tìm kiếm tên, SKU, danh mục nguyên liệu..."
-                      className="h-10 w-full border border-slate-200 bg-white pl-10 pr-3 text-sm font-semibold outline-none focus:border-[#f97316]"
+                      className="h-10 w-full border border-slate-200 bg-white pl-10 pr-3 text-sm font-semibold outline-none focus:border-[#9d4300]"
                     />
                   </div>
                   <button
@@ -940,7 +940,7 @@ export function StockPage() {
                       setEditingMaterial(null);
                       setShowMaterialModal(true);
                     }}
-                    className="h-10 border border-slate-200 bg-white text-sm font-extrabold text-slate-600 hover:border-[#f97316] hover:text-[#f97316] flex items-center justify-center gap-1"
+                    className="h-10 border border-slate-200 bg-white text-sm font-extrabold text-slate-600 hover:border-[#9d4300] hover:text-[#9d4300] flex items-center justify-center gap-1"
                   >
                     <Icon name="add" className="text-sm" />
                     Thêm nguyên liệu
@@ -976,7 +976,7 @@ export function StockPage() {
                         return (
                           <tr key={material.id} className="hover:bg-slate-50">
                             <td className="px-5 py-4">
-                              <p className="font-extrabold text-[#0b1c30]">{material.name}</p>
+                              <p className="font-extrabold text-[#2a1b14]">{material.name}</p>
                               <p className="text-xs font-semibold text-slate-400">
                                 SKU: {material.sku}
                               </p>
@@ -994,12 +994,12 @@ export function StockPage() {
                                   ? "text-red-600"
                                   : material.stockQuantity <= 5
                                     ? "text-amber-600"
-                                    : "text-[#0b1c30]",
+                                    : "text-[#2a1b14]",
                               ].join(" ")}
                             >
                               {material.stockQuantity}
                             </td>
-                            <td className="px-5 py-4 text-right font-extrabold text-[#0b1c30]">
+                            <td className="px-5 py-4 text-right font-extrabold text-[#2a1b14]">
                               {formatCurrency(material.importPrice)}
                             </td>
                             <td className="px-5 py-4 text-slate-500">
@@ -1024,7 +1024,7 @@ export function StockPage() {
                                   setEditingMaterial(material);
                                   setShowMaterialModal(true);
                                 }}
-                                className="inline-flex h-8 w-8 items-center justify-center border border-slate-200 text-slate-600 hover:border-[#f97316] hover:text-[#f97316]"
+                                className="inline-flex h-8 w-8 items-center justify-center border border-slate-200 text-slate-600 hover:border-[#9d4300] hover:text-[#9d4300]"
                                 aria-label="Sửa nguyên liệu"
                               >
                                 <Icon name="edit" className="text-sm" />
@@ -1089,7 +1089,7 @@ export function StockPage() {
                       value={searchQuery}
                       onChange={(event) => setSearchQuery(event.target.value)}
                       placeholder="Tìm tên nhà cung cấp, người liên hệ, số điện thoại..."
-                      className="h-10 w-full border border-slate-200 bg-white pl-10 pr-3 text-sm font-semibold outline-none focus:border-[#f97316]"
+                      className="h-10 w-full border border-slate-200 bg-white pl-10 pr-3 text-sm font-semibold outline-none focus:border-[#9d4300]"
                     />
                   </div>
                   <button
@@ -1098,7 +1098,7 @@ export function StockPage() {
                       setEditingSupplier(null);
                       setShowSupplierModal(true);
                     }}
-                    className="h-10 border border-slate-200 bg-white text-sm font-extrabold text-slate-600 hover:border-[#f97316] hover:text-[#f97316] flex items-center justify-center gap-1"
+                    className="h-10 border border-slate-200 bg-white text-sm font-extrabold text-slate-600 hover:border-[#9d4300] hover:text-[#9d4300] flex items-center justify-center gap-1"
                   >
                     <Icon name="add" className="text-sm" />
                     Thêm NCC
@@ -1142,7 +1142,7 @@ export function StockPage() {
                         return (
                           <tr key={supplier.id} className="hover:bg-slate-50">
                             <td className="px-5 py-4">
-                              <p className="font-extrabold text-[#0b1c30]">{supplier.name}</p>
+                              <p className="font-extrabold text-[#2a1b14]">{supplier.name}</p>
                               <p className="text-xs font-semibold text-slate-400">
                                 ID: {supplier.id.slice(0, 8).toUpperCase()}
                               </p>
@@ -1159,7 +1159,7 @@ export function StockPage() {
                             <td className="max-w-[240px] truncate px-5 py-4 text-slate-500">
                               {supplier.address || "Trong"}
                             </td>
-                            <td className="px-5 py-4 text-right font-extrabold text-[#0b1c30]">
+                            <td className="px-5 py-4 text-right font-extrabold text-[#2a1b14]">
                               {supplierReceipts.length}
                             </td>
                             <td className="px-5 py-4 text-right font-extrabold text-amber-600">
@@ -1172,7 +1172,7 @@ export function StockPage() {
                                   setEditingSupplier(supplier);
                                   setShowSupplierModal(true);
                                 }}
-                                className="inline-flex h-8 w-8 items-center justify-center border border-slate-200 text-slate-600 hover:border-[#f97316] hover:text-[#f97316]"
+                                className="inline-flex h-8 w-8 items-center justify-center border border-slate-200 text-slate-600 hover:border-[#9d4300] hover:text-[#9d4300]"
                                 aria-label="Sửa nhà cung cấp"
                               >
                                 <Icon name="edit" className="text-sm" />
@@ -1245,8 +1245,8 @@ export function StockPage() {
                       className={[
                         "h-9 border px-4 text-xs font-extrabold transition-colors",
                         paymentFilter === tab.key
-                          ? "border-[#f97316] bg-[#f97316] text-white"
-                          : "border-slate-200 bg-white text-slate-600 hover:border-[#f97316] hover:text-[#f97316]",
+                          ? "border-[#9d4300] bg-[#9d4300] text-white"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-[#9d4300] hover:text-[#9d4300]",
                       ].join(" ")}
                     >
                       {tab.label} ({tab.count})
@@ -1293,7 +1293,7 @@ export function StockPage() {
                       value={searchQuery}
                       onChange={(event) => setSearchQuery(event.target.value)}
                       placeholder="Tìm mã phiếu, nhà cung cấp, ghi chú..."
-                      className="h-10 w-full border border-slate-200 bg-white pl-10 pr-3 text-sm font-semibold outline-none focus:border-[#f97316]"
+                      className="h-10 w-full border border-slate-200 bg-white pl-10 pr-3 text-sm font-semibold outline-none focus:border-[#9d4300]"
                     />
                   </div>
                   <button
@@ -1302,7 +1302,7 @@ export function StockPage() {
                       setEditingSupplier(null);
                       setShowSupplierModal(true);
                     }}
-                    className="h-10 border border-slate-200 bg-white text-sm font-extrabold text-slate-600 hover:border-[#f97316] hover:text-[#f97316]"
+                    className="h-10 border border-slate-200 bg-white text-sm font-extrabold text-slate-600 hover:border-[#9d4300] hover:text-[#9d4300]"
                   >
                     Thêm NCC
                   </button>
@@ -1331,19 +1331,19 @@ export function StockPage() {
                       return (
                         <tr key={receipt.id} className="hover:bg-slate-50">
                           <td className="px-5 py-4">
-                            <p className="inline-block bg-slate-50 px-2 py-1 text-xs font-extrabold text-[#0b1c30]">
+                            <p className="inline-block bg-slate-50 px-2 py-1 text-xs font-extrabold text-[#2a1b14]">
                               {getReceiptCode(receipt)}
                             </p>
                           </td>
                           <td className="px-5 py-4">
-                            <p className="font-extrabold text-[#0b1c30]">
+                            <p className="font-extrabold text-[#2a1b14]">
                               {receipt.supplierName || "Không có NCC"}
                             </p>
                             <p className="max-w-[240px] truncate text-xs font-semibold text-slate-400">
                               {getReceiptDetails(receipt)}
                             </p>
                           </td>
-                          <td className="px-5 py-4 text-right font-extrabold text-[#0b1c30]">
+                          <td className="px-5 py-4 text-right font-extrabold text-[#2a1b14]">
                             {formatCurrency(receipt.totalAmount)}
                           </td>
                           <td className="px-5 py-4 text-right font-extrabold text-emerald-600">
@@ -1369,7 +1369,7 @@ export function StockPage() {
                                 setSelectedReceipt(receipt);
                                 setShowReceiptDetailsModal(true);
                               }}
-                              className="inline-flex h-9 w-9 items-center justify-center border border-slate-200 text-slate-600 hover:border-[#f97316] hover:text-[#f97316]"
+                              className="inline-flex h-9 w-9 items-center justify-center border border-slate-200 text-slate-600 hover:border-[#9d4300] hover:text-[#9d4300]"
                               aria-label="Xem chi tiết"
                             >
                               <Icon name="visibility" />
@@ -1404,7 +1404,7 @@ export function StockPage() {
             className="w-full max-w-md bg-white p-6 shadow-2xl"
           >
             <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
-              <h2 className="text-lg font-extrabold text-[#0b1c30]">
+              <h2 className="text-lg font-extrabold text-[#2a1b14]">
                 {editingSupplier ? "Sửa nhà cung cấp" : "Thêm nhà cung cấp mới"}
               </h2>
               <button
@@ -1491,7 +1491,7 @@ export function StockPage() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="h-10 flex-1 bg-[#f97316] text-xs font-bold text-white hover:bg-[#ea580c] disabled:bg-slate-300"
+                  className="h-10 flex-1 bg-[#9d4300] text-xs font-bold text-white hover:bg-[#803600] disabled:bg-slate-300"
                 >
                   {isSubmitting ? "Đang xử lý..." : editingSupplier ? "Lưu thay đổi" : "Thêm mới"}
                 </button>
@@ -1508,7 +1508,7 @@ export function StockPage() {
             className="w-full max-w-md bg-white p-6 shadow-2xl"
           >
             <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
-              <h2 className="text-lg font-extrabold text-[#0b1c30]">
+              <h2 className="text-lg font-extrabold text-[#2a1b14]">
                 {editingMaterial ? "Sửa nguyên liệu" : "Thêm nguyên liệu mới"}
               </h2>
               <button
@@ -1626,7 +1626,7 @@ export function StockPage() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="h-10 flex-1 bg-[#f97316] text-xs font-bold text-white hover:bg-[#ea580c] disabled:bg-slate-300"
+                  className="h-10 flex-1 bg-[#9d4300] text-xs font-bold text-white hover:bg-[#803600] disabled:bg-slate-300"
                 >
                   {isSubmitting ? "Đang xử lý..." : editingMaterial ? "Lưu thay đổi" : "Thêm mới"}
                 </button>
@@ -1640,8 +1640,8 @@ export function StockPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
           <div className="w-full max-w-2xl bg-white p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
             <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
-              <h2 className="text-lg font-extrabold text-[#0b1c30] flex items-center gap-2">
-                <Icon name="receipt_long" className="text-[#f97316]" />
+              <h2 className="text-lg font-extrabold text-[#2a1b14] flex items-center gap-2">
+                <Icon name="receipt_long" className="text-[#9d4300]" />
                 Chi tiết phiếu nhập: {getReceiptCode(selectedReceipt)}
               </h2>
               <button
@@ -1659,15 +1659,15 @@ export function StockPage() {
             <div className="grid grid-cols-2 gap-4 text-xs font-semibold text-slate-600 mb-6 bg-slate-50 p-4 border border-slate-100">
               <div>
                 <p className="text-slate-400 uppercase text-[10px] tracking-wider mb-1">Nhà cung cấp</p>
-                <p className="text-[#0b1c30] font-bold text-sm">{selectedReceipt.supplierName || "Không có NCC"}</p>
+                <p className="text-[#2a1b14] font-bold text-sm">{selectedReceipt.supplierName || "Không có NCC"}</p>
               </div>
               <div>
                 <p className="text-slate-400 uppercase text-[10px] tracking-wider mb-1">Ngày nhập</p>
-                <p className="text-[#0b1c30] font-bold text-sm">{formatDateTime(selectedReceipt.createdAt)}</p>
+                <p className="text-[#2a1b14] font-bold text-sm">{formatDateTime(selectedReceipt.createdAt)}</p>
               </div>
               <div>
                 <p className="text-slate-400 uppercase text-[10px] tracking-wider mb-1">Người lập phiếu</p>
-                <p className="text-[#0b1c30] font-bold text-sm">{selectedReceipt.createdByName || "Quản trị hệ thống"}</p>
+                <p className="text-[#2a1b14] font-bold text-sm">{selectedReceipt.createdByName || "Quản trị hệ thống"}</p>
               </div>
               <div>
                 <p className="text-slate-400 uppercase text-[10px] tracking-wider mb-1">Trạng thái thanh toán</p>
@@ -1678,7 +1678,7 @@ export function StockPage() {
               {getDisplayNote(selectedReceipt.note) && (
                 <div className="col-span-2 border-t border-slate-200/60 pt-2 mt-1">
                   <p className="text-slate-400 uppercase text-[10px] tracking-wider mb-1">Ghi chú</p>
-                  <p className="text-[#0b1c30] whitespace-pre-wrap">{getDisplayNote(selectedReceipt.note)}</p>
+                  <p className="text-[#2a1b14] whitespace-pre-wrap">{getDisplayNote(selectedReceipt.note)}</p>
                 </div>
               )}
             </div>
@@ -1698,23 +1698,23 @@ export function StockPage() {
                     selectedReceipt.materialDetails.map((detail) => (
                       <tr key={detail.id}>
                         <td className="py-3">
-                          <p className="font-extrabold text-[#0b1c30]">{detail.materialName}</p>
+                          <p className="font-extrabold text-[#2a1b14]">{detail.materialName}</p>
                           <p className="text-[11px] text-slate-400">SKU: {detail.materialId.slice(0, 8).toUpperCase()} - Đơn vị: {detail.unit}</p>
                         </td>
                         <td className="py-3 text-center">{detail.quantity}</td>
                         <td className="py-3 text-right">{formatCurrency(detail.unitPrice)}</td>
-                        <td className="py-3 text-right font-bold text-[#0b1c30]">{formatCurrency(detail.lineTotal)}</td>
+                        <td className="py-3 text-right font-bold text-[#2a1b14]">{formatCurrency(detail.lineTotal)}</td>
                       </tr>
                     ))
                   ) : Array.isArray(selectedReceipt.details) && selectedReceipt.details.length > 0 ? (
                     selectedReceipt.details.map((detail) => (
                       <tr key={detail.id}>
                         <td className="py-3">
-                          <p className="font-extrabold text-[#0b1c30]">{detail.productName}</p>
+                          <p className="font-extrabold text-[#2a1b14]">{detail.productName}</p>
                         </td>
                         <td className="py-3 text-center">{detail.quantity}</td>
                         <td className="py-3 text-right">{formatCurrency(detail.unitPrice)}</td>
-                        <td className="py-3 text-right font-bold text-[#0b1c30]">{formatCurrency(detail.lineTotal)}</td>
+                        <td className="py-3 text-right font-bold text-[#2a1b14]">{formatCurrency(detail.lineTotal)}</td>
                       </tr>
                     ))
                   ) : (
@@ -1736,7 +1736,7 @@ export function StockPage() {
                 <span className="text-emerald-600">{formatCurrency(getPaidAmount(selectedReceipt))}</span>
               </div>
               <div className="flex justify-between border-t border-dashed border-slate-200 pt-3 text-base">
-                <span className="text-[#0b1c30]">Còn nợ nhà cung cấp:</span>
+                <span className="text-[#2a1b14]">Còn nợ nhà cung cấp:</span>
                 <span className={selectedReceipt.totalAmount - getPaidAmount(selectedReceipt) > 0 ? "text-rose-600" : "text-emerald-600"}>
                   {formatCurrency(Math.max(selectedReceipt.totalAmount - getPaidAmount(selectedReceipt), 0))}
                 </span>
@@ -1750,7 +1750,7 @@ export function StockPage() {
                   setShowReceiptDetailsModal(false);
                   setSelectedReceipt(null);
                 }}
-                className="h-10 w-full bg-[#f97316] text-xs font-bold text-white hover:bg-[#ea6c0a]"
+                className="h-10 w-full bg-[#9d4300] text-xs font-bold text-white hover:bg-[#ea6c0a]"
               >
                 Đóng
               </button>

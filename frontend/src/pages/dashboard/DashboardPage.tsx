@@ -15,18 +15,18 @@ import EmployeeRevenueTable from "../../components/dashboard/EmployeeRevenueTabl
 
 type StatsCardData = { label: string; value: string; icon: string; };
 type RecentOrder = { code: string; customer: string; type: string; total: string; status: string; typeClassName: string; statusClassName: string; };
-type StockAlert = { product: string; remain: string; minimum: string; remainClassName: string; };
+type DashboardMaterialRow = { name: string; sku: string; category: string; importPrice: string; };
 
 function StatCard({ card }: { card: StatsCardData }) {
   return (
     <article className="rounded-3xl border border-slate-200/60 bg-white p-6 shadow-sm">
       <div className="mb-5 flex items-center justify-between relative z-10">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-[#f97316]">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-[#9d4300]">
           <Icon name={card.icon} className="text-[24px]" filled />
         </div>
       </div>
       <p className="relative z-10 text-xs font-bold uppercase tracking-widest text-slate-400">{card.label}</p>
-      <h3 className="relative z-10 mt-2 font-['Plus_Jakarta_Sans',sans-serif] text-3xl font-extrabold tracking-tight text-[#0b1c30]">{card.value}</h3>
+      <h3 className="relative z-10 mt-2 font-['Plus_Jakarta_Sans',sans-serif] text-3xl font-extrabold tracking-tight text-[#2a1b14]">{card.value}</h3>
     </article>
   );
 }
@@ -45,9 +45,6 @@ function getOrderStatusClassName(status: string) {
   return classNames[status] ?? "bg-slate-100 text-slate-500";
 }
 
-function getStockRemainClassName(stockQuantity: number, minStock: number) {
-  return stockQuantity <= minStock / 2 ? "text-red-600" : "text-orange-600";
-}
 
 function DashboardPage() {
   const navigate = useNavigate();
@@ -114,7 +111,7 @@ function DashboardPage() {
     { label: "Tổng hóa đơn", value: String(stats?.todayOrders ?? 0), icon: "receipt_long" },
     { label: "Tổng giá trị kho", value: formatCurrency(stats?.totalStockValue ?? 0), icon: "warehouse" },
     { label: "Danh mục đang bán", value: String(stats?.activeCategories ?? 0), icon: "category" },
-    { label: "Nguyên liệu sắp hết", value: String(stats?.lowStockProducts ?? 0), icon: "priority_high" },
+    { label: "Tổng nguyên liệu", value: String(stats?.totalMaterials ?? 0), icon: "kitchen" },
     { label: "Tổng khách hàng", value: String(stats?.totalCustomers ?? 0), icon: "group" },
     { label: "Sản phẩm đang bán", value: String(stats?.activeProducts ?? 0), icon: "inventory_2" },
   ];
@@ -129,18 +126,18 @@ function DashboardPage() {
   }));
 
   const realRecentOrders: RecentOrder[] = (dashboard?.recentOrders ?? []).map((order) => ({
-    code: `#HD-${order.id.slice(0, 8).toUpperCase()}`, customer: order.customerName, type: "POS", total: formatCurrency(order.finalAmount), status: getOrderStatusLabel(order.status), typeClassName: "bg-orange-50 text-[#f97316]", statusClassName: getOrderStatusClassName(order.status),
+    code: `#HD-${order.id.slice(0, 8).toUpperCase()}`, customer: order.customerName, type: "POS", total: formatCurrency(order.finalAmount), status: getOrderStatusLabel(order.status), typeClassName: "bg-orange-50 text-[#9d4300]", statusClassName: getOrderStatusClassName(order.status),
   }));
 
-  const realStockAlerts: StockAlert[] = (dashboard?.stockAlerts ?? []).map((item) => ({
-    product: item.name, remain: String(item.stockQuantity), minimum: String(item.minStock), remainClassName: getStockRemainClassName(item.stockQuantity, item.minStock),
+  const recentMaterials: DashboardMaterialRow[] = (dashboard?.materials ?? []).map((item) => ({
+    name: item.name, sku: item.sku, category: item.category, importPrice: formatCurrency(item.importPrice),
   }));
 
   const paymentMethods = dashboard?.paymentMethods ?? [];
   const totalOrdersCount = paymentMethods.reduce((sum, item) => sum + (item.ordersCount || 0), 0);
 
   const paymentMethodColors: Record<string, string> = {
-    'cash': '#f97316', // Orange 500
+    'cash': '#9d4300', // Orange 500
     'qr': '#fb923c',   // Orange 400
     'card': '#fed7aa', // Orange 200
   };
@@ -179,13 +176,13 @@ function DashboardPage() {
             type="date"
             value={reportDate}
             onChange={(e) => setReportDate(e.target.value)}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-bold text-[#f97316] outline-none transition-all focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-bold text-[#9d4300] outline-none transition-all focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
           />
           <button
             type="button"
             onClick={handleManualRefresh}
             disabled={isRefreshing}
-            className="flex h-8.5 w-8.5 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:border-[#f97316] hover:text-[#f97316] disabled:opacity-50"
+            className="flex h-8.5 w-8.5 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:border-[#9d4300] hover:text-[#9d4300] disabled:opacity-50"
             title="Làm mới dữ liệu"
           >
             <Icon name="refresh" className={`text-[18px] ${isRefreshing ? "animate-spin" : ""}`} />
@@ -237,8 +234,8 @@ function DashboardPage() {
       <section className="mb-8 grid grid-cols-1 gap-6 2xl:grid-cols-12">
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm 2xl:col-span-5">
           <div className="flex items-center justify-between border-b border-slate-200 p-6">
-            <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-bold text-[#0b1c30]">Hóa đơn gần đây</h4>
-            <button type="button" className="text-xs font-bold text-[#f97316] hover:underline">Xem tất cả</button>
+            <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-bold text-[#2a1b14]">Hóa đơn gần đây</h4>
+            <button type="button" className="text-xs font-bold text-[#9d4300] hover:underline">Xem tất cả</button>
           </div>
 
           <div className="overflow-x-auto">
@@ -250,9 +247,9 @@ function DashboardPage() {
                 {realRecentOrders.length > 0 ? (
                   realRecentOrders.map((order) => (
                     <tr key={order.code} className="transition-colors hover:bg-slate-50">
-                      <td className="px-6 py-4 font-bold text-[#f97316]">{order.code}</td>
-                      <td className="px-6 py-4 text-[#0b1c30] truncate max-w-30">{order.customer}</td>
-                      <td className="px-6 py-4 text-right font-semibold text-[#0b1c30]">{order.total}</td>
+                      <td className="px-6 py-4 font-bold text-[#9d4300]">{order.code}</td>
+                      <td className="px-6 py-4 text-[#2a1b14] truncate max-w-30">{order.customer}</td>
+                      <td className="px-6 py-4 text-right font-semibold text-[#2a1b14]">{order.total}</td>
                       <td className="px-6 py-4 text-center"><span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${order.statusClassName}`}>{order.status}</span></td>
                     </tr>
                   ))
@@ -266,26 +263,35 @@ function DashboardPage() {
 
         <div className="overflow-hidden rounded-3xl border border-slate-200/60 bg-white shadow-lg shadow-slate-200/40 2xl:col-span-4">
           <div className="flex items-center justify-between border-b border-slate-100 p-6">
-            <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-bold text-[#0b1c30]">Cảnh báo tồn kho</h4>
-            <button type="button" onClick={() => navigate("/products")} className="text-[11px] font-bold uppercase tracking-widest text-[#f97316] hover:underline">Xem tất cả</button>
+            <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-bold text-[#2a1b14]">Nguyên liệu mới thêm</h4>
+            <button type="button" onClick={() => navigate("/stock/materials")} className="text-[11px] font-bold uppercase tracking-widest text-[#9d4300] hover:underline">Xem tất cả</button>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full min-w-104 text-left text-sm">
               <thead className="bg-slate-50/50 font-semibold text-slate-400">
-                <tr><th className="px-6 py-4 uppercase tracking-widest text-[10px]">Nguyên liệu</th><th className="px-6 py-4 text-center uppercase tracking-widest text-[10px]">Còn lại</th><th className="px-6 py-4 text-center uppercase tracking-widest text-[10px]">Tối thiểu</th></tr>
+                <tr>
+                  <th className="px-6 py-4 uppercase tracking-widest text-[10px]">Nguyên liệu</th>
+                  <th className="px-6 py-4 uppercase tracking-widest text-[10px]">Phân loại</th>
+                  <th className="px-6 py-4 text-right uppercase tracking-widest text-[10px]">Giá nhập</th>
+                </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {realStockAlerts.length > 0 ? (
-                  realStockAlerts.map((item) => (
-                    <tr key={item.product} className="transition-colors hover:bg-slate-50/50">
-                      <td className="px-6 py-4 text-[#0b1c30] font-semibold truncate max-w-30">{item.product}</td>
-                      <td className="px-6 py-4 text-center font-black"><span className={`rounded-full px-3 py-1 text-xs bg-red-50 ${item.remainClassName}`}>{item.remain}</span></td>
-                      <td className="px-6 py-4 text-center font-bold text-slate-400">{item.minimum}</td>
+                {recentMaterials.length > 0 ? (
+                  recentMaterials.map((item) => (
+                    <tr key={item.sku} className="transition-colors hover:bg-slate-50/50">
+                      <td className="px-6 py-4 text-[#2a1b14] font-semibold truncate max-w-30">
+                        <div>
+                          <p className="font-extrabold text-[#2a1b14]">{item.name}</p>
+                          <p className="text-[11px] text-slate-400">SKU: {item.sku}</p>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-slate-600 font-medium">{item.category}</td>
+                      <td className="px-6 py-4 text-right font-bold text-[#9d4300]">{item.importPrice}</td>
                     </tr>
                   ))
                 ) : (
-                  <tr><td colSpan={3} className="px-6 py-8 text-center text-sm font-semibold text-slate-400">Không có sản phẩm sắp hết hàng</td></tr>
+                  <tr><td colSpan={3} className="px-6 py-8 text-center text-sm font-semibold text-slate-400">Không có nguyên liệu</td></tr>
                 )}
               </tbody>
             </table>
@@ -294,7 +300,7 @@ function DashboardPage() {
 
         <div className="flex flex-col rounded-3xl border border-slate-200/60 bg-white shadow-lg shadow-slate-200/40 2xl:col-span-3">
           <div className="p-6 pb-2">
-            <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-black text-[14px] uppercase tracking-wider text-[#0b1c30]">Phương thức thanh toán</h4>
+            <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-black text-[14px] uppercase tracking-wider text-[#2a1b14]">Phương thức thanh toán</h4>
           </div>
           <div className="p-6 pt-2 flex-1 flex flex-col justify-center">
             {totalOrdersCount > 0 ? (
@@ -317,7 +323,7 @@ function DashboardPage() {
                   </PieChart>
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tổng</span>
-                    <span className="text-[28px] font-black leading-none text-[#0b1c30]">{totalOrdersCount}</span>
+                    <span className="text-[28px] font-black leading-none text-[#2a1b14]">{totalOrdersCount}</span>
                   </div>
                 </div>
 
@@ -331,7 +337,7 @@ function DashboardPage() {
                           <span className="text-[13px] font-bold text-slate-700">{paymentMethodLabels[item.name]}</span>
                         </div>
                         <div className="text-right">
-                          <p className="text-[15px] font-black text-[#0b1c30]">{item.percentage}%</p>
+                          <p className="text-[15px] font-black text-[#2a1b14]">{item.percentage}%</p>
                           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{item.ordersCount} đơn</p>
                         </div>
                       </div>

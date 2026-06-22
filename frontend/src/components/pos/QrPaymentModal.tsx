@@ -69,7 +69,7 @@ function QrPaymentModal({
       <div className="w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
           <div>
-            <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-extrabold text-[#0b1c30]">
+            <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-extrabold text-[#2a1b14]">
               Thanh toán QR
             </h3>
           </div>
@@ -94,7 +94,7 @@ function QrPaymentModal({
                   className="h-80 w-80 rounded-lg object-contain"
                 />
               </div>
-              <div className="mx-auto mt-4 w-fit rounded-full border border-orange-100 bg-white px-4 py-1 text-xs font-extrabold uppercase text-[#f97316]">
+              <div className="mx-auto mt-4 w-fit rounded-full border border-orange-100 bg-white px-4 py-1 text-xs font-extrabold uppercase text-[#9d4300]">
                 {WALLET_NAME}
               </div>
             </section>
@@ -105,7 +105,7 @@ function QrPaymentModal({
                   <p className="text-xs font-extrabold uppercase text-slate-400">
                     Hình thức nhận tiền
                   </p>
-                  <p className="mt-2 text-lg font-extrabold text-[#0b1c30]">
+                  <p className="mt-2 text-lg font-extrabold text-[#2a1b14]">
                     {PAYMENT_NAME}
                   </p>
                 </div>
@@ -116,14 +116,14 @@ function QrPaymentModal({
                       <p className="text-xs font-extrabold uppercase text-slate-400">
                         Tài khoản nhận
                       </p>
-                      <p className="mt-2 text-lg font-extrabold text-[#0b1c30]">
+                      <p className="mt-2 text-lg font-extrabold text-[#2a1b14]">
                         {ACCOUNT_NO}
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => copyText(ACCOUNT_NO)}
-                      className="rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-[#f97316]"
+                      className="rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-[#9d4300]"
                     >
                       <Icon name="content_copy" />
                     </button>
@@ -136,14 +136,14 @@ function QrPaymentModal({
                       <p className="text-xs font-extrabold uppercase text-slate-400">
                         Tên người nhận
                       </p>
-                      <p className="mt-2 text-lg font-extrabold text-[#0b1c30]">
+                      <p className="mt-2 text-lg font-extrabold text-[#2a1b14]">
                         {ACCOUNT_NAME}
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => copyText(ACCOUNT_NAME)}
-                      className="rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-[#f97316]"
+                      className="rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-[#9d4300]"
                     >
                       <Icon name="content_copy" />
                     </button>
@@ -156,14 +156,14 @@ function QrPaymentModal({
                       <p className="text-xs font-extrabold uppercase text-slate-400">
                         Số tiền thanh toán
                       </p>
-                      <p className="mt-2 text-2xl font-extrabold text-[#f97316]">
+                      <p className="mt-2 text-2xl font-extrabold text-[#9d4300]">
                         {formatCurrency(amount)}
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => copyText(String(Math.round(amount)))}
-                      className="rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-[#f97316]"
+                      className="rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-[#9d4300]"
                     >
                       <Icon name="content_copy" />
                     </button>
@@ -178,12 +178,12 @@ function QrPaymentModal({
                     <button
                       type="button"
                       onClick={() => copyText(transferContent)}
-                      className="rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-[#f97316]"
+                      className="rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-[#9d4300]"
                     >
                       <Icon name="content_copy" />
                     </button>
                   </div>
-                  <p className="rounded-lg border border-orange-100 bg-orange-50 px-4 py-4 font-mono text-sm font-extrabold text-[#f97316]">
+                  <p className="rounded-lg border border-orange-100 bg-orange-50 px-4 py-4 font-mono text-sm font-extrabold text-[#9d4300]">
                     {transferContent}
                   </p>
                   <p className="mt-2 text-xs font-semibold text-slate-500">
@@ -208,13 +208,13 @@ function QrPaymentModal({
                 <span className="text-slate-600">VAT 0%</span>
                 <span>{formatCurrency(0)}</span>
               </div>
-              <div className="flex justify-between gap-4 text-xl font-extrabold text-[#0b1c30]">
+              <div className="flex justify-between gap-4 text-xl font-extrabold text-[#2a1b14]">
                 <span>Tổng cộng</span>
-                <span className="text-[#f97316]">{formatCurrency(amount)}</span>
+                <span className="text-[#9d4300]">{formatCurrency(amount)}</span>
               </div>
               <div className="flex justify-between gap-4">
                 <span className="text-slate-600">Phuong thuc</span>
-                <span className="font-extrabold text-[#0b1c30]">Chuyển khoản</span>
+                <span className="font-extrabold text-[#2a1b14]">Chuyển khoản</span>
               </div>
             </div>
           </section>
@@ -232,7 +232,7 @@ function QrPaymentModal({
               type="button"
               onClick={onConfirm}
               disabled={isProcessing}
-              className="flex items-center justify-center gap-2 rounded-xl bg-[#0b1c30] px-6 py-3 font-extrabold text-white hover:bg-[#132a45] disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex items-center justify-center gap-2 rounded-xl bg-[#2a1b14] px-6 py-3 font-extrabold text-white hover:bg-[#132a45] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Icon name="check_circle" />
               {isProcessing ? "Đang tạo hóa đơn..." : "Xác nhận đã nhận tiền"}

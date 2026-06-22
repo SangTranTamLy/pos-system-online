@@ -14,11 +14,8 @@ import {
   getProducts,
   updateProduct,
   uploadProductImage,
-  getProductRecipe,
-  saveProductRecipe,
   type Product,
 } from "../../api/product.api";
-import { fetchMaterials, type Material } from "../../api/inventory.api";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 import { FilterBar } from "../../components/common/FilterBar";
 
@@ -31,6 +28,7 @@ type ProductFormState = {
   stockQuantity: string;
   description: string;
   imageUrl: string;
+  isAvailable: boolean;
 };
 
 const defaultFormState: ProductFormState = {
@@ -42,6 +40,7 @@ const defaultFormState: ProductFormState = {
   stockQuantity: "0",
   description: "",
   imageUrl: "",
+  isAvailable: true,
 };
 
 function formatCurrency(value: number) {
@@ -108,7 +107,7 @@ function ProductStatCard({
   label,
   value,
   icon,
-  accentClassName = "text-[#f97316]",
+  accentClassName = "text-[#9d4300]",
 }: {
   label: string;
   value: string;
@@ -123,7 +122,7 @@ function ProductStatCard({
         </div>
       </div>
       <p className="text-xs font-bold uppercase tracking-tight text-slate-500">{label}</p>
-      <h3 className="mt-1 text-2xl font-extrabold text-[#0b1c30]">{value}</h3>
+      <h3 className="mt-1 text-2xl font-extrabold text-[#2a1b14]">{value}</h3>
     </article>
   );
 }
@@ -145,13 +144,7 @@ function ProductPage() {
   const [formState, setFormState] = useState<ProductFormState>(defaultFormState);
   const [imageSource, setImageSource] = useState<"file" | "url">("file");
 
-  // States for recipe modal
-  const [isRecipeModalOpen, setIsRecipeModalOpen] = useState(false);
-  const [editingProductForRecipe, setEditingProductForRecipe] = useState<Product | null>(null);
-  const [materials, setMaterials] = useState<Material[]>([]);
-  const [recipeIngredients, setRecipeIngredients] = useState<Array<{ ingredientId: string; quantityNeeded: number }>>([]);
-  const [recipeErrorMessage, setRecipeErrorMessage] = useState("");
-  const [isRecipeSaving, setIsRecipeSaving] = useState(false);
+  // Removed recipe modal states
 
   const loadData = useCallback(async () => {
     try {
@@ -207,12 +200,18 @@ function ProductPage() {
   const pageSize = 6;
 
   const stats = useMemo(() => {
-    const availableCount = products.filter((product) => product.stockQuantity > 0).length;
-    const outOfStockCount = products.filter(
-      (product) => product.stockQuantity <= 0
+    const availableCount = products.filter((product) =>
+      product.isTrackedStock
+        ? (product.stockQuantity !== null && product.stockQuantity > 0)
+        : product.isAvailable
     ).length;
-    const lowStockCount = products.filter(
-      (product) => product.stockQuantity > 0 && product.stockQuantity <= 10
+    const outOfStockCount = products.filter((product) =>
+      product.isTrackedStock
+        ? (product.stockQuantity === null || product.stockQuantity <= 0)
+        : !product.isAvailable
+    ).length;
+    const lowStockCount = products.filter((product) =>
+      product.isTrackedStock && product.stockQuantity !== null && product.stockQuantity > 0 && product.stockQuantity <= 10
     ).length;
 
     return [
@@ -261,6 +260,7 @@ function ProductPage() {
     setFormState({
       ...defaultFormState,
       categoryId: categories[0]?.id ?? "",
+      isAvailable: true,
     });
     setImageSource("file");
     setIsModalOpen(true);
@@ -274,9 +274,10 @@ function ProductPage() {
       name: product.name,
       importPrice: String(product.importPrice),
       salePrice: String(product.salePrice),
-      stockQuantity: String(product.stockQuantity),
+      stockQuantity: product.stockQuantity !== null ? String(product.stockQuantity) : "",
       description: product.description ?? "",
       imageUrl: product.imageUrl ?? "",
+      isAvailable: product.isAvailable,
     });
     const hasExternalImage = product.imageUrl &&
       product.imageUrl.trim().startsWith("http") &&
@@ -290,104 +291,6 @@ function ProductPage() {
     setFormState(defaultFormState);
     setImageSource("file");
     setIsModalOpen(false);
-  };
-
-  const openRecipeModal = async (product: Product) => {
-    setEditingProductForRecipe(product);
-    setRecipeErrorMessage("");
-    setRecipeIngredients([]);
-    setIsRecipeModalOpen(true);
-    try {
-      const [materialsResponse, recipeResponse] = await Promise.all([
-        fetchMaterials(),
-        getProductRecipe(product.id),
-      ]);
-      setMaterials(materialsResponse.data.filter((m) => m.isActive));
-      if (recipeResponse.data && recipeResponse.data.length > 0) {
-        setRecipeIngredients(
-          recipeResponse.data.map((item) => ({
-            ingredientId: item.ingredientId,
-            quantityNeeded: item.quantityNeeded,
-          }))
-        );
-      } else {
-        setRecipeIngredients([{ ingredientId: "", quantityNeeded: 0 }]);
-      }
-    } catch (error) {
-      setRecipeErrorMessage(error instanceof Error ? error.message : "Tải công thức hoặc danh sách nguyên liệu thất bại");
-    }
-  };
-
-  const handleAddRecipeIngredient = () => {
-    setRecipeIngredients((current) => [
-      ...current,
-      { ingredientId: "", quantityNeeded: 0 },
-    ]);
-  };
-
-  const handleRemoveRecipeIngredient = (index: number) => {
-    setRecipeIngredients((current) => current.filter((_, i) => i !== index));
-  };
-
-  const handleRecipeIngredientChange = (
-    index: number,
-    field: "ingredientId" | "quantityNeeded",
-    value: string | number
-  ) => {
-    setRecipeIngredients((current) =>
-      current.map((item, i) => {
-        if (i === index) {
-          return {
-            ...item,
-            [field]: value,
-          };
-        }
-        return item;
-      })
-    );
-  };
-
-  const handleSaveRecipe = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!editingProductForRecipe) {
-      return;
-    }
-
-    const validIngredients = recipeIngredients.filter(
-      (item) => item.ingredientId.trim() !== ""
-    );
-
-    const ids = validIngredients.map((item) => item.ingredientId);
-    const hasDuplicates = ids.some((id, index) => ids.indexOf(id) !== index);
-    if (hasDuplicates) {
-      setRecipeErrorMessage("Không thể chọn trùng nguyên liệu trong cùng một công thức");
-      return;
-    }
-
-    for (const item of validIngredients) {
-      if (item.quantityNeeded <= 0) {
-        setRecipeErrorMessage("Số lượng nguyên liệu phải lớn hơn 0");
-        return;
-      }
-    }
-
-    try {
-      setIsRecipeSaving(true);
-      setRecipeErrorMessage("");
-
-      await saveProductRecipe(editingProductForRecipe.id, {
-        ingredients: validIngredients,
-      });
-
-      setIsRecipeModalOpen(false);
-      setEditingProductForRecipe(null);
-      setRecipeIngredients([]);
-      setShowToast(true);
-    } catch (error) {
-      setRecipeErrorMessage(error instanceof Error ? error.message : "Lưu công thức thất bại");
-    } finally {
-      setIsRecipeSaving(false);
-    }
   };
 
   const handleImageFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -420,15 +323,20 @@ function ProductPage() {
     try {
       setErrorMessage("");
 
+      const selectedCategory = categories.find((c) => c.id === formState.categoryId);
+      const isTrackedStock = selectedCategory ? selectedCategory.isTrackedStock : false;
+
       const payload = {
         categoryId: formState.categoryId,
         sku: formState.sku.trim(),
         name: formState.name.trim(),
+        isTrackedStock,
         importPrice: Number(formState.importPrice || 0),
         salePrice: Number(formState.salePrice || 0),
-        stockQuantity: Number(formState.stockQuantity || 0),
+        stockQuantity: isTrackedStock ? Number(formState.stockQuantity || 0) : null,
         description: formState.description.trim() || null,
         imageUrl: formState.imageUrl.trim() || null,
+        isAvailable: formState.isAvailable,
       };
 
       if (editingProduct) {
@@ -545,13 +453,15 @@ function ProductPage() {
           );
         }
 
+        const isTrackedStock = category.isTrackedStock;
         await createProduct({
           sku: getCell(values, ["SKU", "Mã sản phẩm"]),
           name: getCell(values, ["Tên sản phẩm", "name"]),
           categoryId: category.id,
+          isTrackedStock,
           importPrice: parseImportedNumber(getCell(values, ["Giá nhập", "importPrice"])),
           salePrice: parseImportedNumber(getCell(values, ["Giá bán", "salePrice"])),
-          stockQuantity: parseImportedNumber(getCell(values, ["Tồn kho", "stockQuantity"])),
+          stockQuantity: isTrackedStock ? parseImportedNumber(getCell(values, ["Tồn kho", "stockQuantity"])) : null,
           description: getCell(values, ["Mô tả", "description"]) || null,
           imageUrl: getCell(values, ["Ảnh", "imageUrl"]) || null,
         });
@@ -571,10 +481,10 @@ function ProductPage() {
     >
       <section className="mb-8 flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="mb-2 text-xs font-bold uppercase tracking-widest text-[#f97316]">
+          <p className="mb-2 text-xs font-bold uppercase tracking-widest text-[#9d4300]">
             Kho thực đơn
           </p>
-          <h1 className="font-['Plus_Jakarta_Sans',sans-serif] text-3xl font-extrabold text-[#0b1c30]">
+          <h1 className="font-['Plus_Jakarta_Sans',sans-serif] text-3xl font-extrabold text-[#2a1b14]">
             Sản phẩm bán tại cửa hàng
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-slate-500">
@@ -606,7 +516,7 @@ function ProductPage() {
           <button
             type="button"
             onClick={openCreateModal}
-            className="inline-flex h-10 items-center justify-center gap-2 bg-[#f97316] px-4 text-sm font-bold text-white transition-colors hover:bg-[#ea580c]"
+            className="inline-flex h-10 items-center justify-center gap-2 bg-[#9d4300] px-4 text-sm font-bold text-white transition-colors hover:bg-[#803600]"
           >
             <Icon name="add" />
             Thêm sản phẩm
@@ -650,7 +560,7 @@ function ProductPage() {
               );
               setPage(1);
             }}
-            className="h-[46px] rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition-all focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+            className="h-[46px] rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition-all focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
           >
             <option value="all">Tất cả danh mục</option>
             {categories.map((category) => (
@@ -693,58 +603,58 @@ function ProductPage() {
                         className="h-14 w-14 rounded-xl object-cover ring-1 ring-slate-200"
                       />
                     ) : (
-                      <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-orange-50 text-[#f97316]">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-orange-50 text-[#9d4300]">
                         <Icon name="fastfood" />
                       </div>
                     )}
                   </td>
                   <td className="px-6 py-4 font-bold text-slate-500">{product.sku}</td>
                   <td className="px-6 py-4">
-                    <p className="font-bold text-[#0b1c30]">{product.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-bold text-[#2a1b14]">{product.name}</p>
+                      {!product.isAvailable ? (
+                        <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/10">
+                          Ngừng bán
+                        </span>
+                      ) : null}
+                    </div>
                     <p className="mt-1 max-w-[220px] truncate text-xs text-slate-400">
                       {product.description || "Chưa có mô tả"}
                     </p>
                   </td>
                   <td className="px-6 py-4 text-slate-600">
-                    {product.categoryName || "ChÆ°a phÃ¢n loáº¡i"}
+                    {product.categoryName || "Chưa phân loại"}
                   </td>
                   <td className="px-6 py-4 text-right text-slate-500">
                     {formatCurrency(product.importPrice)}
                   </td>
-                  <td className="px-6 py-4 text-right font-bold text-[#f97316]">
+                  <td className="px-6 py-4 text-right font-bold text-[#9d4300]">
                     {formatCurrency(product.salePrice)}
                   </td>
-                  <td
-                    className={[
-                      "px-6 py-4 text-center font-bold",
-                      product.stockQuantity <= 0
-                        ? "text-red-600"
-                        : product.stockQuantity <= 10
-                          ? "text-amber-600"
-                          : "text-[#0b1c30]",
-                    ].join(" ")}
-                  >
-                    {product.stockQuantity}
+                  <td className="px-6 py-4 text-center">
+                    {product.isTrackedStock ? (
+                      <span
+                        className={[
+                          "font-bold",
+                          product.stockQuantity === null || product.stockQuantity <= 0
+                            ? "text-red-600"
+                            : product.stockQuantity <= 10
+                              ? "text-amber-600"
+                              : "text-[#2a1b14]",
+                        ].join(" ")}
+                      >
+                        {product.stockQuantity}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 font-normal">Không quản lý</span>
+                    )}
                   </td>
                   <td className="space-x-2 px-6 py-4 text-right">
-                    {product.requiresPreparation ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void openRecipeModal(product);
-                        }}
-                        className="rounded-lg p-2 text-indigo-600 transition-colors hover:bg-indigo-50"
-                        title="Định lượng"
-                        aria-label="Định lượng"
-                      >
-                        <Icon name="menu_book" className="text-xl" />
-                      </button>
-                    ) : null}
                     <button
                       type="button"
                       onClick={() => openEditModal(product)}
-                      className="rounded-lg p-2 text-[#f97316] transition-colors hover:bg-orange-50"
-                      aria-label="Sá»­a sáº£n pháº©m"
+                      className="rounded-lg p-2 text-[#9d4300] transition-colors hover:bg-orange-50"
+                      aria-label="Sửa sản phẩm"
                     >
                       <Icon name="edit" className="text-xl" />
                     </button>
@@ -754,7 +664,7 @@ function ProductPage() {
                         void handleDeleteProduct(product);
                       }}
                       className="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50"
-                      aria-label="XÃ³a sáº£n pháº©m"
+                      aria-label="Xóa sản phẩm"
                     >
                       <Icon name="delete" className="text-xl" />
                     </button>
@@ -767,8 +677,8 @@ function ProductPage() {
 
         <div className="flex flex-col items-start justify-between gap-4 border-t border-slate-200 p-4 sm:flex-row sm:items-center">
           <p className="text-sm text-slate-500">
-            Hiển thị <span className="font-bold text-[#0b1c30]">{paginatedProducts.length}</span>{" "}
-            trên <span className="font-bold text-[#0b1c30]">{filteredProducts.length}</span>{" "}
+            Hiển thị <span className="font-bold text-[#2a1b14]">{paginatedProducts.length}</span>{" "}
+            trên <span className="font-bold text-[#2a1b14]">{filteredProducts.length}</span>{" "}
             sản phẩm
           </p>
           <div className="flex items-center gap-2">
@@ -788,8 +698,8 @@ function ProductPage() {
                 className={[
                   "flex h-8 w-8 items-center justify-center rounded-lg text-xs font-medium transition-colors",
                   page === pageNumber
-                    ? "bg-[#f97316] font-bold text-white"
-                    : "text-[#0b1c30] hover:bg-slate-50",
+                    ? "bg-[#9d4300] font-bold text-white"
+                    : "text-[#2a1b14] hover:bg-slate-50",
                 ].join(" ")}
               >
                 {pageNumber}
@@ -812,10 +722,10 @@ function ProductPage() {
           <div className="w-full max-w-3xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-5">
               <div className="flex items-center gap-3">
-                <span className="rounded-xl bg-orange-50 p-2 text-[#f97316]">
+                <span className="rounded-xl bg-orange-50 p-2 text-[#9d4300]">
                   <Icon name="package_2" />
                 </span>
-                <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-bold text-[#0b1c30]">
+                <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-bold text-[#2a1b14]">
                   {editingProduct ? "Sửa sản phẩm" : "Thêm sản phẩm mới"}
                 </h3>
               </div>
@@ -831,7 +741,7 @@ function ProductPage() {
 
             <form className="grid gap-5 p-6 sm:grid-cols-2" onSubmit={handleSubmit}>
               <label className="space-y-2">
-                <span className="block text-sm font-semibold text-[#0b1c30]">
+                <span className="block text-sm font-semibold text-[#2a1b14]">
                   Tên sản phẩm <span className="text-red-600">*</span>
                 </span>
                 <input
@@ -840,13 +750,13 @@ function ProductPage() {
                   onChange={(event) =>
                     setFormState((current) => ({ ...current, name: event.target.value }))
                   }
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
                   placeholder="VD: Bánh mì thịt"
                 />
               </label>
 
               <label className="space-y-2">
-                <span className="block text-sm font-semibold text-[#0b1c30]">
+                <span className="block text-sm font-semibold text-[#2a1b14]">
                   SKU <span className="text-red-600">*</span>
                 </span>
                 <input
@@ -855,20 +765,20 @@ function ProductPage() {
                   onChange={(event) =>
                     setFormState((current) => ({ ...current, sku: event.target.value }))
                   }
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
                   placeholder="VD: BM001"
                 />
               </label>
 
               <label className="space-y-2">
-                <span className="block text-sm font-semibold text-[#0b1c30]">Danh mục</span>
+                <span className="block text-sm font-semibold text-[#2a1b14]">Danh mục</span>
                 <select
                   required
                   value={formState.categoryId}
                   onChange={(event) =>
                     setFormState((current) => ({ ...current, categoryId: event.target.value }))
                   }
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
                 >
                   <option value="">Chọn danh mục</option>
                   {categories.map((category) => (
@@ -880,7 +790,7 @@ function ProductPage() {
               </label>
 
               <label className="space-y-2">
-                <span className="block text-sm font-semibold text-[#0b1c30]">Giá nhập</span>
+                <span className="block text-sm font-semibold text-[#2a1b14]">Giá nhập</span>
                 <input
                   type="number"
                   min={0}
@@ -888,12 +798,12 @@ function ProductPage() {
                   onChange={(event) =>
                     setFormState((current) => ({ ...current, importPrice: event.target.value }))
                   }
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
                 />
               </label>
 
               <label className="space-y-2">
-                <span className="block text-sm font-semibold text-[#0b1c30]">
+                <span className="block text-sm font-semibold text-[#2a1b14]">
                   Giá bán <span className="text-red-600">*</span>
                 </span>
                 <input
@@ -904,34 +814,63 @@ function ProductPage() {
                   onChange={(event) =>
                     setFormState((current) => ({ ...current, salePrice: event.target.value }))
                   }
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
                 />
               </label>
 
-              <label className="space-y-2">
-                <span className="block text-sm font-semibold text-[#0b1c30]">Tồn kho</span>
-                <input
-                  type="number"
-                  min={0}
-                  value={formState.stockQuantity}
-                  onChange={(event) =>
-                    setFormState((current) => ({
-                      ...current,
-                      stockQuantity: event.target.value,
-                    }))
-                  }
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
-                />
-              </label>
+              {(() => {
+                const selectedCat = categories.find((c) => c.id === formState.categoryId);
+                const isTracked = selectedCat ? selectedCat.isTrackedStock : false;
+                return (
+                  <label className="space-y-2">
+                    <span className="block text-sm font-semibold text-[#2a1b14]">
+                      Tồn kho {isTracked ? <span className="text-red-600">*</span> : ""}
+                    </span>
+                    <input
+                      type="number"
+                      min={0}
+                      disabled={!isTracked}
+                      value={isTracked ? formState.stockQuantity : ""}
+                      onChange={(event) =>
+                        setFormState((current) => ({
+                          ...current,
+                          stockQuantity: event.target.value,
+                        }))
+                      }
+                      placeholder={isTracked ? "VD: 10" : "Tự chế biến (Không quản lý kho)"}
+                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100 disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
+                    />
+                  </label>
+                );
+              })()}
+
+              <div className="flex items-center gap-3 sm:col-span-2 py-2">
+                <label className="flex cursor-pointer items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={formState.isAvailable}
+                    onChange={(event) =>
+                      setFormState((current) => ({
+                        ...current,
+                        isAvailable: event.target.checked,
+                      }))
+                    }
+                    className="h-5 w-5 rounded border-slate-300 text-[#9d4300] focus:ring-[#9d4300]"
+                  />
+                  <span className="text-sm font-semibold text-[#2a1b14]">
+                    Còn bán (Cho phép hiển thị và đặt đơn tại POS)
+                  </span>
+                </label>
+              </div>
 
               <div className="space-y-2">
-                <span className="block text-sm font-semibold text-[#0b1c30]">Ảnh sản phẩm</span>
+                <span className="block text-sm font-semibold text-[#2a1b14]">Ảnh sản phẩm</span>
                 <div className="flex rounded-xl bg-slate-100 p-1">
                   <button
                     type="button"
                     onClick={() => setImageSource("file")}
                     className={`flex-1 rounded-lg py-1.5 text-xs font-bold transition-all duration-200 cursor-pointer ${imageSource === "file"
-                      ? "bg-white text-[#f97316] shadow-sm"
+                      ? "bg-white text-[#9d4300] shadow-sm"
                       : "text-slate-500 hover:text-slate-800"
                       }`}
                   >
@@ -941,7 +880,7 @@ function ProductPage() {
                     type="button"
                     onClick={() => setImageSource("url")}
                     className={`flex-1 rounded-lg py-1.5 text-xs font-bold transition-all duration-200 cursor-pointer ${imageSource === "url"
-                      ? "bg-white text-[#f97316] shadow-sm"
+                      ? "bg-white text-[#9d4300] shadow-sm"
                       : "text-slate-500 hover:text-slate-800"
                       }`}
                   >
@@ -958,7 +897,7 @@ function ProductPage() {
                       onChange={(event) => {
                         void handleImageFileChange(event);
                       }}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100 file:mr-3 file:rounded-lg file:border-0 file:bg-orange-50 file:px-2.5 file:py-1 file:text-xs file:font-bold file:text-[#f97316] file:hover:bg-orange-100 cursor-pointer"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100 file:mr-3 file:rounded-lg file:border-0 file:bg-orange-50 file:px-2.5 file:py-1 file:text-xs file:font-bold file:text-[#9d4300] file:hover:bg-orange-100 cursor-pointer"
                     />
                     <p className="text-[11px] text-slate-500">
                       {isUploadingImage ? "Đang tải ảnh lên..." : "Chọn ảnh định dạng JPG, PNG, WEBP, GIF."}
@@ -974,7 +913,7 @@ function ProductPage() {
                         setFormState((current) => ({ ...current, imageUrl: event.target.value }))
                       }
                       placeholder="Nhập link ảnh (https://...)"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
                     />
                     <p className="text-[11px] text-slate-500">
                       Nhập đường dẫn trực tiếp đến hình ảnh trên internet.
@@ -1002,14 +941,14 @@ function ProductPage() {
               ) : null}
 
               <label className="space-y-2 sm:col-span-2">
-                <span className="block text-sm font-semibold text-[#0b1c30]">Mô tả</span>
+                <span className="block text-sm font-semibold text-[#2a1b14]">Mô tả</span>
                 <textarea
                   rows={3}
                   value={formState.description}
                   onChange={(event) =>
                     setFormState((current) => ({ ...current, description: event.target.value }))
                   }
-                  className="w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                  className="w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
                   placeholder="Mô tả ngắn về món ăn hoặc nước uống..."
                 />
               </label>
@@ -1024,7 +963,7 @@ function ProductPage() {
                 </button>
                 <button
                   type="submit"
-                  className="flex h-10 flex-1 items-center justify-center bg-[#f97316] px-4 text-sm font-bold text-white transition-colors hover:bg-[#ea580c]"
+                  className="flex h-10 flex-1 items-center justify-center bg-[#9d4300] px-4 text-sm font-bold text-white transition-colors hover:bg-[#803600]"
                 >
                   {editingProduct ? "Lưu thay đổi" : "Lưu sản phẩm"}
                 </button>
@@ -1034,149 +973,7 @@ function ProductPage() {
         </div>
       ) : null}
 
-      {isRecipeModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[rgba(11,28,48,0.45)] p-4 backdrop-blur-[4px]">
-          <div className="w-full max-w-3xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-5">
-              <div className="flex items-center gap-3">
-                <span className="rounded-xl bg-orange-50 p-2 text-[#f97316]">
-                  <Icon name="menu_book" />
-                </span>
-                <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-bold text-[#0b1c30]">
-                  Định lượng nguyên liệu: {editingProductForRecipe?.name}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsRecipeModalOpen(false);
-                  setEditingProductForRecipe(null);
-                }}
-                className="p-1 text-slate-500 transition-colors hover:text-red-600"
-                aria-label="Đóng form"
-              >
-                <Icon name="close" className="text-2xl" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveRecipe} className="p-6">
-              {recipeErrorMessage ? (
-                <div className="mb-4 rounded-xl bg-red-50 p-4 text-sm font-semibold text-red-600">
-                  {recipeErrorMessage}
-                </div>
-              ) : null}
-
-              <div className="mb-4">
-                <p className="text-sm text-slate-500 mb-4">
-                  Thiết lập công thức định lượng nguyên liệu cho món <strong className="text-[#0b1c30]">{editingProductForRecipe?.name}</strong>. Khi món này được bán, lượng nguyên liệu tương ứng sẽ tự động trừ vào kho.
-                </p>
-              </div>
-
-              <div className="max-h-[350px] overflow-y-auto pr-1">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 font-semibold text-slate-500 sticky top-0 z-10">
-                    <tr>
-                      <th className="pb-3 pt-2 px-2">Nguyên liệu</th>
-                      <th className="pb-3 pt-2 px-2 w-[180px]">Định lượng</th>
-                      <th className="pb-3 pt-2 px-2 w-[80px]">Đơn vị</th>
-                      <th className="pb-3 pt-2 px-2 w-[60px] text-center">Xóa</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {recipeIngredients.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="py-6 text-center text-slate-400 text-sm">
-                          Chưa cấu hình nguyên liệu nào. Hãy bấm "Thêm nguyên liệu".
-                        </td>
-                      </tr>
-                    ) : (
-                      recipeIngredients.map((item, index) => {
-                        const selectedMaterial = materials.find((m) => m.id === item.ingredientId);
-                        const unit = selectedMaterial ? selectedMaterial.unit : "-";
-                        
-                        return (
-                          <tr key={index} className="align-middle">
-                            <td className="py-3 px-2">
-                              <select
-                                required
-                                value={item.ingredientId}
-                                onChange={(e) => handleRecipeIngredientChange(index, "ingredientId", e.target.value)}
-                                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100 bg-white"
-                              >
-                                <option value="">-- Chọn nguyên liệu --</option>
-                                {materials.map((material) => (
-                                  <option key={material.id} value={material.id}>
-                                    {material.name} ({material.sku})
-                                  </option>
-                                ))}
-                              </select>
-                            </td>
-                            <td className="py-3 px-2">
-                              <input
-                                required
-                                type="number"
-                                step="any"
-                                min="0.0001"
-                                value={item.quantityNeeded === 0 ? "" : item.quantityNeeded}
-                                onChange={(e) => handleRecipeIngredientChange(index, "quantityNeeded", parseFloat(e.target.value) || 0)}
-                                placeholder="VD: 0.150"
-                                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
-                              />
-                            </td>
-                            <td className="py-3 px-2 text-slate-600 font-medium">
-                              {unit}
-                            </td>
-                            <td className="py-3 px-2 text-center">
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveRecipeIngredient(index)}
-                                className="rounded-lg p-1.5 text-red-500 transition-colors hover:bg-red-50"
-                              >
-                                <Icon name="delete" className="text-lg" />
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="mt-4">
-                <button
-                  type="button"
-                  onClick={handleAddRecipeIngredient}
-                  className="inline-flex items-center gap-1.5 text-sm font-bold text-[#f97316] hover:text-[#ea580c] transition-colors"
-                >
-                  <Icon name="add" className="text-lg" />
-                  Thêm nguyên liệu
-                </button>
-              </div>
-
-              <div className="flex gap-3 border-t border-slate-200 pt-5 mt-6">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsRecipeModalOpen(false);
-                    setEditingProductForRecipe(null);
-                  }}
-                  className="flex h-10 flex-1 items-center justify-center border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={isRecipeSaving}
-                  className="flex h-10 flex-1 items-center justify-center bg-[#f97316] px-4 text-sm font-bold text-white transition-colors hover:bg-[#ea580c] disabled:opacity-50"
-                >
-                  {isRecipeSaving ? "Đang lưu..." : "Lưu công thức"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      ) : null}
+      {/* Removed recipe modal */}
 
       {showToast ? (
         <div className="pointer-events-none fixed right-8 bottom-8 z-[60]">
@@ -1185,7 +982,7 @@ function ProductPage() {
               <Icon name="check" className="text-sm" />
             </div>
             <div>
-              <p className="text-sm font-bold text-[#0b1c30]">Dữ liệu đã được cập nhật</p>
+              <p className="text-sm font-bold text-[#2a1b14]">Dữ liệu đã được cập nhật</p>
               <p className="text-[10px] text-slate-500">Sản phẩm đã được cập nhật</p>
             </div>
           </div>

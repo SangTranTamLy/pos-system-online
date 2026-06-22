@@ -7,8 +7,6 @@ import {
   uploadProductImageService,
   updateProductStatusService,
   updateProductService,
-  getProductRecipeService,
-  saveProductRecipeService,
 } from "../services/product.service";
 
 function getParamId(id: string | string[]) {
@@ -91,28 +89,5 @@ export async function deleteProductController(req: Request, res: Response) {
     success: true,
     message: "Xóa sản phẩm thành công",
     data: product,
-  });
-}
-
-export async function getProductRecipeController(req: Request, res: Response) {
-  const productId = getParamId(req.params.id);
-  const recipe = await getProductRecipeService(productId);
-
-  return res.json({
-    success: true,
-    message: "Lấy công thức sản phẩm thành công",
-    data: recipe,
-  });
-}
-
-export async function saveProductRecipeController(req: Request, res: Response) {
-  const productId = getParamId(req.params.id);
-  const userId = (req as any).user?.id || "";
-
-  await saveProductRecipeService(productId, req.body, userId);
-
-  return res.json({
-    success: true,
-    message: "Thiết lập công thức sản phẩm thành công",
   });
 }

@@ -261,7 +261,7 @@ export default function AuditLogsPage() {
     >
       {/* Title & Export bar */}
       <section className="mb-6 flex flex-col justify-between gap-4 border-b border-slate-100 pb-4 sm:flex-row sm:items-center">
-        <h1 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-black tracking-tight text-[#0b1c30]">
+        <h1 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-black tracking-tight text-[#2a1b14]">
           NHẬT KÝ HOẠT ĐỘNG TẠI QUẦY
         </h1>
         <button
@@ -294,7 +294,7 @@ export default function AuditLogsPage() {
                 setPage(1);
                 void loadLogs(1, actionType, val);
               }}
-              className="h-11.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-600 outline-none focus:border-[#f97316]"
+              className="h-11.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-600 outline-none focus:border-[#9d4300]"
             >
               <option value="">-- Tất cả các ca --</option>
               {shifts.map(shift => (
@@ -313,7 +313,7 @@ export default function AuditLogsPage() {
                 setPage(1);
                 void loadLogs(1, val, shiftId);
               }}
-              className="h-11.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-600 outline-none focus:border-[#f97316]"
+              className="h-11.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-600 outline-none focus:border-[#9d4300]"
             >
               <option value="">-- Chọn loại hành động --</option>
               <option value="BAN_HANG">BÁN HÀNG (Xanh lá)</option>
@@ -355,7 +355,7 @@ export default function AuditLogsPage() {
       {loading ? (
         <div className="flex h-80 items-center justify-center rounded-3xl border border-slate-200 bg-white">
           <div className="flex flex-col items-center gap-2">
-            <Icon name="autorenew" className="animate-spin text-3xl text-[#f97316]" />
+            <Icon name="autorenew" className="animate-spin text-3xl text-[#9d4300]" />
             <p className="text-xs font-bold text-slate-400">Đang truy xuất nhật ký...</p>
           </div>
         </div>
@@ -386,11 +386,11 @@ export default function AuditLogsPage() {
                           second: "2-digit"
                         })}
                       </td>
-                      <td className="px-6 py-4 text-[#0b1c30]">
+                      <td className="px-6 py-4 text-[#2a1b14]">
                         {log.userName} <span className="font-semibold text-slate-400">({translateRole(log.role)})</span>
                       </td>
                       <td className="px-6 py-4">{getActionBadge(log.actionType)}</td>
-                      <td className="px-6 py-4 text-[#f97316] font-extrabold">{log.targetObject}</td>
+                      <td className="px-6 py-4 text-[#9d4300] font-extrabold">{log.targetObject}</td>
                       <td className="px-6 py-4 text-slate-500 font-medium whitespace-pre-line leading-relaxed max-w-md">
                         <div>{log.description}</div>
                         {renderValueChanges(log.oldValues, log.newValues)}

@@ -6,13 +6,13 @@ export type Product = {
   id: string;
   categoryId: string;
   categoryName?: string;
-  requiresPreparation: boolean;
-  isStockReturnable: boolean;
+  isTrackedStock: boolean;
+  isAvailable: boolean;
   sku: string;
   name: string;
   importPrice: number;
   salePrice: number;
-  stockQuantity: number;
+  stockQuantity: number | null;
   status: ProductStatus;
   description: string | null;
   imageUrl: string | null;
@@ -24,11 +24,11 @@ export type CreateProductPayload = {
   categoryId: string;
   sku: string;
   name: string;
-  requiresPreparation?: boolean;
-  isStockReturnable?: boolean;
+  isTrackedStock?: boolean;
+  isAvailable?: boolean;
   importPrice?: number;
   salePrice: number;
-  stockQuantity?: number;
+  stockQuantity?: number | null;
   status?: ProductStatus;
   description?: string | null;
   imageUrl?: string | null;
@@ -181,37 +181,4 @@ export async function uploadProductImage(file: File) {
   });
 
   return handleResponse<UploadProductImageResult>(response);
-}
-
-export type ProductRecipeIngredient = {
-  ingredientId: string;
-  ingredientName: string;
-  quantityNeeded: number;
-  unit: string;
-};
-
-export type SaveProductRecipePayload = {
-  ingredients: Array<{
-    ingredientId: string;
-    quantityNeeded: number;
-  }>;
-};
-
-export async function getProductRecipe(productId: string) {
-  const response = await fetch(`${API_BASE_URL}/products/${productId}/recipe`, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
-
-  return handleResponse<ProductRecipeIngredient[]>(response);
-}
-
-export async function saveProductRecipe(productId: string, payload: SaveProductRecipePayload) {
-  const response = await fetch(`${API_BASE_URL}/products/${productId}/recipe`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(payload),
-  });
-
-  return handleResponse<{ success: boolean; message: string }>(response);
 }

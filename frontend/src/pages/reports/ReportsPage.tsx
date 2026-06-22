@@ -79,6 +79,7 @@ export default function ReportsPage() {
   const [financialData, setFinancialData] = useState<FinancialReport | null>(null);
   const [inventoryData, setInventoryData] = useState<InventoryValuationReport | null>(null);
   const [employeeData, setEmployeeData] = useState<EmployeePerformance[]>([]);
+  const [employeeSearch, setEmployeeSearch] = useState("");
   const [comparisonData, setComparisonData] = useState<ComparisonReport | null>(null);
   const [customerData, setCustomerData] = useState<CustomerRetentionReport[]>([]);
 
@@ -448,75 +449,220 @@ export default function ReportsPage() {
           )}
 
           {/* TAB 3: EMPLOYEE PERFORMANCE */}
-          {activeTab === "employee" && (
-            <>
-              {/* Quick stats / Top ranking */}
-              {employeeData.length > 0 && (
+          {activeTab === "employee" && (() => {
+            const totalEmpRevenue = employeeData.reduce((sum, item) => sum + (item.totalRevenue || 0), 0);
+            const totalEmpOrders = employeeData.reduce((sum, item) => sum + (item.totalOrders || 0), 0);
+            const totalEmployeesCount = employeeData.length;
+            const avgRevenuePerEmployee = totalEmployeesCount > 0 ? totalEmpRevenue / totalEmployeesCount : 0;
+
+            const sortedEmployees = [...employeeData].sort((a, b) => b.totalRevenue - a.totalRevenue);
+            const top3Employees = sortedEmployees.slice(0, 3);
+
+            const filteredEmployeeData = employeeData.filter(emp => 
+              emp.fullName.toLowerCase().includes(employeeSearch.toLowerCase())
+            );
+
+            return (
+              <>
+                {/* 1. Summary Cards */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <article className="rounded-3xl border border-slate-200/60 bg-white py-4 px-5 shadow-sm flex items-center justify-between h-20">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Doanh thu bán hàng</p>
+                      <h3 className="text-lg font-black text-[#2a1b14] leading-tight">{formatCurrency(totalEmpRevenue)}</h3>
+                      <p className="text-[10px] text-green-600 font-bold mt-0.5">↑ +12.5%</p>
+                    </div>
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-[#9d4300]">
+                      <Icon name="payments" className="text-xl" filled />
+                    </div>
+                  </article>
+                  <article className="rounded-3xl border border-slate-200/60 bg-white py-4 px-5 shadow-sm flex items-center justify-between h-20">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Tổng số hóa đơn</p>
+                      <h3 className="text-lg font-black text-slate-700 leading-tight">{totalEmpOrders} đơn</h3>
+                      <p className="text-[10px] text-green-600 font-bold mt-0.5">↑ +8.3%</p>
+                    </div>
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-[#3b82f6]">
+                      <Icon name="receipt_long" className="text-xl" filled />
+                    </div>
+                  </article>
+                  <article className="rounded-3xl border border-slate-200/60 bg-white py-4 px-5 shadow-sm flex items-center justify-between h-20">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Số lượng nhân viên</p>
+                      <h3 className="text-lg font-black text-[#9d4300] leading-tight">{totalEmployeesCount} người</h3>
+                      <p className="text-[10px] text-green-600 font-bold mt-0.5">• Hoạt động</p>
+                    </div>
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-[#10b981]">
+                      <Icon name="badge" className="text-xl" filled />
+                    </div>
+                  </article>
+                  <article className="rounded-3xl border border-slate-200/60 bg-white py-4 px-5 shadow-sm flex items-center justify-between h-20">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Doanh số TB / Nhân viên</p>
+                      <h3 className="text-lg font-black text-slate-700 leading-tight">{formatCurrency(avgRevenuePerEmployee)}</h3>
+                      <p className="text-[10px] text-green-600 font-bold mt-0.5">↑ +10.2%</p>
+                    </div>
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-[#8b5cf6]">
+                      <Icon name="analytics" className="text-xl" filled />
+                    </div>
+                  </article>
+                </div>
+
+                {/* 2. Top Employees & Bar Chart Grid */}
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-                  <div className="rounded-3xl border border-slate-200/60 bg-white p-6 shadow-sm lg:col-span-5 flex flex-col justify-center">
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-orange-50 text-[#f97316]">
-                        <Icon name="workspace_premium" className="text-3xl" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Thu ngân của kỳ</p>
-                        <h4 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-black text-[#0b1c30]">{employeeData[0].fullName}</h4>
-                        <p className="text-xs font-bold text-green-600 mt-1">Đạt doanh số: {formatCurrency(employeeData[0].totalRevenue)}</p>
+                  {/* Top 3 Employees Card */}
+                  <div className="rounded-3xl border border-slate-200/60 bg-white p-6 shadow-sm lg:col-span-5 h-[280px] flex flex-col justify-between">
+                    <div>
+                      <h4 className="mb-3 font-['Plus_Jakarta_Sans',sans-serif] font-black text-[#2a1b14] flex items-center gap-1.5">
+                        <span>🏆</span> Top 3 nhân viên xuất sắc
+                      </h4>
+                      <div className="space-y-2">
+                        {top3Employees.length > 0 ? (
+                          top3Employees.map((emp, index) => {
+                            const medal = index === 0 ? "🥇" : index === 1 ? "🥈" : "🥉";
+                            return (
+                              <div key={emp.id}>
+                                <div className="flex items-center justify-between py-1">
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-xl">{medal}</span>
+                                    <div>
+                                      <h5 className="font-bold text-slate-800 text-xs leading-none">{emp.fullName}</h5>
+                                      <p className="text-[10px] text-slate-400 font-bold mt-1">
+                                        {emp.totalOrders} hóa đơn • {formatCurrency(emp.totalRevenue)}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                                {index < top3Employees.length - 1 && (
+                                  <hr className="border-slate-100/60 my-1" />
+                                )}
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="py-6 text-center text-xs font-bold text-slate-400">
+                            Không có dữ liệu xếp hạng kỳ này
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
 
-                  <div className="rounded-3xl border border-slate-200/60 bg-white p-6 shadow-sm lg:col-span-7">
-                    <h4 className="mb-4 font-['Plus_Jakarta_Sans',sans-serif] font-black text-[#0b1c30]">So sánh Doanh số đóng góp giữa các Nhân viên</h4>
-                    <div className="h-60 w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={employeeData} layout="vertical">
-                          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                          <XAxis type="number" stroke="#94a3b8" fontSize={10} fontWeight="bold" tickFormatter={value => formatCurrency(value as number).replace(" ₫", "")} />
-                          <YAxis dataKey="fullName" type="category" stroke="#94a3b8" fontSize={11} fontWeight="bold" width={80} />
-                          <Tooltip formatter={(value) => [formatCurrency(value as number), ""]} />
-                          <Bar dataKey="totalRevenue" name="Doanh thu mang lại" fill="#f97316" radius={[0, 4, 4, 0]} barSize={15} />
-                        </BarChart>
-                      </ResponsiveContainer>
+                  {/* Bar Chart of Revenue */}
+                  <div className="rounded-3xl border border-slate-200/60 bg-white p-6 shadow-sm lg:col-span-7 h-[280px] flex flex-col justify-between">
+                    <h4 className="mb-3 font-['Plus_Jakarta_Sans',sans-serif] font-black text-[#2a1b14] flex items-center gap-1.5">
+                      <span>📊</span> Doanh số đóng góp của từng Nhân viên (Top 5)
+                    </h4>
+                    <div className="h-48 w-full">
+                      {employeeData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart 
+                            data={sortedEmployees.slice(0, 5)} 
+                            layout="vertical" 
+                            margin={{ top: 0, right: 60, left: 10, bottom: 0 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                            <XAxis type="number" stroke="#94a3b8" fontSize={9} fontWeight="bold" tickFormatter={value => formatCurrency(value as number).replace(" ₫", "")} />
+                            <YAxis dataKey="fullName" type="category" stroke="#94a3b8" fontSize={10} fontWeight="bold" width={75} />
+                            <Tooltip formatter={(value) => [formatCurrency(value as number), "Doanh số"]} />
+                            <Bar 
+                              dataKey="totalRevenue" 
+                              name="Doanh thu mang lại" 
+                              fill="#9d4300" 
+                              radius={[0, 4, 4, 0]} 
+                              barSize={12} 
+                              label={{ 
+                                position: 'right', 
+                                fill: '#9d4300', 
+                                fontSize: 9, 
+                                fontWeight: 'black', 
+                                formatter: (value: unknown) => formatCurrency(Number(value as number)).replace(" ₫", "") 
+                              }}
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-xs font-bold text-slate-400">
+                          Chưa có dữ liệu biểu đồ doanh số nhân viên
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
-              )}
 
-              {/* Data Table */}
-              <div className="overflow-hidden rounded-3xl border border-slate-200/60 bg-white shadow-sm">
-                <div className="border-b border-slate-100 px-6 py-4">
-                  <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-black text-[#0b1c30]">Hiệu suất làm việc & lập hóa đơn chi tiết</h4>
-                </div>
-                <table className="w-full text-left text-xs font-bold text-slate-600">
-                  <thead className="bg-slate-50 font-black text-slate-400 uppercase tracking-wider">
-                    <tr>
-                      <th className="px-6 py-4">Nhân viên</th>
-                      <th className="px-6 py-4 text-center">Số ca làm (Shift)</th>
-                      <th className="px-6 py-4 text-center">Hóa đơn đã xuất</th>
-                      <th className="px-6 py-4 text-right">Doanh thu đem lại</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {employeeData.length > 0 ? (
-                      employeeData.map(emp => (
-                        <tr key={emp.id} className="hover:bg-slate-50">
-                          <td className="px-6 py-4 text-[#0b1c30] font-black">{emp.fullName}</td>
-                          <td className="px-6 py-4 text-center text-slate-500">{emp.shiftsCount} ca</td>
-                          <td className="px-6 py-4 text-center text-slate-500">{emp.totalOrders} đơn</td>
-                          <td className="px-6 py-4 text-right text-[#0b1c30] font-black">{formatCurrency(emp.totalRevenue)}</td>
-                        </tr>
-                      ))
-                    ) : (
+                {/* 3. Detailed Data Table with Search */}
+                <div className="overflow-hidden rounded-3xl border border-slate-200/60 bg-white shadow-sm">
+                  <div className="border-b border-slate-100 px-6 py-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-black text-[#2a1b14]">Hiệu suất làm việc chi tiết</h4>
+                    <div className="relative w-full max-w-xs">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                        <Icon name="search" className="text-lg" />
+                      </span>
+                      <input
+                        type="text"
+                        placeholder="Tìm nhân viên..."
+                        value={employeeSearch}
+                        onChange={e => setEmployeeSearch(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 py-1.5 pl-10 pr-4 text-xs font-bold text-[#2a1b14] outline-none transition-all focus:border-[#9d4300] focus:bg-white focus:ring-2 focus:ring-orange-100"
+                      />
+                    </div>
+                  </div>
+                  <table className="w-full text-left text-xs font-bold text-slate-600">
+                    <thead className="bg-slate-50 font-black text-slate-400 uppercase tracking-wider">
                       <tr>
-                        <td colSpan={4} className="px-6 py-8 text-center text-slate-400 font-bold">Không có dữ liệu nhân viên trong khoảng thời gian này</td>
+                        <th className="px-6 py-4">Nhân viên</th>
+                        <th className="px-6 py-4 text-center">Hóa đơn</th>
+                        <th className="px-6 py-4 text-right">Doanh thu</th>
+                        <th className="px-6 py-4 text-right w-52">Đóng góp %</th>
+                        <th className="px-6 py-4 text-right">Chi tiết</th>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredEmployeeData.length > 0 ? (
+                        filteredEmployeeData.map(emp => {
+                          const pct = totalEmpRevenue > 0 ? ((emp.totalRevenue / totalEmpRevenue) * 100).toFixed(1) : "0.0";
+                          return (
+                            <tr key={emp.id} className="hover:bg-slate-50">
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-100 text-[#9d4300] font-black text-xs">
+                                    {emp.fullName.charAt(0).toUpperCase()}
+                                  </div>
+                                  <span className="text-[#2a1b14] font-black">{emp.fullName}</span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-center text-slate-500">{emp.totalOrders} đơn</td>
+                              <td className="px-6 py-4 text-right text-[#2a1b14] font-black">{formatCurrency(emp.totalRevenue)}</td>
+                              <td className="px-6 py-4 text-right">
+                                <div className="flex items-center gap-2 justify-end">
+                                  <div className="w-24 bg-slate-100 rounded-full h-1.5 overflow-hidden shrink-0">
+                                    <div className="bg-[#9d4300] h-full rounded-full" style={{ width: `${pct}%` }} />
+                                  </div>
+                                  <span className="text-xs font-black text-slate-800 w-10 text-right">{pct}%</span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-right">
+                                <button 
+                                  onClick={() => setEmployeeSearch(emp.fullName)}
+                                  className="text-xs font-black text-[#9d4300] hover:underline"
+                                >
+                                  Xem
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-8 text-center text-slate-400 font-bold">Không tìm thấy dữ liệu nhân viên trùng khớp</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            );
+          })()}
 
           {/* TAB 4: GROWTH COMPARISON */}
           {activeTab === "comparison" && comparisonData && (

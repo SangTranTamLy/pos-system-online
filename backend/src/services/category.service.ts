@@ -34,29 +34,11 @@ function normalizeImageUrl(imageUrl: string | null | undefined) {
   return value ? value : null;
 }
 function normalizeCategoryStockLogic(input: {
-  requiresPreparation?: boolean;
-  isStockReturnable?: boolean;
+  isTrackedStock?: boolean;
 }) {
-  const requiresPreparation = Boolean(input.requiresPreparation);
-  const isStockReturnable = Boolean(input.isStockReturnable);
-
-  if (requiresPreparation && isStockReturnable) {
-    throw new ApiError(
-      400,
-      "Danh mục không thể vừa cần chế biến vừa cho phép hoàn kho"
-    );
-  }
-
-  if (!requiresPreparation && !isStockReturnable) {
-    throw new ApiError(
-      400,
-      "Vui lòng chọn loại danh mục: món cần chế biến hoặc hàng có sẵn"
-    );
-  }
-
+  const isTrackedStock = Boolean(input.isTrackedStock);
   return {
-    requiresPreparation,
-    isStockReturnable,
+    isTrackedStock,
   };
 }
 
@@ -116,32 +98,6 @@ export async function createCategoryService(body: CreateCategoryBody, userId?: s
   try {
   const name = normalizeName(body.name ?? "");
 
-  function normalizeCategoryStockLogic(input: {
-    requiresPreparation?: boolean;
-    isStockReturnable?: boolean;
-  }) {
-    const requiresPreparation = Boolean(input.requiresPreparation);
-    const isStockReturnable = Boolean(input.isStockReturnable);
-
-    if (requiresPreparation && isStockReturnable) {
-      throw new ApiError(
-        400,
-        "Danh mục không thể vừa cần chế biến vừa cho phép hoàn kho"
-      );
-    }
-
-    if (!requiresPreparation && !isStockReturnable) {
-      throw new ApiError(
-        400,
-        "Vui lòng chọn loại danh mục: món cần chế biến hoặc hàng có sẵn"
-      );
-    }
-
-    return {
-      requiresPreparation,
-      isStockReturnable,
-    };
-  }
   if (!name) {
     throw new ApiError(400, "Tên danh mục là bắt buộc");
   }
@@ -153,8 +109,7 @@ export async function createCategoryService(body: CreateCategoryBody, userId?: s
   }
 
   const stockLogic = normalizeCategoryStockLogic({
-  requiresPreparation: body.requiresPreparation,
-  isStockReturnable: body.isStockReturnable,
+    isTrackedStock: body.isTrackedStock,
   });
 
   const category = await createCategory({
@@ -207,14 +162,10 @@ export async function updateCategoryService(
   }
 
   const stockLogic = normalizeCategoryStockLogic({
-    requiresPreparation:
-      typeof body.requiresPreparation === "boolean"
-        ? body.requiresPreparation
-        : currentCategory.requiresPreparation,
-    isStockReturnable:
-      typeof body.isStockReturnable === "boolean"
-        ? body.isStockReturnable
-        : currentCategory.isStockReturnable,
+    isTrackedStock:
+      typeof body.isTrackedStock === "boolean"
+        ? body.isTrackedStock
+        : currentCategory.isTrackedStock,
   });
   const updatedCategory = await updateCategory(id, {
     name,

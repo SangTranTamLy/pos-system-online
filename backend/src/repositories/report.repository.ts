@@ -210,7 +210,7 @@ export async function getProductValuation(): Promise<ProductValuation[]> {
       (p.stock_quantity * p.import_price) AS totalValue
     FROM products p
     JOIN categories c ON p.category_id = c.id
-    WHERE p.status = 'active'
+    WHERE p.status = 'active' AND p.is_tracked_stock = 1
     ORDER BY totalValue DESC
     `
   );
@@ -266,7 +266,7 @@ export async function getInventoryValuationByCategory(): Promise<CategoryValuati
       SELECT c.name as categoryName, (p.stock_quantity * p.import_price) as totalValue
       FROM products p
       JOIN categories c ON p.category_id = c.id
-      WHERE p.status = 'active'
+      WHERE p.status = 'active' AND p.is_tracked_stock = 1
       
       UNION ALL
       

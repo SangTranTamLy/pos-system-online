@@ -34,7 +34,16 @@ export default function ShiftsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   
-  const [userRole, setUserRole] = useState("");
+  const [userRole] = useState<string>(() => {
+    try {
+      const storedUser = localStorage.getItem("auth_user");
+      if (storedUser) {
+        const u = JSON.parse(storedUser);
+        return u.roleName?.toUpperCase() || "";
+      }
+    } catch { /* ignore invalid JSON */ }
+    return "";
+  });
 
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [newShiftStart, setNewShiftStart] = useState("");
@@ -48,28 +57,30 @@ export default function ShiftsPage() {
   const [closingCash, setClosingCash] = useState("");
   const [closingNote, setClosingNote] = useState("");
 
-  useEffect(() => {
-    const storedUser = localStorage.getItem("auth_user");
-    if (storedUser) {
-      try {
-        const u = JSON.parse(storedUser);
-        setUserRole(u.roleName?.toUpperCase() || "");
-      } catch (e) {}
-    }
-    loadShifts();
-  }, []);
-
   const loadShifts = async () => {
     try {
       setIsLoading(true);
       const data = await fetchShifts();
       setShifts(data);
-    } catch (error: any) {
-      setErrorMessage(error.message || "Lỗi khi tải danh sách ca");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Lỗi khi tải danh sách ca";
+      setErrorMessage(message);
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Initial data fetch — all setState calls happen inside promise callbacks,
+  // not synchronously, so they don't trigger cascading renders.
+  useEffect(() => {
+    fetchShifts()
+      .then((data) => setShifts(data))
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : "Lỗi khi tải danh sách ca";
+        setErrorMessage(message);
+      })
+      .finally(() => setIsLoading(false));
+  }, []);
 
   const isManager = userRole === "ADMIN" || userRole === "MANAGER";
 
@@ -78,8 +89,8 @@ export default function ShiftsPage() {
       await registerShift(new Date(newShiftStart).toISOString(), new Date(newShiftEnd).toISOString());
       setShowRegisterModal(false);
       loadShifts();
-    } catch (error: any) {
-      alert(error.message);
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : "Lỗi đăng ký ca");
     }
   };
 
@@ -88,8 +99,8 @@ export default function ShiftsPage() {
     try {
       await approveShift(id);
       loadShifts();
-    } catch (error: any) {
-      alert(error.message);
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : "Lỗi duyệt ca");
     }
   };
 
@@ -100,8 +111,8 @@ export default function ShiftsPage() {
       setShowRequestOpenModal(null);
       setOpeningCash("");
       loadShifts();
-    } catch (error: any) {
-      alert(error.message);
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : "Lỗi yêu cầu mở ca");
     }
   };
 
@@ -111,8 +122,8 @@ export default function ShiftsPage() {
       await openShift(showOpenModal);
       setShowOpenModal(null);
       loadShifts();
-    } catch (error: any) {
-      alert(error.message);
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : "Lỗi mở ca");
     }
   };
 
@@ -121,8 +132,8 @@ export default function ShiftsPage() {
     try {
       await requestCloseShift(id);
       loadShifts();
-    } catch (error: any) {
-      alert(error.message);
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : "Lỗi yêu cầu đóng ca");
     }
   };
 
@@ -134,8 +145,8 @@ export default function ShiftsPage() {
       setClosingCash("");
       setClosingNote("");
       loadShifts();
-    } catch (error: any) {
-      alert(error.message);
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : "Lỗi đóng ca");
     }
   };
 
@@ -144,8 +155,8 @@ export default function ShiftsPage() {
     try {
       await cancelShift(id);
       loadShifts();
-    } catch (error: any) {
-      alert(error.message);
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : "Lỗi hủy ca");
     }
   };
 
@@ -178,7 +189,7 @@ export default function ShiftsPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <p className="text-sm font-bold text-slate-500 uppercase">Chờ duyệt</p>
-              <p className="text-3xl font-extrabold text-[#0b1c30] mt-2">{stats.pending}</p>
+              <p className="text-3xl font-extrabold text-[#2a1b14] mt-2">{stats.pending}</p>
             </div>
             <div className="rounded-2xl border border-green-200 bg-green-50 p-5 shadow-sm">
               <p className="text-sm font-bold text-green-600 uppercase">Đang mở</p>
@@ -190,17 +201,17 @@ export default function ShiftsPage() {
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <p className="text-sm font-bold text-slate-500 uppercase">Đã đóng (Hôm nay)</p>
-              <p className="text-3xl font-extrabold text-[#0b1c30] mt-2">{stats.closedToday}</p>
+              <p className="text-3xl font-extrabold text-[#2a1b14] mt-2">{stats.closedToday}</p>
             </div>
           </div>
         )}
 
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-extrabold text-[#0b1c30]">Danh sách ca làm</h2>
+          <h2 className="text-xl font-extrabold text-[#2a1b14]">Danh sách ca làm</h2>
           {!isManager && (
             <button
               onClick={() => setShowRegisterModal(true)}
-              className="rounded-xl bg-[#f97316] px-5 py-3 text-sm font-bold text-white shadow-lg shadow-orange-200 transition-colors hover:bg-orange-600"
+              className="rounded-xl bg-[#9d4300] px-5 py-3 text-sm font-bold text-white shadow-lg shadow-orange-200 transition-colors hover:bg-orange-600"
             >
               <span className="flex items-center gap-2">
                 <Icon name="add" /> Đăng ký ca mới
@@ -237,7 +248,7 @@ export default function ShiftsPage() {
                 ) : (
                   shifts.map((shift) => (
                     <tr key={shift.id} className="hover:bg-slate-50">
-                      <td className="px-6 py-4 font-bold text-[#0b1c30]">
+                      <td className="px-6 py-4 font-bold text-[#2a1b14]">
                         {shift.userName || 'Bạn'}
                       </td>
                       <td className="px-6 py-4 text-slate-600">
@@ -251,7 +262,7 @@ export default function ShiftsPage() {
                       <td className="px-6 py-4 text-right">
                         {shift.status === 'CLOSED' ? (
                           <div className="flex flex-col">
-                            <span className="font-bold text-[#0b1c30]">{formatCurrency(shift.totalSales)}</span>
+                            <span className="font-bold text-[#2a1b14]">{formatCurrency(shift.totalSales)}</span>
                             {shift.variance !== 0 && (
                               <span className={`text-xs ${shift.variance < 0 ? 'text-red-500' : 'text-green-500'}`}>
                                 Lệch: {formatCurrency(shift.variance)}
@@ -302,20 +313,20 @@ export default function ShiftsPage() {
       {showRegisterModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl">
-            <h3 className="text-xl font-bold text-[#0b1c30] mb-4">Đăng ký ca làm</h3>
+            <h3 className="text-xl font-bold text-[#2a1b14] mb-4">Đăng ký ca làm</h3>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">Giờ bắt đầu</label>
-                <input type="datetime-local" value={newShiftStart} onChange={e => setNewShiftStart(e.target.value)} className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100" />
+                <input type="datetime-local" value={newShiftStart} onChange={e => setNewShiftStart(e.target.value)} className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100" />
               </div>
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">Giờ kết thúc</label>
-                <input type="datetime-local" value={newShiftEnd} onChange={e => setNewShiftEnd(e.target.value)} className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100" />
+                <input type="datetime-local" value={newShiftEnd} onChange={e => setNewShiftEnd(e.target.value)} className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100" />
               </div>
             </div>
             <div className="mt-6 flex justify-end gap-3">
               <button onClick={() => setShowRegisterModal(false)} className="rounded-xl px-5 py-3 font-bold text-slate-600 hover:bg-slate-50">Hủy</button>
-              <button onClick={handleRegister} className="rounded-xl bg-[#f97316] px-5 py-3 font-bold text-white shadow-lg shadow-orange-200 hover:bg-orange-600">Đăng ký</button>
+              <button onClick={handleRegister} className="rounded-xl bg-[#9d4300] px-5 py-3 font-bold text-white shadow-lg shadow-orange-200 hover:bg-orange-600">Đăng ký</button>
             </div>
           </div>
         </div>
@@ -325,17 +336,17 @@ export default function ShiftsPage() {
       {showRequestOpenModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl">
-            <h3 className="text-xl font-bold text-[#0b1c30] mb-4">Yêu cầu mở ca</h3>
+            <h3 className="text-xl font-bold text-[#2a1b14] mb-4">Yêu cầu mở ca</h3>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">Tiền đầu ca (VND)</label>
                 <p className="text-xs text-slate-500 mb-2">Số tiền lẻ bạn nhận từ Quản lý để bắt đầu ca.</p>
-                <input type="number" value={openingCash} onChange={e => setOpeningCash(e.target.value)} placeholder="VD: 500000" className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100" />
+                <input type="number" value={openingCash} onChange={e => setOpeningCash(e.target.value)} placeholder="VD: 500000" className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100" />
               </div>
             </div>
             <div className="mt-6 flex justify-end gap-3">
               <button onClick={() => setShowRequestOpenModal(null)} className="rounded-xl px-5 py-3 font-bold text-slate-600 hover:bg-slate-50">Hủy</button>
-              <button onClick={handleRequestOpen} className="rounded-xl bg-[#f97316] px-5 py-3 font-bold text-white shadow-lg shadow-orange-200 hover:bg-orange-600">Gửi yêu cầu</button>
+              <button onClick={handleRequestOpen} className="rounded-xl bg-[#9d4300] px-5 py-3 font-bold text-white shadow-lg shadow-orange-200 hover:bg-orange-600">Gửi yêu cầu</button>
             </div>
           </div>
         </div>
@@ -345,10 +356,10 @@ export default function ShiftsPage() {
       {showOpenModal && activeShiftToOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl">
-            <h3 className="text-xl font-bold text-[#0b1c30] mb-4">Xác nhận mở ca</h3>
+            <h3 className="text-xl font-bold text-[#2a1b14] mb-4">Xác nhận mở ca</h3>
             <div className="space-y-4">
               <p className="text-sm text-slate-600">Nhân viên <b>{activeShiftToOpen.userName || 'Bạn'}</b> đã báo nhận số tiền đầu ca là:</p>
-              <p className="text-3xl font-extrabold text-[#f97316] text-center">{formatCurrency(activeShiftToOpen.openingCash)}</p>
+              <p className="text-3xl font-extrabold text-[#9d4300] text-center">{formatCurrency(activeShiftToOpen.openingCash)}</p>
               <p className="text-xs text-slate-500 text-center">Vui lòng xác nhận xem số tiền này có đúng không.</p>
             </div>
             <div className="mt-6 flex justify-end gap-3">
@@ -363,7 +374,7 @@ export default function ShiftsPage() {
       {showCloseModal && activeShiftToClose && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold text-[#0b1c30] mb-4">Đối soát & Đóng ca</h3>
+            <h3 className="text-xl font-bold text-[#2a1b14] mb-4">Đối soát & Đóng ca</h3>
             <div className="space-y-4">
               <div className="rounded-xl bg-slate-50 p-4 border border-slate-100 space-y-2">
                 <div className="flex justify-between">

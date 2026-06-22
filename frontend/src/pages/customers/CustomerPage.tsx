@@ -55,7 +55,7 @@ function CustomerStatCard({
       <p className="text-xs font-semibold uppercase tracking-tight text-slate-500">
         {label}
       </p>
-      <h3 className="mt-1 text-xl font-bold text-[#0b1c30]">{value}</h3>
+      <h3 className="mt-1 text-xl font-bold text-[#2a1b14]">{value}</h3>
     </article>
   );
 }
@@ -131,7 +131,7 @@ function CustomerPage() {
         label: "Khách mới tháng này",
         value: String(newCustomers),
         icon: "person_add",
-        tone: "bg-orange-50 text-[#f97316]",
+        tone: "bg-orange-50 text-[#9d4300]",
       },
       {
         label: "Doanh thu khách",
@@ -272,7 +272,7 @@ function CustomerPage() {
           <button
             type="button"
             onClick={openCreateModal}
-            className="inline-flex h-10 items-center justify-center gap-2 bg-[#f97316] px-4 text-sm font-bold text-white transition-colors hover:bg-[#ea580c]"
+            className="inline-flex h-10 items-center justify-center gap-2 bg-[#9d4300] px-4 text-sm font-bold text-white transition-colors hover:bg-[#803600]"
           >
             <Icon name="add" />
             Thêm khách hàng
@@ -298,7 +298,7 @@ function CustomerPage() {
         ) : null}
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[920px] text-left text-sm">
+          <table className="w-full min-w-230 text-left text-sm">
             <thead className="bg-slate-50 font-semibold text-slate-500">
               <tr>
                 <th className="px-6 py-3">Tên</th>
@@ -313,7 +313,7 @@ function CustomerPage() {
               {customers.map((customer) => (
                 <tr key={customer.id} className="transition-colors hover:bg-slate-50">
                   <td className="px-6 py-4">
-                    <p className="font-bold text-[#0b1c30]">{customer.fullName}</p>
+                    <p className="font-bold text-[#2a1b14]">{customer.fullName}</p>
                     <p className="mt-1 text-xs text-slate-400">
                       {customer.address || "Chưa có địa chỉ"}
                     </p>
@@ -321,7 +321,7 @@ function CustomerPage() {
                   <td className="px-6 py-4 font-semibold text-slate-700">
                     {customer.phone}
                   </td>
-                  <td className="px-6 py-4 text-right font-bold text-[#0b1c30]">
+                  <td className="px-6 py-4 text-right font-bold text-[#2a1b14]">
                     {formatCurrency(customer.totalSpent)}
                   </td>
                   <td className="px-6 py-4 text-center">
@@ -346,7 +346,7 @@ function CustomerPage() {
                     <button
                       type="button"
                       onClick={() => openEditModal(customer)}
-                      className="rounded-lg p-2 text-[#f97316] transition-colors hover:bg-orange-50"
+                      className="rounded-lg p-2 text-[#9d4300] transition-colors hover:bg-orange-50"
                       title="Sửa khách hàng"
                     >
                       <Icon name="edit" className="text-xl" />
@@ -379,10 +379,10 @@ function CustomerPage() {
         <section className="mt-6 border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-[#f97316]">
+              <p className="text-xs font-bold uppercase tracking-widest text-[#9d4300]">
                 Khách VIP
               </p>
-              <h3 className="mt-1 text-xl font-bold text-[#0b1c30]">
+              <h3 className="mt-1 text-xl font-bold text-[#2a1b14]">
                 Top 10 khách chi tiêu nhiều nhất
               </h3>
             </div>
@@ -395,14 +395,14 @@ function CustomerPage() {
                 onClick={() => {
                   void handleViewDetails(customer);
                 }}
-                className="border border-slate-200 bg-slate-50 p-3 text-left hover:border-[#f97316]"
+                className="border border-slate-200 bg-slate-50 p-3 text-left hover:border-[#9d4300]"
               >
-                <p className="text-xs font-bold text-[#f97316]">#{index + 1}</p>
-                <p className="mt-1 truncate font-bold text-[#0b1c30]">
+                <p className="text-xs font-bold text-[#9d4300]">#{index + 1}</p>
+                <p className="mt-1 truncate font-bold text-[#2a1b14]">
                   {customer.fullName}
                 </p>
                 <p className="text-xs text-slate-500">{customer.phone}</p>
-                <p className="mt-2 text-sm font-extrabold text-[#0b1c30]">
+                <p className="mt-2 text-sm font-extrabold text-[#2a1b14]">
                   {formatCurrency(customer.totalSpent)}
                 </p>
               </button>
@@ -416,7 +416,7 @@ function CustomerPage() {
           <div className="w-full max-w-4xl overflow-hidden border border-slate-200 bg-white shadow-2xl">
             <div className="flex items-start justify-between border-b border-slate-200 bg-white px-6 py-5">
               <div>
-                <h3 className="text-xl font-bold text-[#0b1c30]">
+                <h3 className="text-xl font-bold text-[#2a1b14]">
                   {selectedCustomer.fullName}
                 </h3>
                 <p className="mt-1 text-sm font-semibold text-slate-500">
@@ -436,26 +436,26 @@ function CustomerPage() {
               <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-3">
                 <div className="bg-slate-50 p-4">
                   <p className="text-xs font-semibold text-slate-500">Tổng chi tiêu</p>
-                  <p className="mt-1 text-lg font-bold text-[#0b1c30]">
+                  <p className="mt-1 text-lg font-bold text-[#2a1b14]">
                     {formatCurrency(selectedCustomer.totalSpent)}
                   </p>
                 </div>
                 <div className="bg-slate-50 p-4">
                   <p className="text-xs font-semibold text-slate-500">Tổng hóa đơn</p>
-                  <p className="mt-1 text-lg font-bold text-[#0b1c30]">
+                  <p className="mt-1 text-lg font-bold text-[#2a1b14]">
                     {selectedCustomer.orderCount}
                   </p>
                 </div>
                 <div className="bg-slate-50 p-4">
                   <p className="text-xs font-semibold text-slate-500">Lần mua gần nhất</p>
-                  <p className="mt-1 text-lg font-bold text-[#0b1c30]">
+                  <p className="mt-1 text-lg font-bold text-[#2a1b14]">
                     {formatDate(selectedCustomer.lastOrderAt)}
                   </p>
                 </div>
               </div>
 
               <div className="overflow-x-auto border border-slate-200">
-                <table className="w-full min-w-[560px] text-left text-sm">
+                <table className="w-full min-w-140 text-left text-sm">
                   <thead className="bg-slate-50 font-semibold text-slate-500">
                     <tr>
                       <th className="px-4 py-3">Mã hóa đơn</th>
@@ -466,13 +466,13 @@ function CustomerPage() {
                   <tbody className="divide-y divide-slate-200">
                     {customerOrders.map((order) => (
                       <tr key={order.id}>
-                        <td className="px-4 py-3 font-bold text-[#0b1c30]">
+                        <td className="px-4 py-3 font-bold text-[#2a1b14]">
                           HD{order.id.slice(0, 6).toUpperCase()}
                         </td>
                         <td className="px-4 py-3 text-slate-600">
                           {formatDate(order.createdAt)}
                         </td>
-                        <td className="px-4 py-3 text-right font-bold text-[#0b1c30]">
+                        <td className="px-4 py-3 text-right font-bold text-[#2a1b14]">
                           {formatCurrency(order.finalAmount)}
                         </td>
                       </tr>
@@ -495,10 +495,10 @@ function CustomerPage() {
           <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-5">
               <div className="flex items-center gap-3">
-                <span className="rounded-lg bg-orange-50 p-2 text-[#f97316]">
+                <span className="rounded-lg bg-orange-50 p-2 text-[#9d4300]">
                   <Icon name="person" />
                 </span>
-                <h3 className="text-xl font-bold text-[#0b1c30]">
+                <h3 className="text-xl font-bold text-[#2a1b14]">
                   {editingCustomer ? "Sửa khách hàng" : "Thêm khách hàng"}
                 </h3>
               </div>
@@ -513,7 +513,7 @@ function CustomerPage() {
 
             <form className="space-y-5 p-6" onSubmit={handleSubmit}>
               <div className="space-y-2">
-                <label className="block text-sm font-semibold text-[#0b1c30]">
+                <label className="block text-sm font-semibold text-[#2a1b14]">
                   Tên khách hàng <span className="text-red-600">*</span>
                 </label>
                 <input
@@ -525,13 +525,13 @@ function CustomerPage() {
                       fullName: event.target.value,
                     }))
                   }
-                  className="w-full rounded-lg border border-slate-200 px-4 py-3 text-sm outline-none transition-all focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                  className="w-full rounded-lg border border-slate-200 px-4 py-3 text-sm outline-none transition-all focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
                   placeholder="VD: Nguyễn Văn A"
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="block text-sm font-semibold text-[#0b1c30]">
+                <label className="block text-sm font-semibold text-[#2a1b14]">
                   Số điện thoại <span className="text-red-600">*</span>
                 </label>
                 <input
@@ -547,13 +547,13 @@ function CustomerPage() {
                       phone: event.target.value.replace(/\D/g, "").slice(0, 10),
                     }))
                   }
-                  className="w-full rounded-lg border border-slate-200 px-4 py-3 text-sm outline-none transition-all focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                  className="w-full rounded-lg border border-slate-200 px-4 py-3 text-sm outline-none transition-all focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
                   placeholder="VD: 0901234567"
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="block text-sm font-semibold text-[#0b1c30]">
+                <label className="block text-sm font-semibold text-[#2a1b14]">
                   Địa chỉ
                 </label>
                 <textarea
@@ -565,7 +565,7 @@ function CustomerPage() {
                       address: event.target.value,
                     }))
                   }
-                  className="w-full resize-none rounded-lg border border-slate-200 px-4 py-3 text-sm outline-none transition-all focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                  className="w-full resize-none rounded-lg border border-slate-200 px-4 py-3 text-sm outline-none transition-all focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
                   placeholder="VD: Quan 1, TP. Ho Chi Minh"
                 />
               </div>
@@ -581,7 +581,7 @@ function CustomerPage() {
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="flex h-10 flex-1 items-center justify-center bg-[#f97316] px-4 text-sm font-bold text-white transition-colors hover:bg-[#ea580c] disabled:opacity-60"
+                  className="flex h-10 flex-1 items-center justify-center bg-[#9d4300] px-4 text-sm font-bold text-white transition-colors hover:bg-[#803600] disabled:opacity-60"
                 >
                   {isSaving ? "Đang lưu..." : editingCustomer ? "Lưu thay đổi" : "Thêm mới"}
                 </button>

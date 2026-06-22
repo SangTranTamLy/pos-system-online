@@ -5,8 +5,7 @@ export type Category = {
   imageUrl: string | null;
   productCount: number;
   isActive: boolean;
-  requiresPreparation: boolean;
-  isStockReturnable: boolean;
+  isTrackedStock: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -15,16 +14,14 @@ export type CreateCategoryBody = {
   name?: string;
   description?: string | null;
   imageUrl?: string | null;
-  requiresPreparation?: boolean;
-  isStockReturnable?: boolean;
+  isTrackedStock?: boolean;
 };
 
 export type UpdateCategoryBody = {
   name?: string;
   description?: string | null;
   imageUrl?: string | null;
-  requiresPreparation?: boolean;
-  isStockReturnable?: boolean;
+  isTrackedStock?: boolean;
 };
 
 export type UpdateCategoryStatusBody = {

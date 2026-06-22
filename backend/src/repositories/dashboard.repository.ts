@@ -36,8 +36,7 @@ export async function getDashboardStats(startDate?: string, endDate?: string) {
         WHERE is_active = TRUE) AS activeCategories,
 
         (SELECT COUNT(*)
-        FROM raw_materials
-        WHERE stock_quantity <= min_stock AND is_active = 1) AS lowStockProducts,
+        FROM raw_materials) AS totalMaterials,
 
         (SELECT COUNT(*)
         FROM customers) AS totalCustomers,
@@ -49,36 +48,44 @@ export async function getDashboardStats(startDate?: string, endDate?: string) {
         (
           (SELECT COALESCE(SUM(stock_quantity * import_price), 0) FROM raw_materials WHERE is_active = 1)
           +
-          (SELECT COALESCE(SUM(stock_quantity * import_price), 0) FROM products WHERE requires_preparation = 0 AND status = 'active')
+          (SELECT COALESCE(SUM(stock_quantity * import_price), 0) FROM products WHERE is_tracked_stock = 1 AND is_available = 1)
         ) AS totalStockValue
     `, params);
 
     return rows[0];
 }
 
-export async function getRevenueTrend(startDate?: string, endDate?: string) {
-    let dateCondition = "MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())";
-    let params: string[] = [];
-
-    if (startDate && endDate) {
-        dateCondition = "DATE(created_at) >= ? AND DATE(created_at) <= ?";
-        params = [startDate, endDate];
+export async function getRevenueTrend(
+    period: "month" | "year",
+    year: number,
+    month?: number
+) {
+    if (period === "month") {
+        const [rows] = await db.execute<RowDataPacket[]>(`
+            SELECT
+            DAY(created_at) AS sort,
+            COALESCE(SUM(final_amount), 0) AS revenue
+            FROM orders
+            WHERE status = 'completed'
+              AND YEAR(created_at) = ?
+              AND MONTH(created_at) = ?
+            GROUP BY DAY(created_at)
+            ORDER BY DAY(created_at) ASC
+        `, [year, month ?? null]);
+        return rows;
+    } else {
+        const [rows] = await db.execute<RowDataPacket[]>(`
+            SELECT
+            MONTH(created_at) AS sort,
+            COALESCE(SUM(final_amount), 0) AS revenue
+            FROM orders
+            WHERE status = 'completed'
+              AND YEAR(created_at) = ?
+            GROUP BY MONTH(created_at)
+            ORDER BY MONTH(created_at) ASC
+        `, [year]);
+        return rows;
     }
-
-    const [rows] = await db.execute<RevenueTrendRow[]>(`
-        SELECT
-        DATE(created_at) as orderDate,
-        DAY(created_at) AS sort,
-        DATE_FORMAT(created_at, '%d/%m') AS label,
-        COALESCE(SUM(final_amount), 0) AS revenue
-        FROM orders
-        WHERE status = 'completed'
-        AND ${dateCondition}
-        GROUP BY DATE(created_at), DAY(created_at), DATE_FORMAT(created_at, '%d/%m')
-        ORDER BY DATE(created_at) ASC
-    `, params);
-
-    return rows;
 }
 
 export async function getTopProducts(startDate?: string, endDate?: string) {
@@ -132,16 +139,15 @@ export async function getRecentOrders(startDate?: string, endDate?: string) {
     return rows;
 }
 
-export async function getStockAlerts() {
+export async function getRecentMaterials() {
     const [rows] = await db.execute<RowDataPacket[]>(`
         SELECT
         name AS name,
-        stock_quantity AS stockQuantity,
-        min_stock AS minStock
+        sku AS sku,
+        category AS category,
+        import_price AS importPrice
         FROM raw_materials
-        WHERE stock_quantity <= min_stock
-          AND is_active = 1
-        ORDER BY (stock_quantity - min_stock) ASC
+        ORDER BY created_at DESC
         LIMIT 5
     `);
 

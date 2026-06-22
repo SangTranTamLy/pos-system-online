@@ -2,7 +2,7 @@ import {
     getDashboardStats,
     getRecentOrders,
     getRevenueTrend,
-    getStockAlerts,
+    getRecentMaterials,
     getTopProducts,
     getPaymentMethodStats,
     getCurrentActiveShift,
@@ -15,13 +15,23 @@ export async function getDashboardSummaryService(
     startDate?: string,
     endDate?: string
 ) {
-    const [stats, revenueRows, topProducts, recentOrders, stockAlerts, paymentMethodRows, currentShiftRow] =
+    let targetDate = new Date();
+    if (startDate) {
+        const parsed = new Date(startDate);
+        if (!isNaN(parsed.getTime())) {
+            targetDate = parsed;
+        }
+    }
+    const targetYear = targetDate.getFullYear();
+    const targetMonth = targetDate.getMonth() + 1;
+
+    const [stats, revenueRows, topProducts, recentOrders, recentMaterials, paymentMethodRows, currentShiftRow] =
         await Promise.all([
         getDashboardStats(startDate, endDate),
-        getRevenueTrend(startDate, endDate),
+        getRevenueTrend(period, targetYear, targetMonth),
         getTopProducts(startDate, endDate),
         getRecentOrders(startDate, endDate),
-        getStockAlerts(),
+        getRecentMaterials(),
         getPaymentMethodStats(startDate, endDate),
         getCurrentActiveShift(),
         ]);
@@ -54,21 +64,54 @@ export async function getDashboardSummaryService(
         };
     }
 
+    // Pad daily/monthly revenue trend
+    let revenueTrend: Array<{ sort: number; label: string; revenue: number }> = [];
+    if (period === "month") {
+        const daysInMonth = new Date(targetYear, targetMonth, 0).getDate();
+        const trendMap = new Map<number, number>();
+        for (let d = 1; d <= daysInMonth; d++) {
+            trendMap.set(d, 0);
+        }
+        for (const row of revenueRows) {
+            trendMap.set(Number(row.sort), Number(row.revenue ?? 0));
+        }
+        revenueTrend = Array.from(trendMap.entries()).map(([day, revenue]) => {
+            const label = `${String(day).padStart(2, "0")}/${String(targetMonth).padStart(2, "0")}`;
+            return {
+                sort: day,
+                label,
+                revenue,
+            };
+        });
+    } else {
+        const trendMap = new Map<number, number>();
+        for (let m = 1; m <= 12; m++) {
+            trendMap.set(m, 0);
+        }
+        for (const row of revenueRows) {
+            trendMap.set(Number(row.sort), Number(row.revenue ?? 0));
+        }
+        revenueTrend = Array.from(trendMap.entries()).map(([month, revenue]) => {
+            const label = `Tháng ${month}`;
+            return {
+                sort: month,
+                label,
+                revenue,
+            };
+        });
+    }
+
     return {
         stats: {
         todayRevenue: Number(stats.todayRevenue ?? 0),
         todayOrders: Number(stats.todayOrders ?? 0),
         activeCategories: Number(stats.activeCategories ?? 0),
-        lowStockProducts: Number(stats.lowStockProducts ?? 0),
+        totalMaterials: Number(stats.totalMaterials ?? 0),
         totalCustomers: Number(stats.totalCustomers ?? 0),
         activeProducts: Number(stats.activeProducts ?? 0),
         totalStockValue: Number(stats.totalStockValue ?? 0),
         },
-        revenueTrend: revenueRows.map(row => ({
-            sort: Number(row.sort),
-            label: String(row.label),
-            revenue: Number(row.revenue ?? 0),
-        })),
+        revenueTrend,
         topProducts: topProducts.map((item) => ({
         name: String(item.name),
         imageUrl: item.imageUrl ? String(item.imageUrl) : undefined,
@@ -82,10 +125,11 @@ export async function getDashboardSummaryService(
         status: String(item.status),
         createdAt: item.createdAt as Date,
         })),
-        stockAlerts: stockAlerts.map((item) => ({
+        materials: recentMaterials.map((item) => ({
         name: String(item.name),
-        stockQuantity: Number(item.stockQuantity ?? 0),
-        minStock: Number(item.minStock ?? 0),
+        sku: String(item.sku),
+        category: String(item.category || "Chưa phân loại"),
+        importPrice: Number(item.importPrice ?? 0),
         })),
         paymentMethods,
         currentShift,

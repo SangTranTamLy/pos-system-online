@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { login, loginPinApi } from "../../api/auth.api";
-import heroImage from "../../assets/brg_login.png";
+import heroImage from "../../assets/brg_login1.png";
 
 type LoginTab = "staff" | "quick";
 
@@ -41,10 +41,10 @@ function TabButton({
       type="button"
       onClick={onClick}
       className={[
-        "flex-1 border-b-2 py-4 text-sm font-semibold tracking-[0.02em] transition-all",
+        "flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors duration-150",
         active
-          ? "border-[#9d4300] text-[#9d4300]"
-          : "border-transparent text-[#584237] hover:bg-[#eff4ff]",
+          ? "bg-[#9d4300] text-white"
+          : "bg-transparent text-[#735b4f] hover:bg-[#f5eae4]/50",
       ].join(" ")}
     >
       {label}
@@ -139,56 +139,44 @@ function LoginPage() {
   
 
   return (
-    <main className="h-screen overflow-hidden bg-[#f8f9ff] font-sans text-[#0b1c30]">
+    <main className="h-screen overflow-hidden bg-[#faf8f6] font-sans text-[#2a1b14]">
       <div className="flex h-full min-h-0 w-full">
+        {/* Left Hero Image Panel */}
         <section className="relative hidden overflow-hidden lg:block lg:w-3/5">
-          <div className="absolute inset-0 z-10 bg-linear-to-t from-black/60 to-transparent" />
+          <div className="absolute inset-0 z-10 bg-linear-to-t from-[#2a1b14]/10 via-transparent to-transparent" />
           <img
             src={heroImage}
             alt="Busy Cafe POS Environment"
             className="h-full w-full object-cover"
           />
-
-          <div className="absolute top-12 left-12 z-20">
-            <div className="flex items-center gap-3">
-              <div className="rounded-lg bg-[#f97316] p-2">
-                <Icon name="terminal" filled className="text-3xl text-[#341100]" />
-              </div>
-              <h1 className="font-['Plus_Jakarta_Sans',sans-serif] text-4xl font-bold text-white">
-                QuickServe POS
-              </h1>
-            </div>
-          </div>
-
-          <div className="absolute right-12 bottom-12 left-12 z-20">
-            <p className="max-w-2xl font-['Plus_Jakarta_Sans',sans-serif] text-3xl leading-snug font-semibold italic text-white/90">
-              "Nâng tầm quy trình dịch vụ của bạn bằng tốc độ và sự chuẩn xác."
-            </p>
-          </div>
         </section>
 
-        <section className="flex h-full min-h-0 w-full flex-col bg-white lg:w-2/5">
-          <header className="flex shrink-0 justify-center px-6 py-4 lg:hidden">
+        {/* Right Form Panel */}
+        <section className="flex h-full min-h-0 w-full flex-col bg-[#fdfcfb] lg:w-2/5 lg:border-l lg:border-[#e2d8d2]/40">
+          <header className="flex shrink-0 justify-center px-6 py-4 lg:hidden bg-[#fdfcfb]">
             <div className="flex items-center gap-2">
               <Icon name="terminal" filled className="text-2xl text-[#9d4300]" />
-              <span className="font-['Plus_Jakarta_Sans',sans-serif] text-2xl font-bold text-[#9d4300]">
+              <span className="font-['Plus_Jakarta_Sans',sans-serif] text-2xl font-bold text-[#9d4300] tracking-tight">
                 QuickServe POS
               </span>
             </div>
           </header>
 
-          <div className="flex min-h-0 flex-1 items-center justify-center px-8 py-6 md:px-16">
+          <div className="flex min-h-0 flex-1 items-center justify-center px-8 py-6 md:px-16 overflow-y-auto">
             <div className="w-full max-w-md">
-              <div className="mb-6">
-                <h2 className="mb-2 font-['Plus_Jakarta_Sans',sans-serif] text-4xl font-bold text-[#0b1c30]">
-                  Chào Mừng 
+              {/* Header */}
+              <div className="mb-8">
+                <span className="text-xs uppercase font-bold tracking-widest text-[#9d4300]">Hệ thống POS</span>
+                <h2 className="mt-1 mb-2 font-['Plus_Jakarta_Sans',sans-serif] text-3xl font-bold text-[#2a1b14]">
+                  Chào Mừng Trở Lại
                 </h2>
-                <p className="text-base text-[#584237]">
-                  Đăng nhập để quản lý khu vực phục vụ và các giao dịch.
+                <p className="text-sm text-[#735b4f]">
+                  Đăng nhập để bắt đầu phiên làm việc và quản lý giao dịch.
                 </p>
               </div>
 
-              <div className="mb-6 flex border-b border-[#e0c0b1]" role="tablist">
+              {/* Tab Selector */}
+              <div className="mb-6 flex border border-[#e2d8d2] bg-[#fdfbf7] p-1" role="tablist">
                 <TabButton
                   active={activeTab === "staff"}
                   label="Tài khoản nhân sự"
@@ -201,53 +189,56 @@ function LoginPage() {
                 />
               </div>
 
-              <div className="min-h-32rem">
+              {/* Forms Container */}
+              <div className="min-h-112">
                 {activeTab === "staff" ? (
                   <form className="space-y-4" onSubmit={handleStaffLogin}>
-                    <div className="space-y-2">
-                      <label htmlFor="email" className="text-sm font-semibold tracking-[0.02em]">
-                        tài khoản
+                    <div className="space-y-1.5">
+                      <label htmlFor="email" className="text-xs font-bold uppercase tracking-wider text-[#735b4f]">
+                        Tài khoản / Email
                       </label>
-                      <div className="group relative rounded-lg border-2 border-[#e0c0b1] transition-all focus-within:border-[#f97316] focus-within:shadow-[0_0_0_2px_rgba(249,115,22,0.2)]">
+                      <div className="group relative border border-[#d4beab] bg-[#fcfaf7] transition-colors duration-150 focus-within:border-[#9d4300]">
                         <Icon
                           name="mail"
-                          className="absolute top-1/2 left-3 -translate-y-1/2 text-[#584237]"
+                          className="absolute top-1/2 left-3 -translate-y-1/2 text-[#8b6e60]"
                         />
                         <input
                           id="email"
                           type="email"
                           placeholder="name@quickserve.com"
-                          className="h-11 w-full border-none bg-transparent py-3 pr-4 pl-10 text-[#0b1c30] outline-none placeholder:text-[#584237]/50"
-                          value={email} onChange={(event) => setEmail(event.target.value)}
+                          className="h-11 w-full border-none bg-transparent py-3 pr-4 pl-10 text-[#2a1b14] outline-none placeholder:text-[#8b6e60]/40 text-sm"
+                          value={email}
+                          onChange={(event) => setEmail(event.target.value)}
                         />
                       </div>
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                       <div className="flex items-center justify-between gap-3">
-                        <label htmlFor="password" className="text-sm font-semibold tracking-[0.02em]">
-                          mật khẩu
+                        <label htmlFor="password" className="text-xs font-bold uppercase tracking-wider text-[#735b4f]">
+                          Mật khẩu
                         </label>
-                        <a href="#" className="text-sm font-semibold tracking-[0.02em] text-[#9d4300] hover:underline">
+                        <a href="#" className="text-xs font-bold uppercase tracking-wider text-[#9d4300] hover:underline">
                           Quên mật khẩu?
                         </a>
                       </div>
-                      <div className="group relative rounded-lg border-2 border-[#e0c0b1] transition-all focus-within:border-[#f97316] focus-within:shadow-[0_0_0_2px_rgba(249,115,22,0.2)]">
+                      <div className="group relative border border-[#d4beab] bg-[#fcfaf7] transition-colors duration-150 focus-within:border-[#9d4300]">
                         <Icon
                           name="lock"
-                          className="absolute top-1/2 left-3 -translate-y-1/2 text-[#584237]"
+                          className="absolute top-1/2 left-3 -translate-y-1/2 text-[#8b6e60]"
                         />
                         <input
                           id="password"
                           type={showPassword ? "text" : "password"}
-                          placeholder="********"
-                          className="h-11 w-full border-none bg-transparent py-3 pr-12 pl-10 text-[#0b1c30] outline-none placeholder:text-[#584237]/50"
-                          value={password} onChange={(event) => setPassword(event.target.value)}
+                          placeholder="••••••••"
+                          className="h-11 w-full border-none bg-transparent py-3 pr-12 pl-10 text-[#2a1b14] outline-none placeholder:text-[#8b6e60]/40 text-sm"
+                          value={password}
+                          onChange={(event) => setPassword(event.target.value)}
                         />
                         <button
                           type="button"
                           onClick={() => setShowPassword((value) => !value)}
-                          className="absolute top-1/2 right-3 -translate-y-1/2 text-[#584237] transition-colors hover:text-[#9d4300]"
+                          className="absolute top-1/2 right-3 -translate-y-1/2 text-[#8b6e60] transition-colors duration-150 hover:text-[#9d4300]"
                           aria-label={showPassword ? "Hide password" : "Show password"}
                         >
                           <Icon name={showPassword ? "visibility_off" : "visibility"} />
@@ -255,41 +246,46 @@ function LoginPage() {
                       </div>
                     </div>
 
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        className="h-6 w-6 rounded border-2 border-[#e0c0b1] accent-[#9d4300]"
-                      />
-                      <span className="text-base text-[#584237]">Lưu thiết bị này</span>
-                    </label>
+                    <div className="pt-1">
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 border border-[#d4beab] bg-[#fcfaf7] accent-[#9d4300] cursor-pointer"
+                        />
+                        <span className="text-xs font-semibold text-[#735b4f] uppercase tracking-wider">Lưu thiết bị này</span>
+                      </label>
+                    </div>
+
                     {errorMessage && (
-                      <p className="rounded-lg bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
+                      <p className="border border-red-200 bg-red-50/50 px-4 py-3 text-xs font-semibold text-red-700 uppercase tracking-wider">
                         {errorMessage}
                       </p>
                     )}
+
                     <button
                       type="submit"
-                      className="w-full rounded-lg bg-[#f97316] py-3 font-['Plus_Jakarta_Sans',sans-serif] text-xl font-semibold text-white shadow-lg transition-all hover:brightness-110 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={isSubmitting}
+                      className="w-full bg-[#9d4300] py-3.5 font-['Plus_Jakarta_Sans',sans-serif] text-sm font-bold uppercase tracking-widest text-white transition-colors duration-150 hover:bg-[#803600] disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {isSubmitting ? "Đang đăng nhập..." : "Đăng nhập"}
+                      {isSubmitting ? "Đang đăng nhập..." : "Đăng nhập hệ thống"}
                     </button>
                   </form>
                 ) : (
                   <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); handleAutoLogin(); }}>
-                    <div className="space-y-2 text-center">
-                      <p className="text-sm font-semibold tracking-[0.02em] text-[#584237]">
-                        Nhập mã nhân viên hoặc quét thẻ nhân viên
+                    <div className="text-center py-1">
+                      <p className="text-xs uppercase font-bold tracking-wider text-[#8c7467]">
+                        Nhập mã PIN cá nhân để đăng nhập nhanh
                       </p>
                     </div>
 
-                    <div className="space-y-2">
-                      <label htmlFor="employee-id" className="text-sm font-semibold tracking-[0.02em]">
-                        Nhân Viên ID / PIN
+                    <div className="space-y-1.5">
+                      <label htmlFor="employee-id" className="text-xs font-bold uppercase tracking-wider text-[#735b4f]">
+                        Mã PIN Nhân Viên
                       </label>
-                      <div className="group relative rounded-lg border-2 border-[#e0c0b1] transition-all focus-within:border-[#f97316] focus-within:shadow-[0_0_0_2px_rgba(249,115,22,0.2)]">
+                      <div className="group relative border border-[#d4beab] bg-[#fcfaf7] transition-colors duration-150 focus-within:border-[#9d4300]">
                         <Icon
                           name="badge"
-                          className="absolute top-1/2 left-3 -translate-y-1/2 text-[#584237]"
+                          className="absolute top-1/2 left-3.5 -translate-y-1/2 text-[#8b6e60]"
                         />
                         <input
                           id="employee-id"
@@ -300,19 +296,20 @@ function LoginPage() {
                           onChange={(event) =>
                             setPin(event.target.value.replace(/\D/g, "").slice(0, 6))
                           }
-                          placeholder="Nhập 6 chữ số PIN"
-                          className="h-11 w-full border-none bg-transparent py-3 pr-4 pl-10 text-center text-[#0b1c30] tracking-[0.3em] outline-none placeholder:text-[#584237]/50"
+                          placeholder="••••••"
+                          className="h-11 w-full border-none bg-transparent py-3 pr-4 pl-10 text-center text-[#2a1b14] font-bold text-lg tracking-[0.6em] outline-none placeholder:text-[#8b6e60]/30"
                         />
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-3 pt-2">
+                    {/* KEYPAD */}
+                    <div className="grid grid-cols-3 gap-2 pt-2">
                       {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((digit) => (
                         <button
                           key={digit}
                           type="button"
                           onClick={() => handleQuickDigit(digit)}
-                          className="h-14 rounded-lg bg-[#e5eeff] font-['Plus_Jakarta_Sans',sans-serif] text-2xl font-semibold transition-colors hover:bg-[#d3e4fe]"
+                          className="h-12 border border-[#eadacf] bg-[#fcfaf8] font-['Plus_Jakarta_Sans',sans-serif] text-xl font-bold text-[#4a3728] transition-colors duration-150 hover:bg-[#f3eae1] active:bg-[#eadacf]"
                         >
                           {digit}
                         </button>
@@ -321,7 +318,7 @@ function LoginPage() {
                       <button
                         type="button"
                         onClick={handleQuickBackspace}
-                        className="flex h-14 items-center justify-center rounded-lg text-[#ba1a1a] transition-colors hover:bg-[#ffdad6]"
+                        className="flex h-12 items-center justify-center border border-[#fca5a5] bg-[#fff5f5] text-[#c2410c] transition-colors duration-150 hover:bg-[#fee2e2]"
                         aria-label="Delete digit"
                       >
                         <Icon name="backspace" />
@@ -330,14 +327,14 @@ function LoginPage() {
                       <button
                         type="button"
                         onClick={() => handleQuickDigit("0")}
-                        className="h-14 rounded-lg bg-[#e5eeff] font-['Plus_Jakarta_Sans',sans-serif] text-2xl font-semibold transition-colors hover:bg-[#d3e4fe]"
+                        className="h-12 border border-[#eadacf] bg-[#fcfaf8] font-['Plus_Jakarta_Sans',sans-serif] text-xl font-bold text-[#4a3728] transition-colors duration-150 hover:bg-[#f3eae1] active:bg-[#eadacf]"
                       >
                         0
                       </button>
 
                       <button
                         type="submit"
-                        className="flex h-14 items-center justify-center rounded-lg text-[#9d4300] transition-colors hover:bg-[#ffdbca]"
+                        className="flex h-12 items-center justify-center border border-[#86efac] bg-[#f0fdf4] text-[#15803d] transition-colors duration-150 hover:bg-[#dcfce7]"
                         aria-label="Confirm PIN"
                       >
                         <Icon name="check_circle" />
@@ -346,7 +343,8 @@ function LoginPage() {
 
                     <button
                       type="submit"
-                      className="w-full rounded-lg bg-[#f97316] py-3 font-['Plus_Jakarta_Sans',sans-serif] text-xl font-semibold text-white shadow-lg transition-all hover:brightness-110 active:translate-y-px"
+                      disabled={isSubmitting}
+                      className="w-full bg-[#9d4300] py-3.5 font-['Plus_Jakarta_Sans',sans-serif] text-sm font-bold uppercase tracking-widest text-white transition-colors duration-150 hover:bg-[#803600] disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       Xác nhận đăng nhập
                     </button>
@@ -354,10 +352,11 @@ function LoginPage() {
                 )}
               </div>
 
+              {/* Help Support button */}
               <div className="mt-5 text-center">
                 <button
                   type="button"
-                  className="flex w-full items-center justify-center gap-2 py-2 text-sm font-semibold tracking-[0.02em] text-[#584237] transition-colors hover:text-[#9d4300]"
+                  className="flex w-full items-center justify-center gap-2 py-2 text-xs font-bold uppercase tracking-wider text-[#735b4f] transition-colors duration-150 hover:text-[#9d4300]"
                 >
                   <Icon name="help" />
                   Hỗ trợ đăng nhập?
@@ -366,18 +365,18 @@ function LoginPage() {
             </div>
           </div>
 
-          <footer className="flex flex-col items-center justify-between gap-4 shrink-0 border-t border-[#e0c0b1]/30 px-6 py-4 md:flex-row">
-            <p className="text-sm font-semibold tracking-[0.02em] text-[#584237] opacity-60">
+          <footer className="flex flex-col items-center justify-between gap-4 shrink-0 border-t border-[#e2d8d2]/30 px-6 py-4 md:flex-row bg-[#faf8f6]">
+            <p className="text-xs font-medium tracking-[0.02em] text-[#8c7467]">
               Bản quyền © 2024 QuickServe Systems. Bảo lưu mọi quyền.
             </p>
             <div className="flex flex-wrap justify-center gap-6">
-              <a href="#" className="text-sm font-semibold tracking-[0.02em] text-[#584237] transition-colors hover:text-[#9d4300]">
+              <a href="#" className="text-xs font-semibold tracking-[0.02em] text-[#8c7467] transition-colors duration-150 hover:text-[#9d4300]">
                 Chính sách bảo mật
               </a>
-              <a href="#" className="text-sm font-semibold tracking-[0.02em] text-[#584237] transition-colors hover:text-[#9d4300]">
+              <a href="#" className="text-xs font-semibold tracking-[0.02em] text-[#8c7467] transition-colors duration-150 hover:text-[#9d4300]">
                 Điều khoản dịch vụ
               </a>
-              <a href="#" className="text-sm font-semibold tracking-[0.02em] text-[#584237] transition-colors hover:text-[#9d4300]">
+              <a href="#" className="text-xs font-semibold tracking-[0.02em] text-[#8c7467] transition-colors duration-150 hover:text-[#9d4300]">
                 Tuân thủ bảo mật
               </a>
             </div>

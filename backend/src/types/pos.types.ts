@@ -30,7 +30,7 @@ export type PosOrderDetail = {
   quantity: number;
   unitPrice: number;
   lineTotal: number;
-  requiresPreparation?: boolean;
+  isTrackedStock?: boolean;
 };
 
 export type PosPayment = {

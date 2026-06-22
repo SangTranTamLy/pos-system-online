@@ -7,8 +7,8 @@ export interface AuditLog {
   actionType: string;
   targetObject: string | null;
   description: string | null;
-  oldValues?: any;
-  newValues?: any;
+  oldValues?: Record<string, unknown>;
+  newValues?: Record<string, unknown>;
 }
 
 export interface AuditLogQuery {

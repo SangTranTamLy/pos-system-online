@@ -1,8 +1,9 @@
 import type { RowDataPacket, ResultSetHeader } from "mysql2";
 import type { PoolConnection } from "mysql2/promise";
 import { db } from "../config/database";
-import type { CreateProductBody, Product, UpdateProductBody, SaveProductRecipeIngredient, ProductRecipeIngredient } from "../types/product.types";
+import type { CreateProductBody, Product, UpdateProductBody } from "../types/product.types";
 import crypto from "crypto";
+
 type ProductRow = RowDataPacket & {
     id: string;
     category_id: string;
@@ -11,35 +12,36 @@ type ProductRow = RowDataPacket & {
     name: string;
     import_price: string;
     sale_price: string;
-    stock_quantity: number;
+    stock_quantity: number | null;
     status: Product["status"];
     description: string | null;
     image_url: string | null;
     created_at: Date;
     updated_at: Date; 
-    requires_preparation: number;
-    is_stock_returnable: number;
+    is_tracked_stock: number;
+    is_available: number;
 };
 
-function mapProduct(row: ProductRow): Product{
-    return{
+function mapProduct(row: ProductRow): Product {
+    return {
         id: row.id,
-    categoryId: row.category_id,
-    categoryName: row.category_name,
-    requiresPreparation: Boolean(row.requires_preparation),
-    isStockReturnable: Boolean(row.is_stock_returnable),
-    sku: row.sku,
-    name: row.name,
-    importPrice: Number(row.import_price),
-    salePrice: Number(row.sale_price),
-    stockQuantity: row.stock_quantity,
-    status: row.status,
-    description: row.description,
-    imageUrl: row.image_url,
-    createdAt: row.created_at.toISOString(),
-    updatedAt: row.updated_at.toISOString(),
+        categoryId: row.category_id,
+        categoryName: row.category_name,
+        isTrackedStock: Boolean(row.is_tracked_stock),
+        isAvailable: Boolean(row.is_available),
+        sku: row.sku,
+        name: row.name,
+        importPrice: Number(row.import_price),
+        salePrice: Number(row.sale_price),
+        stockQuantity: row.stock_quantity !== null ? Number(row.stock_quantity) : null,
+        status: row.status,
+        description: row.description,
+        imageUrl: row.image_url,
+        createdAt: row.created_at.toISOString(),
+        updatedAt: row.updated_at.toISOString(),
     };
 }
+
 /*ham lay theo ds */
 export async function findProducts(): Promise<Product[]>{
     const [rows] = await db.execute<ProductRow[]>(
@@ -57,14 +59,15 @@ export async function findProducts(): Promise<Product[]>{
             products.image_url,
             products.created_at,
             products.updated_at,
-            products.requires_preparation,
-            products.is_stock_returnable
+            products.is_tracked_stock,
+            products.is_available
         FROM products
         JOIN categories ON products.category_id = categories.id
         ORDER BY products.created_at DESC`
     );
     return rows.map(mapProduct);
 }
+
 /*ham lay theo id */
 export async function findProductById(id: string): Promise<Product | null> {
     const [rows] = await db.execute<ProductRow[]>(
@@ -83,8 +86,8 @@ export async function findProductById(id: string): Promise<Product | null> {
         products.image_url,
         products.created_at,
         products.updated_at,
-        products.requires_preparation,
-        products.is_stock_returnable
+        products.is_tracked_stock,
+        products.is_available
         FROM products
         JOIN categories ON products.category_id = categories.id
         WHERE products.id = ?
@@ -113,8 +116,8 @@ export async function findProductBySku(sku: string): Promise<Product | null> {
         products.image_url,
         products.created_at,
         products.updated_at,
-        products.requires_preparation,
-        products.is_stock_returnable
+        products.is_tracked_stock,
+        products.is_available
         FROM products
         JOIN categories ON products.category_id = categories.id
         WHERE products.sku = ?
@@ -134,8 +137,8 @@ export async function createProduct(data: CreateProductBody): Promise<Product> {
         INSERT INTO products (
         id,
         category_id,
-        requires_preparation,
-        is_stock_returnable,
+        is_tracked_stock,
+        is_available,
         sku,
         name,
         import_price,
@@ -150,13 +153,13 @@ export async function createProduct(data: CreateProductBody): Promise<Product> {
         [
         id,
         data.categoryId,
-        data.requiresPreparation ? 1 : 0,
-        data.isStockReturnable ? 1 : 0,
+        data.isTrackedStock ? 1 : 0,
+        data.isAvailable ? 1 : 0,
         data.sku,
         data.name,
         data.importPrice ?? 0,
         data.salePrice,
-        data.stockQuantity ?? 0,
+        data.stockQuantity ?? null,
         data.status ?? "active",
         data.description ?? null,
         data.imageUrl ?? null,
@@ -171,6 +174,7 @@ export async function createProduct(data: CreateProductBody): Promise<Product> {
 
     return product;
 }
+
 export async function updateProductById(
     id: string,
     data: UpdateProductBody
@@ -180,8 +184,8 @@ export async function updateProductById(
         UPDATE products
         SET
         category_id = ?,
-        requires_preparation = ?,
-        is_stock_returnable = ?,
+        is_tracked_stock = ?,
+        is_available = ?,
         sku = ?,
         name = ?,
         import_price = ?,
@@ -194,13 +198,13 @@ export async function updateProductById(
         `,
         [
         data.categoryId ?? null,
-        data.requiresPreparation ? 1 : 0,
-        data.isStockReturnable ? 1 : 0,
+        data.isTrackedStock ? 1 : 0,
+        data.isAvailable ? 1 : 0,
         data.sku ?? null,
         data.name ?? null,
         data.importPrice ?? 0,
         data.salePrice ?? 0,
-        data.stockQuantity ?? 0,
+        data.stockQuantity ?? null,
         data.status ?? "active",
         data.description ?? null,
         data.imageUrl ?? null,
@@ -226,6 +230,7 @@ export async function updateProductStatusById(
 
     return findProductById(id);
 }
+
 export async function countOrderDetailsByProductId(id: string): Promise<number> {
     const [rows] = await db.execute<(RowDataPacket & { total: number })[]>(
         `
@@ -249,64 +254,4 @@ export async function deleteProductById(id: string): Promise<boolean> {
     );
 
     return result.affectedRows > 0;
-}
-
-export async function findProductRecipe(productId: string): Promise<ProductRecipeIngredient[]> {
-    const [rows] = await db.execute<RowDataPacket[]>(
-        `
-        SELECT 
-          recipes.ingredient_id AS ingredientId,
-          raw_materials.name AS ingredientName,
-          recipes.quantity_needed AS quantityNeeded,
-          raw_materials.unit AS unit
-        FROM recipes
-        JOIN raw_materials ON recipes.ingredient_id = raw_materials.id
-        WHERE recipes.product_id = ?
-        `,
-        [productId]
-    );
-
-    return rows.map(row => ({
-        ingredientId: String(row.ingredientId),
-        ingredientName: String(row.ingredientName),
-        quantityNeeded: Number(row.quantityNeeded),
-        unit: String(row.unit)
-    }));
-}
-
-export async function saveProductRecipe(
-    productId: string, 
-    ingredients: SaveProductRecipeIngredient[]
-): Promise<void> {
-    const connection = await db.getConnection();
-
-    try {
-        await connection.beginTransaction();
-
-        // Bước 1: Xóa công thức cũ để ghi đè tránh uq_product_ingredient UNIQUE constraint error
-        await connection.execute(
-            `DELETE FROM recipes WHERE product_id = ?`,
-            [productId]
-        );
-
-        // Bước 2: Thêm công thức mới
-        for (const item of ingredients) {
-            await connection.execute(
-                `INSERT INTO recipes (id, product_id, ingredient_id, quantity_needed) VALUES (?, ?, ?, ?)`,
-                [
-                    crypto.randomUUID(),
-                    productId,
-                    item.ingredientId,
-                    item.quantityNeeded
-                ]
-            );
-        }
-
-        await connection.commit();
-    } catch (error) {
-        await connection.rollback();
-        throw error;
-    } finally {
-        connection.release();
-    }
 }
