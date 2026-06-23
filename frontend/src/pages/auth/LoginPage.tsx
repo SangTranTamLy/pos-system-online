@@ -43,7 +43,7 @@ function TabButton({
       className={[
         "flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors duration-150",
         active
-          ? "bg-[#9d4300] text-white"
+          ? "bg-[#f97316] text-white"
           : "bg-transparent text-[#735b4f] hover:bg-[#f5eae4]/50",
       ].join(" ")}
     >
@@ -139,11 +139,11 @@ function LoginPage() {
   
 
   return (
-    <main className="h-screen overflow-hidden bg-[#faf8f6] font-sans text-[#2a1b14]">
+    <main className="h-screen overflow-hidden bg-[#f8f9ff] font-sans text-[#0b1c30]">
       <div className="flex h-full min-h-0 w-full">
         {/* Left Hero Image Panel */}
         <section className="relative hidden overflow-hidden lg:block lg:w-3/5">
-          <div className="absolute inset-0 z-10 bg-linear-to-t from-[#2a1b14]/10 via-transparent to-transparent" />
+          <div className="absolute inset-0 z-10 bg-linear-to-t from-[#0b1c30]/10 via-transparent to-transparent" />
           <img
             src={heroImage}
             alt="Busy Cafe POS Environment"
@@ -155,8 +155,8 @@ function LoginPage() {
         <section className="flex h-full min-h-0 w-full flex-col bg-[#fdfcfb] lg:w-2/5 lg:border-l lg:border-[#e2d8d2]/40">
           <header className="flex shrink-0 justify-center px-6 py-4 lg:hidden bg-[#fdfcfb]">
             <div className="flex items-center gap-2">
-              <Icon name="terminal" filled className="text-2xl text-[#9d4300]" />
-              <span className="font-['Plus_Jakarta_Sans',sans-serif] text-2xl font-bold text-[#9d4300] tracking-tight">
+              <Icon name="terminal" filled className="text-2xl text-[#f97316]" />
+              <span className="font-['Plus_Jakarta_Sans',sans-serif] text-2xl font-bold text-[#f97316] tracking-tight">
                 QuickServe POS
               </span>
             </div>
@@ -166,8 +166,8 @@ function LoginPage() {
             <div className="w-full max-w-md">
               {/* Header */}
               <div className="mb-8">
-                <span className="text-xs uppercase font-bold tracking-widest text-[#9d4300]">Hệ thống POS</span>
-                <h2 className="mt-1 mb-2 font-['Plus_Jakarta_Sans',sans-serif] text-3xl font-bold text-[#2a1b14]">
+                <span className="text-xs uppercase font-bold tracking-widest text-[#f97316]">Hệ thống POS</span>
+                <h2 className="mt-1 mb-2 font-['Plus_Jakarta_Sans',sans-serif] text-3xl font-bold text-[#0b1c30]">
                   Chào Mừng Trở Lại
                 </h2>
                 <p className="text-sm text-[#735b4f]">
@@ -197,7 +197,7 @@ function LoginPage() {
                       <label htmlFor="email" className="text-xs font-bold uppercase tracking-wider text-[#735b4f]">
                         Tài khoản / Email
                       </label>
-                      <div className="group relative border border-[#d4beab] bg-[#fcfaf7] transition-colors duration-150 focus-within:border-[#9d4300]">
+                      <div className="group relative border border-[#d4beab] bg-[#fcfaf7] transition-colors duration-150 focus-within:border-[#f97316]">
                         <Icon
                           name="mail"
                           className="absolute top-1/2 left-3 -translate-y-1/2 text-[#8b6e60]"
@@ -206,7 +206,7 @@ function LoginPage() {
                           id="email"
                           type="email"
                           placeholder="name@quickserve.com"
-                          className="h-11 w-full border-none bg-transparent py-3 pr-4 pl-10 text-[#2a1b14] outline-none placeholder:text-[#8b6e60]/40 text-sm"
+                          className="h-11 w-full border-none bg-transparent py-3 pr-4 pl-10 text-[#0b1c30] outline-none placeholder:text-[#8b6e60]/40 text-sm"
                           value={email}
                           onChange={(event) => setEmail(event.target.value)}
                         />
@@ -218,11 +218,11 @@ function LoginPage() {
                         <label htmlFor="password" className="text-xs font-bold uppercase tracking-wider text-[#735b4f]">
                           Mật khẩu
                         </label>
-                        <a href="#" className="text-xs font-bold uppercase tracking-wider text-[#9d4300] hover:underline">
+                        <a href="#" className="text-xs font-bold uppercase tracking-wider text-[#f97316] hover:underline">
                           Quên mật khẩu?
                         </a>
                       </div>
-                      <div className="group relative border border-[#d4beab] bg-[#fcfaf7] transition-colors duration-150 focus-within:border-[#9d4300]">
+                      <div className="group relative border border-[#d4beab] bg-[#fcfaf7] transition-colors duration-150 focus-within:border-[#f97316]">
                         <Icon
                           name="lock"
                           className="absolute top-1/2 left-3 -translate-y-1/2 text-[#8b6e60]"
@@ -231,14 +231,14 @@ function LoginPage() {
                           id="password"
                           type={showPassword ? "text" : "password"}
                           placeholder="••••••••"
-                          className="h-11 w-full border-none bg-transparent py-3 pr-12 pl-10 text-[#2a1b14] outline-none placeholder:text-[#8b6e60]/40 text-sm"
+                          className="h-11 w-full border-none bg-transparent py-3 pr-12 pl-10 text-[#0b1c30] outline-none placeholder:text-[#8b6e60]/40 text-sm"
                           value={password}
                           onChange={(event) => setPassword(event.target.value)}
                         />
                         <button
                           type="button"
                           onClick={() => setShowPassword((value) => !value)}
-                          className="absolute top-1/2 right-3 -translate-y-1/2 text-[#8b6e60] transition-colors duration-150 hover:text-[#9d4300]"
+                          className="absolute top-1/2 right-3 -translate-y-1/2 text-[#8b6e60] transition-colors duration-150 hover:text-[#f97316]"
                           aria-label={showPassword ? "Hide password" : "Show password"}
                         >
                           <Icon name={showPassword ? "visibility_off" : "visibility"} />
@@ -250,7 +250,7 @@ function LoginPage() {
                       <label className="flex items-center gap-2 cursor-pointer select-none">
                         <input
                           type="checkbox"
-                          className="h-4 w-4 border border-[#d4beab] bg-[#fcfaf7] accent-[#9d4300] cursor-pointer"
+                          className="h-4 w-4 border border-[#d4beab] bg-[#fcfaf7] accent-[#f97316] cursor-pointer"
                         />
                         <span className="text-xs font-semibold text-[#735b4f] uppercase tracking-wider">Lưu thiết bị này</span>
                       </label>
@@ -265,7 +265,7 @@ function LoginPage() {
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="w-full bg-[#9d4300] py-3.5 font-['Plus_Jakarta_Sans',sans-serif] text-sm font-bold uppercase tracking-widest text-white transition-colors duration-150 hover:bg-[#803600] disabled:cursor-not-allowed disabled:opacity-60"
+                      className="w-full bg-[#f97316] py-3.5 font-['Plus_Jakarta_Sans',sans-serif] text-sm font-bold uppercase tracking-widest text-white transition-colors duration-150 hover:bg-[#ea580c] disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {isSubmitting ? "Đang đăng nhập..." : "Đăng nhập hệ thống"}
                     </button>
@@ -282,7 +282,7 @@ function LoginPage() {
                       <label htmlFor="employee-id" className="text-xs font-bold uppercase tracking-wider text-[#735b4f]">
                         Mã PIN Nhân Viên
                       </label>
-                      <div className="group relative border border-[#d4beab] bg-[#fcfaf7] transition-colors duration-150 focus-within:border-[#9d4300]">
+                      <div className="group relative border border-[#d4beab] bg-[#fcfaf7] transition-colors duration-150 focus-within:border-[#f97316]">
                         <Icon
                           name="badge"
                           className="absolute top-1/2 left-3.5 -translate-y-1/2 text-[#8b6e60]"
@@ -297,7 +297,7 @@ function LoginPage() {
                             setPin(event.target.value.replace(/\D/g, "").slice(0, 6))
                           }
                           placeholder="••••••"
-                          className="h-11 w-full border-none bg-transparent py-3 pr-4 pl-10 text-center text-[#2a1b14] font-bold text-lg tracking-[0.6em] outline-none placeholder:text-[#8b6e60]/30"
+                          className="h-11 w-full border-none bg-transparent py-3 pr-4 pl-10 text-center text-[#0b1c30] font-bold text-lg tracking-[0.6em] outline-none placeholder:text-[#8b6e60]/30"
                         />
                       </div>
                     </div>
@@ -344,7 +344,7 @@ function LoginPage() {
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="w-full bg-[#9d4300] py-3.5 font-['Plus_Jakarta_Sans',sans-serif] text-sm font-bold uppercase tracking-widest text-white transition-colors duration-150 hover:bg-[#803600] disabled:cursor-not-allowed disabled:opacity-60"
+                      className="w-full bg-[#f97316] py-3.5 font-['Plus_Jakarta_Sans',sans-serif] text-sm font-bold uppercase tracking-widest text-white transition-colors duration-150 hover:bg-[#ea580c] disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       Xác nhận đăng nhập
                     </button>
@@ -356,7 +356,7 @@ function LoginPage() {
               <div className="mt-5 text-center">
                 <button
                   type="button"
-                  className="flex w-full items-center justify-center gap-2 py-2 text-xs font-bold uppercase tracking-wider text-[#735b4f] transition-colors duration-150 hover:text-[#9d4300]"
+                  className="flex w-full items-center justify-center gap-2 py-2 text-xs font-bold uppercase tracking-wider text-[#735b4f] transition-colors duration-150 hover:text-[#f97316]"
                 >
                   <Icon name="help" />
                   Hỗ trợ đăng nhập?
@@ -365,18 +365,18 @@ function LoginPage() {
             </div>
           </div>
 
-          <footer className="flex flex-col items-center justify-between gap-4 shrink-0 border-t border-[#e2d8d2]/30 px-6 py-4 md:flex-row bg-[#faf8f6]">
+          <footer className="flex flex-col items-center justify-between gap-4 shrink-0 border-t border-[#e2d8d2]/30 px-6 py-4 md:flex-row bg-[#f8f9ff]">
             <p className="text-xs font-medium tracking-[0.02em] text-[#8c7467]">
               Bản quyền © 2024 QuickServe Systems. Bảo lưu mọi quyền.
             </p>
             <div className="flex flex-wrap justify-center gap-6">
-              <a href="#" className="text-xs font-semibold tracking-[0.02em] text-[#8c7467] transition-colors duration-150 hover:text-[#9d4300]">
+              <a href="#" className="text-xs font-semibold tracking-[0.02em] text-[#8c7467] transition-colors duration-150 hover:text-[#f97316]">
                 Chính sách bảo mật
               </a>
-              <a href="#" className="text-xs font-semibold tracking-[0.02em] text-[#8c7467] transition-colors duration-150 hover:text-[#9d4300]">
+              <a href="#" className="text-xs font-semibold tracking-[0.02em] text-[#8c7467] transition-colors duration-150 hover:text-[#f97316]">
                 Điều khoản dịch vụ
               </a>
-              <a href="#" className="text-xs font-semibold tracking-[0.02em] text-[#8c7467] transition-colors duration-150 hover:text-[#9d4300]">
+              <a href="#" className="text-xs font-semibold tracking-[0.02em] text-[#8c7467] transition-colors duration-150 hover:text-[#f97316]">
                 Tuân thủ bảo mật
               </a>
             </div>

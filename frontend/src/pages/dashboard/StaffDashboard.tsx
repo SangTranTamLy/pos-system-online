@@ -56,7 +56,7 @@ function StaffDashboard() {
     <AdminLayout>
       <section className="mb-8">
         <div>
-          <h1 className="font-['Plus_Jakarta_Sans',sans-serif] text-3xl font-extrabold text-[#2a1b14]">
+          <h1 className="font-['Plus_Jakarta_Sans',sans-serif] text-3xl font-extrabold text-[#0b1c30]">
             Tổng quan cá nhân
           </h1>
           <p className="mt-2 text-sm text-slate-500">
@@ -74,12 +74,12 @@ function StaffDashboard() {
       <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
           <div className="mb-3 flex items-center justify-between">
-            <div className="rounded-lg bg-orange-50 p-3 text-[#9d4300]">
+            <div className="rounded-lg bg-orange-50 p-3 text-[#f97316]">
               <Icon name="payments" className="scale-125" />
             </div>
           </div>
           <p className="text-sm font-semibold text-slate-500">Doanh thu của tôi</p>
-          <h3 className="mt-2 text-3xl font-bold text-[#2a1b14]">{formatCurrency(myData.total_revenue)}</h3>
+          <h3 className="mt-2 text-3xl font-bold text-[#0b1c30]">{formatCurrency(myData.total_revenue)}</h3>
         </article>
 
         <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
@@ -89,30 +89,30 @@ function StaffDashboard() {
             </div>
           </div>
           <p className="text-sm font-semibold text-slate-500">Số hóa đơn đã lập</p>
-          <h3 className="mt-2 text-3xl font-bold text-[#2a1b14]">{myData.total_orders} đơn</h3>
+          <h3 className="mt-2 text-3xl font-bold text-[#0b1c30]">{myData.total_orders} đơn</h3>
         </article>
       </section>
 
       <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <button
           onClick={() => navigate("/pos")}
-          className="group flex flex-col items-center justify-center rounded-2xl border border-[#9d4300] bg-orange-50 p-6 transition-all hover:-translate-y-1 hover:shadow-md hover:shadow-orange-100"
+          className="group flex flex-col items-center justify-center rounded-2xl border border-[#f97316] bg-orange-50 p-6 transition-all hover:-translate-y-1 hover:shadow-md hover:shadow-orange-100"
         >
-          <Icon name="point_of_sale" className="mb-3 text-4xl text-[#9d4300]" />
-          <h4 className="font-bold text-[#9d4300]">Mở bán hàng POS</h4>
+          <Icon name="point_of_sale" className="mb-3 text-4xl text-[#f97316]" />
+          <h4 className="font-bold text-[#f97316]">Mở bán hàng POS</h4>
         </button>
         <button
           onClick={() => navigate("/invoices")}
           className="group flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-6 transition-all hover:-translate-y-1 hover:border-blue-400 hover:shadow-md hover:shadow-blue-50"
         >
           <Icon name="receipt" className="mb-3 text-4xl text-blue-500" />
-          <h4 className="font-bold text-[#2a1b14] group-hover:text-blue-600">Xem danh sách hóa đơn</h4>
+          <h4 className="font-bold text-[#0b1c30] group-hover:text-blue-600">Xem danh sách hóa đơn</h4>
         </button>
       </section>
 
       <section className="mb-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-lg font-bold text-[#2a1b14]">
+          <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-lg font-bold text-[#0b1c30]">
             Chi tiết thống kê
           </h2>
           <div className="flex items-center gap-3">
@@ -124,7 +124,7 @@ function StaffDashboard() {
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-[#2a1b14] outline-none transition-all focus:border-[#9d4300] focus:bg-white focus:ring-2 focus:ring-orange-100"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-[#0b1c30] outline-none transition-all focus:border-[#f97316] focus:bg-white focus:ring-2 focus:ring-orange-100"
               />
             </div>
             <div className="relative">
@@ -135,7 +135,7 @@ function StaffDashboard() {
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-[#2a1b14] outline-none transition-all focus:border-[#9d4300] focus:bg-white focus:ring-2 focus:ring-orange-100"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-[#0b1c30] outline-none transition-all focus:border-[#f97316] focus:bg-white focus:ring-2 focus:ring-orange-100"
               />
             </div>
           </div>

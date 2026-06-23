@@ -143,7 +143,7 @@ function buildInvoiceReceiptHtml(order: OrderDetail) {
             margin: 0;
             padding: 0;
             background: #ffffff;
-            color: #2a1b14;
+            color: #0b1c30;
             font-family: Arial, sans-serif;
           }
           .receipt {
@@ -155,7 +155,7 @@ function buildInvoiceReceiptHtml(order: OrderDetail) {
           .brand { text-align: center; padding-bottom: 14px; }
           .logo {
             margin: 0 auto 8px;
-            color: #2a1b14;
+            color: #0b1c30;
             font-size: 30px;
             line-height: 1;
             font-weight: 900;
@@ -193,12 +193,12 @@ function buildInvoiceReceiptHtml(order: OrderDetail) {
           .center { text-align: center; }
           .right { text-align: right; }
           .total { font-size: 18px; font-weight: 900; text-transform: uppercase; }
-          .primary { color: #9d4300; }
+          .primary { color: #f97316; }
           .badge {
             display: inline-block;
             border-radius: 999px;
             background: #fff7ed;
-            color: #9d4300;
+            color: #f97316;
             padding: 5px 10px;
             font-size: 12px;
             font-weight: 800;
@@ -312,12 +312,12 @@ function CancelOrderModal({
   setReason: (reason: string) => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2a1b14]/45 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b1c30]/45 p-4">
       <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-widest text-red-600">Thao tác nguy hiểm</p>
-            <h3 className="mt-1 font-['Plus_Jakarta_Sans',sans-serif] text-2xl font-extrabold text-[#2a1b14]">
+            <h3 className="mt-1 font-['Plus_Jakarta_Sans',sans-serif] text-2xl font-extrabold text-[#0b1c30]">
               Hủy hóa đơn
             </h3>
             <p className="mt-2 text-sm text-slate-500">
@@ -394,10 +394,10 @@ function InvoiceDetailPanel({
   if (!order) {
     return (
       <aside className="rounded-3xl border border-slate-200 bg-white p-6 text-center shadow-sm">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-[#9d4300]">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-[#f97316]">
           <Icon name="receipt_long" />
         </div>
-        <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-lg font-extrabold text-[#2a1b14]">
+        <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-lg font-extrabold text-[#0b1c30]">
           Chọn một hóa đơn
         </h3>
         <p className="mt-2 text-sm text-slate-500">Chi tiết món bán và thanh toán sẽ hiển thị tại đây.</p>
@@ -410,8 +410,8 @@ function InvoiceDetailPanel({
       <div className="border-b border-slate-200 p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-[#9d4300]">Chi tiết hóa đơn</p>
-            <h3 className="mt-1 font-['Plus_Jakarta_Sans',sans-serif] text-xl font-extrabold text-[#2a1b14]">
+            <p className="text-xs font-bold uppercase tracking-widest text-[#f97316]">Chi tiết hóa đơn</p>
+            <h3 className="mt-1 font-['Plus_Jakarta_Sans',sans-serif] text-xl font-extrabold text-[#0b1c30]">
               {shortOrderId(order.id)}
             </h3>
             <p className="mt-1 text-xs text-slate-400">{formatDateTime(order.createdAt)}</p>
@@ -423,12 +423,12 @@ function InvoiceDetailPanel({
           <div className="flex items-center gap-2 text-slate-500">
             <Icon name="person" className="text-[18px]" />
             <span>Thu ngân: </span>
-            <strong className="text-[#2a1b14]">{order.createdByName || "Không rõ"}</strong>
+            <strong className="text-[#0b1c30]">{order.createdByName || "Không rõ"}</strong>
           </div>
           <div className="mt-2 flex items-center gap-2 text-slate-500">
             <Icon name="group" className="text-[18px]" />
             <span>Khách hàng: </span>
-            <strong className="text-[#2a1b14]">{order.customerName}</strong>
+            <strong className="text-[#0b1c30]">{order.customerName}</strong>
           </div>
         </div>
 
@@ -436,7 +436,7 @@ function InvoiceDetailPanel({
           <button
             type="button"
             onClick={onPrint}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-[#2a1b14] transition-colors hover:bg-slate-50"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-[#0b1c30] transition-colors hover:bg-slate-50"
           >
             <Icon name="print" />
             In lại hóa đơn
@@ -454,22 +454,22 @@ function InvoiceDetailPanel({
       </div>
 
       <div className="p-6">
-        <h4 className="mb-3 text-sm font-extrabold text-[#2a1b14]">Món đã bán</h4>
+        <h4 className="mb-3 text-sm font-extrabold text-[#0b1c30]">Món đã bán</h4>
         <div className="space-y-3">
           {order.details.map((item) => (
             <div key={item.id} className="flex items-center justify-between gap-4 rounded-2xl bg-slate-50 p-4">
               <div>
-                <p className="font-bold text-[#2a1b14]">{item.productName}</p>
+                <p className="font-bold text-[#0b1c30]">{item.productName}</p>
                 <p className="mt-1 text-xs text-slate-400">
                   {item.quantity} x {formatCurrency(item.unitPrice)}
                 </p>
               </div>
-              <p className="font-extrabold text-[#2a1b14]">{formatCurrency(item.lineTotal)}</p>
+              <p className="font-extrabold text-[#0b1c30]">{formatCurrency(item.lineTotal)}</p>
             </div>
           ))}
         </div>
 
-        <h4 className="mt-6 mb-3 text-sm font-extrabold text-[#2a1b14]">Thanh toán</h4>
+        <h4 className="mt-6 mb-3 text-sm font-extrabold text-[#0b1c30]">Thanh toán</h4>
         <div className="space-y-3">
           {order.payments.map((payment) => (
             <div key={payment.id} className="rounded-2xl bg-green-50 p-4 text-sm">
@@ -690,8 +690,8 @@ function InvoicePage() {
     <AdminLayout title="Hóa đơn" subtitle="Quản lý hóa đơn, lọc giao dịch và xử lý hủy theo quyền.">
       <section className="mb-8 flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="mb-2 text-xs font-bold uppercase tracking-widest text-[#9d4300]">Quản lý hóa đơn</p>
-          <h1 className="font-['Plus_Jakarta_Sans',sans-serif] text-3xl font-extrabold text-[#2a1b14]">
+          <p className="mb-2 text-xs font-bold uppercase tracking-widest text-[#f97316]">Quản lý hóa đơn</p>
+          <h1 className="font-['Plus_Jakarta_Sans',sans-serif] text-3xl font-extrabold text-[#0b1c30]">
             Danh sách hóa đơn
           </h1>
           <p className="mt-2 max-w-3xl text-sm text-slate-500">
@@ -727,7 +727,7 @@ function InvoicePage() {
                 type="date"
                 value={dateFrom}
                 onChange={(event) => setDateFrom(event.target.value)}
-                className="w-full h-[46px] rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-[#2a1b14] outline-none transition-all focus:border-[#9d4300] focus:bg-white focus:ring-2 focus:ring-orange-100"
+                className="w-full h-[46px] rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-[#0b1c30] outline-none transition-all focus:border-[#f97316] focus:bg-white focus:ring-2 focus:ring-orange-100"
               />
             </div>
             <div className="relative">
@@ -738,13 +738,13 @@ function InvoicePage() {
                 type="date"
                 value={dateTo}
                 onChange={(event) => setDateTo(event.target.value)}
-                className="w-full h-[46px] rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-[#2a1b14] outline-none transition-all focus:border-[#9d4300] focus:bg-white focus:ring-2 focus:ring-orange-100"
+                className="w-full h-[46px] rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-[#0b1c30] outline-none transition-all focus:border-[#f97316] focus:bg-white focus:ring-2 focus:ring-orange-100"
               />
             </div>
             <select
               value={status}
               onChange={(event) => setStatus(event.target.value as StatusFilter)}
-              className="h-[46px] rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-[#2a1b14] outline-none transition-all focus:border-[#9d4300] focus:bg-white focus:ring-2 focus:ring-orange-100"
+              className="h-[46px] rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-[#0b1c30] outline-none transition-all focus:border-[#f97316] focus:bg-white focus:ring-2 focus:ring-orange-100"
             >
               <option value="all">Tất cả trạng thái</option>
               <option value="completed">Hoàn tất</option>
@@ -755,7 +755,7 @@ function InvoicePage() {
               <select
                 value={createdBy}
                 onChange={(event) => setCreatedBy(event.target.value)}
-                className="h-[46px] rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-[#2a1b14] outline-none transition-all focus:border-[#9d4300] focus:bg-white focus:ring-2 focus:ring-orange-100"
+                className="h-[46px] rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-[#0b1c30] outline-none transition-all focus:border-[#f97316] focus:bg-white focus:ring-2 focus:ring-orange-100"
               >
                 <option value="all">Tất cả nhân viên</option>
                 {users.map((u) => (
@@ -792,10 +792,10 @@ function InvoicePage() {
                     }`}
                   >
                     <td className="px-6 py-4">
-                      <p className="font-extrabold text-[#9d4300]">{shortOrderId(order.id)}</p>
+                      <p className="font-extrabold text-[#f97316]">{shortOrderId(order.id)}</p>
                       <p className="mt-1 text-xs font-semibold text-slate-400">{order.customerName}</p>
                     </td>
-                    <td className="px-6 py-4 text-right font-extrabold text-[#2a1b14]">
+                    <td className="px-6 py-4 text-right font-extrabold text-[#0b1c30]">
                       {formatCurrency(order.finalAmount)}
                     </td>
                     <td className="px-6 py-4 text-sm font-semibold text-slate-500">
@@ -812,7 +812,7 @@ function InvoicePage() {
                             setSelectedOrderId(order.id);
                             void handlePrintOrder(order.id);
                           }}
-                          className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-[#2a1b14]"
+                          className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-[#0b1c30]"
                           title="In lại bill"
                         >
                           <Icon name="print" className="text-[20px]" />
@@ -851,7 +851,7 @@ function InvoicePage() {
 
         <div className="relative">
           {isDetailLoading ? (
-            <div className="absolute inset-x-0 top-4 z-10 mx-auto w-fit rounded-full bg-white px-4 py-2 text-xs font-bold text-[#9d4300] shadow">
+            <div className="absolute inset-x-0 top-4 z-10 mx-auto w-fit rounded-full bg-white px-4 py-2 text-xs font-bold text-[#f97316] shadow">
               Đang tải chi tiết...
             </div>
           ) : null}

@@ -17,7 +17,7 @@ export const registerShiftController = async (req: Request, res: Response) => {
   const { expectedStartTime, expectedEndTime } = req.body;
   
   const shift = await shiftService.registerShift(user.id, expectedStartTime, expectedEndTime);
-  res.status(201).json({ success: true, message: "Đăng ký ca làm thành công", data: shift });
+  res.status(201).json({ success: true, message: "Tạo ca làm thành công", data: shift });
 };
 
 export const approveShiftController = async (req: Request, res: Response) => {

@@ -100,3 +100,48 @@ export interface GoodsReceipt {
   details?: GoodsReceiptDetail[];
   materialDetails?: GoodsReceiptMaterialDetail[];
 }
+
+export interface InventoryAudit {
+  id: string;
+  createdBy: string;
+  createdByName?: string | null;
+  status: "draft" | "completed";
+  note: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  details?: InventoryAuditDetail[];
+}
+
+export interface InventoryAuditDetail {
+  id: string;
+  auditId: string;
+  materialId: string;
+  materialName?: string;
+  sku?: string;
+  category?: string;
+  unit?: string;
+  systemQuantity: number;
+  actualQuantity: number;
+  variance: number;
+  note: string | null;
+}
+
+export interface InventoryAuditDetailInput {
+  materialId: string;
+  systemQuantity: number;
+  actualQuantity: number;
+  note?: string | null;
+}
+
+export interface CreateInventoryAuditBody {
+  status: "draft" | "completed";
+  note?: string | null;
+  items: InventoryAuditDetailInput[];
+}
+
+export interface UpdateInventoryAuditBody {
+  status: "draft" | "completed";
+  note?: string | null;
+  items: InventoryAuditDetailInput[];
+}
+

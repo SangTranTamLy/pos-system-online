@@ -38,6 +38,22 @@ export type DashboardMaterial = {
     importPrice: number;
 };
 
+export type DashboardLowStockItem = {
+    id: string;
+    name: string;
+    sku: string;
+    type: "product" | "material";
+    stockQuantity: number;
+    threshold: number;
+    unit: string | null;
+};
+
+export type DashboardCategorySale = {
+    name: string;
+    quantity: number;
+    revenue: number;
+};
+
 export type PaymentMethodStat = {
     method: string;
     revenue: number;
@@ -58,6 +74,8 @@ export type DashboardSummary = {
     topProducts: DashboardTopProduct[];
     recentOrders: DashboardRecentOrder[];
     materials: DashboardMaterial[];
+    lowStockItems: DashboardLowStockItem[];
+    categorySales: DashboardCategorySale[];
     paymentMethods: PaymentMethodStat[];
     currentShift: CurrentShift;
 };

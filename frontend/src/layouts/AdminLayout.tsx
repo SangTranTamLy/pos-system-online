@@ -28,7 +28,7 @@ type AuthUser = {
 type AdminLayoutProps = {
   children: ReactNode;
   title?: string;
-  subtitle?: string;
+  subtitle?: ReactNode;
   headerContent?: ReactNode;
 };
 
@@ -45,7 +45,7 @@ const menuItems: MenuItem[] = [
   { label: "Ca làm", icon: "work_history", path: "/shifts", group: "system", allowedRoles: ["admin", "manager", "staff"] },
   { label: "Báo cáo", icon: "analytics", path: "/reports", group: "system", allowedRoles: ["admin", "manager"] },
   { label: "Nhật ký hệ thống", icon: "history", path: "/audit-logs", group: "system", allowedRoles: ["admin"] },
-  { label: "Cấu hình hệ thống", icon: "settings", path: "/settings", group: "system", allowedRoles: ["admin"] },
+  { label: "Cài đặt", icon: "settings", path: "/settings", group: "system", allowedRoles: ["admin"] },
 ];
 
 export function Icon({
@@ -177,17 +177,17 @@ function SidebarItem({
           className={[
             "flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left transition-all duration-200",
             isActive
-              ? "bg-orange-50 font-bold text-[#9d4300]"
+              ? "bg-orange-50 font-bold text-[#f97316]"
               : item.disabled
                 ? "cursor-not-allowed font-medium text-slate-400 opacity-70"
-                : "font-medium text-slate-600 hover:bg-orange-50 hover:text-[#9d4300]",
+                : "font-medium text-slate-600 hover:bg-orange-50 hover:text-[#f97316]",
           ].join(" ")}
         >
           <Icon name={item.icon} className="text-[20px]" />
           <span className="flex-1">{item.label}</span>
           <Icon
             name={isOpen ? "expand_less" : "expand_more"}
-            className={["ml-auto transition-transform duration-200 text-slate-400", isActive ? "text-[#9d4300] font-bold" : ""].join(" ")}
+            className={["ml-auto transition-transform duration-200 text-slate-400", isActive ? "text-[#f97316] font-bold" : ""].join(" ")}
           />
         </button>
 
@@ -210,8 +210,8 @@ function SidebarItem({
                     className={[
                       "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] font-semibold transition-all duration-200",
                       isChildActive
-                        ? "text-[#9d4300] font-bold bg-orange-50/50"
-                        : "text-slate-500 hover:bg-orange-50/30 hover:text-[#9d4300]",
+                        ? "text-[#f97316] font-bold bg-orange-50/50"
+                        : "text-slate-500 hover:bg-orange-50/30 hover:text-[#f97316]",
                     ].join(" ")}
                   >
                     <Icon name={child.icon} className="text-[16px]" />
@@ -240,10 +240,10 @@ function SidebarItem({
       className={[
         "flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left transition-all duration-200",
         isActive
-          ? "bg-[#9d4300] font-semibold text-white shadow-sm"
+          ? "bg-[#f97316] font-semibold text-white shadow-sm"
           : item.disabled
             ? "cursor-not-allowed font-medium text-slate-400 opacity-70"
-            : "font-medium text-slate-600 hover:bg-orange-50 hover:text-[#9d4300]",
+            : "font-medium text-slate-600 hover:bg-orange-50 hover:text-[#f97316]",
       ].join(" ")}
     >
       <Icon name={item.icon} className="text-[20px]" />
@@ -319,13 +319,13 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
   };
 
   return (
-    <div className="min-h-screen bg-[#faf8f6] font-['Inter',sans-serif] text-[#2a1b14]">
-      <aside className="hidden h-screen w-72 shrink-0 overflow-y-auto border-r border-slate-200 bg-white px-4 py-6 shadow-sm lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:flex lg:flex-col">
+    <div className="min-h-screen bg-[#f8f9ff] font-['Inter',sans-serif] text-[#0b1c30]">
+      <aside className="hidden h-screen w-64 shrink-0 overflow-y-auto border-r border-slate-200 bg-white px-4 py-6 shadow-sm lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:flex lg:flex-col">
         <div className="mb-8 flex items-center gap-3 px-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#9d4300] text-white shadow-md">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#f97316] text-white shadow-md">
             <Icon name="bolt" filled />
           </div>
-          <h1 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-extrabold tracking-tight text-[#9d4300]">
+          <h1 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-extrabold tracking-tight text-[#f97316]">
             QuickServe POS
           </h1>
         </div>
@@ -352,16 +352,16 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
           <button
             type="button"
             aria-label="Đóng menu"
-            className="absolute inset-0 bg-[#2a1b14]/45"
+            className="absolute inset-0 bg-[#0b1c30]/45"
             onClick={() => setIsMobileMenuOpen(false)}
           />
           <aside className="relative flex h-full w-[min(82vw,288px)] flex-col overflow-y-auto border-r border-slate-200 bg-white px-4 py-6 shadow-2xl">
             <div className="mb-6 flex items-center justify-between gap-3 px-2">
               <div className="flex min-w-0 items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#9d4300] text-white shadow-md">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#f97316] text-white shadow-md">
                   <Icon name="bolt" filled />
                 </div>
-                <h1 className="truncate font-['Plus_Jakarta_Sans',sans-serif] text-lg font-extrabold tracking-tight text-[#9d4300]">
+                <h1 className="truncate font-['Plus_Jakarta_Sans',sans-serif] text-lg font-extrabold tracking-tight text-[#f97316]">
                   QuickServe POS
                 </h1>
               </div>
@@ -402,23 +402,23 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
         </div>
       ) : null}
 
-      <main className="flex min-h-screen flex-1 flex-col lg:pl-72">
+      <main className="flex min-h-screen flex-1 flex-col lg:pl-64">
         <header className="sticky top-0 z-20 flex h-auto flex-col gap-4 border-b border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-6 lg:h-16 lg:flex-row lg:items-center lg:justify-between lg:px-8 lg:py-0">
           <div className="flex items-center gap-4">
             <button
               type="button"
               onClick={() => setIsMobileMenuOpen(true)}
-              className="rounded-lg p-2 text-[#2a1b14] hover:bg-orange-50 lg:hidden"
+              className="rounded-lg p-2 text-[#0b1c30] hover:bg-orange-50 lg:hidden"
               aria-label="Menu"
             >
               <Icon name="menu" />
             </button>
             {title ? (
               <div>
-                <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-bold text-[#2a1b14]">
+                <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-bold text-[#0b1c30]">
                   {title}
                 </h2>
-                {subtitle ? <p className="text-xs text-slate-500">{subtitle}</p> : null}
+                {subtitle ? <div className="text-xs text-slate-500">{subtitle}</div> : null}
               </div>
             ) : (
               <div className="flex items-center gap-4">
@@ -433,8 +433,8 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
           <div className="flex flex-wrap items-center gap-4 sm:gap-6">
             <div className="flex items-center gap-3 border-slate-200 sm:border-l sm:pl-6">
               <div className="text-right">
-                <p className="text-sm font-bold text-[#2a1b14]">{displayName}</p>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-[#9d4300]">
+                <p className="text-sm font-bold text-[#0b1c30]">{displayName}</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-[#f97316]">
                   {translateRole(displayRole)}
                 </p>
               </div>
@@ -446,7 +446,7 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <span className="text-sm font-bold text-[#9d4300]">
+                  <span className="text-sm font-bold text-[#f97316]">
                     {getInitials(displayName)}
                   </span>
                 )}

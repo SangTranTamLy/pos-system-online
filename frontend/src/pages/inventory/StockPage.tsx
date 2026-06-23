@@ -3,34 +3,40 @@ import { useLocation, useNavigate } from "react-router-dom";
 import {
   createGoodsReceipt,
   createMaterial,
-  updateMaterial,
-  deleteMaterial,
   createSupplier,
-  updateSupplier,
+  deleteMaterial,
   deleteSupplier,
   fetchGoodsReceipts,
   fetchMaterials,
   fetchSuppliers,
+  updateMaterial,
+  updateSupplier,
+  fetchInventoryAudits,
+  fetchInventoryAuditById,
+  createInventoryAudit,
+  updateInventoryAudit,
+  deleteInventoryAudit,
+  payGoodsReceiptDebt,
   type GoodsReceipt,
   type Material,
   type Supplier,
+  type InventoryAudit,
 } from "../../api/inventory.api";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 
+type MaterialStatusFilter = "all" | "active" | "inactive" | "low_stock" | "out";
 type ReceiptItemDraft = {
   material: Material;
   quantity: number;
   unitPrice: number;
 };
-
-type PaymentFilter = "all" | "paid" | "partial" | "unpaid";
 type NoticeState = {
   type: "success" | "error";
   message: string;
 };
 
 const inputClass =
-  "h-10 w-full border border-slate-200 bg-white px-3 text-sm font-semibold text-[#2a1b14] outline-none transition-colors focus:border-[#9d4300]";
+  "h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-[#0b1c30] outline-none transition focus:border-[#f97316] focus:ring-2 focus:ring-orange-100";
 const labelClass =
   "mb-2 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500";
 
@@ -43,7 +49,7 @@ function formatCurrency(value: number) {
     style: "currency",
     currency: "VND",
     maximumFractionDigits: 0,
-  }).format(value);
+  }).format(value || 0);
 }
 
 function formatDateTime(value: string) {
@@ -53,6 +59,7 @@ function formatDateTime(value: string) {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
+    hour12: false,
   });
 }
 
@@ -62,11 +69,7 @@ function getReceiptCode(receipt: GoodsReceipt) {
 
 function getPaidAmount(receipt: GoodsReceipt) {
   const match = receipt.note?.match(/\[paid_amount:(\d+)\]/);
-
-  if (!match) {
-    return Number(receipt.totalAmount || 0);
-  }
-
+  if (!match) return Number(receipt.totalAmount || 0);
   return Number(match[1] || 0);
 }
 
@@ -77,148 +80,347 @@ function getDisplayNote(note: string | null) {
     .trim();
 }
 
-function getPaymentStatus(receipt: GoodsReceipt) {
-  const total = Number(receipt.totalAmount || 0);
-  const paid = getPaidAmount(receipt);
-
-  if (total <= 0 || paid >= total) {
-    return {
-      key: "paid" as const,
-      label: "Đã thanh toán",
-      className: "bg-emerald-50 text-emerald-600",
-    };
-  }
-
-  if (paid <= 0) {
-    return {
-      key: "unpaid" as const,
-      label: "Chưa thanh toán",
-      className: "bg-rose-50 text-rose-600",
-    };
-  }
-
-  return {
-    key: "partial" as const,
-    label: "Nợ một phần",
-    className: "bg-amber-50 text-amber-600",
-  };
-}
-
 function getReceiptDetails(receipt: GoodsReceipt) {
   if (Array.isArray(receipt.materialDetails) && receipt.materialDetails.length > 0) {
     return receipt.materialDetails
       .map((detail) => `${detail.materialName} x${detail.quantity} ${detail.unit}`)
       .join(", ");
   }
-
-  if (Array.isArray(receipt.details) && receipt.details.length > 0) {
-    return receipt.details
-      .map((detail) => `${detail.productName} x${detail.quantity}`)
-      .join(", ");
-  }
-
   return getDisplayNote(receipt.note) || "Chưa có chi tiết";
 }
 
-function StatCard({
+function SummaryCard({
   icon,
-  label,
+  title,
   value,
+  description,
   tone,
+  trend,
 }: {
   icon: string;
-  label: string;
+  title: string;
   value: string;
+  description: string;
   tone: string;
+  trend?: "up" | "down" | "neutral";
 }) {
+  const trendColor =
+    trend === "down" ? "text-red-500" : trend === "up" ? "text-emerald-600" : "text-[#f97316]";
+  const trendIcon = trend === "down" ? "south" : trend === "up" ? "north" : "visibility";
+
   return (
-    <article className="flex min-h-[92px] items-center gap-4 border border-slate-200 bg-white p-5">
-      <div className={`flex h-12 w-12 items-center justify-center ${tone}`}>
-        <Icon name={icon} />
-      </div>
-      <div>
-        <p className="text-[11px] font-extrabold uppercase tracking-wide text-slate-400">
-          {label}
-        </p>
-        <p className="mt-1 text-xl font-extrabold text-[#2a1b14]">{value}</p>
+    <article className="min-h-[154px] rounded-xl border border-slate-100 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+      <div className="flex items-start gap-4">
+        <span className={`flex h-12 w-12 items-center justify-center rounded-xl ${tone}`}>
+          <Icon name={icon} filled className="text-[25px]" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-medium leading-5 text-slate-500">{title}</p>
+          <p className="mt-2 font-['Plus_Jakarta_Sans',sans-serif] text-2xl font-extrabold leading-8 text-[#0b1c30]">
+            {value}
+          </p>
+          <p className={`mt-3 flex items-center gap-1 text-xs font-semibold ${trendColor}`}>
+            <Icon name={trendIcon} className="text-[15px]" />
+            {description}
+          </p>
+        </div>
       </div>
     </article>
+  );
+}
+
+function StatusBadge({ material }: { material: Material }) {
+  if (!material.isActive) {
+    return (
+      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-extrabold text-slate-500">
+        Ngừng bán
+      </span>
+    );
+  }
+  if (material.stockQuantity <= 0) {
+    return (
+      <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-extrabold text-rose-600">
+        Hết hàng
+      </span>
+    );
+  }
+  if (material.stockQuantity <= 5) {
+    return (
+      <span className="rounded-full bg-orange-50 px-3 py-1 text-xs font-extrabold text-[#f97316]">
+        Sắp hết
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-extrabold text-emerald-600">
+      Còn hàng
+    </span>
+  );
+}
+
+function BackToStockButton({
+  onClick,
+  accentClassName = "hover:border-[#f97316] hover:text-[#f97316]",
+}: {
+  onClick: () => void;
+  accentClassName?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700 shadow-sm transition hover:bg-slate-50",
+        accentClassName,
+      ].join(" ")}
+    >
+      <Icon name="arrow_back" className="text-[18px]" />
+      Quay lại
+    </button>
+  );
+}
+
+function StockActionHeader({
+  eyebrow,
+  title,
+  onBack,
+  accentClassName,
+}: {
+  eyebrow?: string;
+  title: string;
+  onBack: () => void;
+  accentClassName?: string;
+}) {
+  return (
+    <div className="mb-5 flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        {eyebrow ? (
+          <p className={["text-xs font-extrabold uppercase tracking-wide", accentClassName || "text-[#f97316]"].join(" ")}>
+            {eyebrow}
+          </p>
+        ) : null}
+        <h1 className="text-2xl font-extrabold text-[#0b1c30]">{title}</h1>
+      </div>
+      <BackToStockButton
+        onClick={onBack}
+        accentClassName={
+          accentClassName === "text-purple-600"
+            ? "hover:border-purple-500 hover:text-purple-600"
+            : undefined
+        }
+      />
+    </div>
   );
 }
 
 export function StockPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const currentTab = location.pathname.split("/")[2] || "history";
+  const currentPath = location.pathname.split("/")[2] || "overview";
 
   const [materials, setMaterials] = useState<Material[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [receipts, setReceipts] = useState<GoodsReceipt[]>([]);
+  const [audits, setAudits] = useState<InventoryAudit[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [loadErrorMessage, setLoadErrorMessage] = useState("");
   const [notice, setNotice] = useState<NoticeState | null>(null);
-  const [showSupplierModal, setShowSupplierModal] = useState(false);
-  const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<MaterialStatusFilter>("all");
   const [showMaterialModal, setShowMaterialModal] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
+  const [showSupplierModal, setShowSupplierModal] = useState(false);
+  const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [selectedReceipt, setSelectedReceipt] = useState<GoodsReceipt | null>(null);
-  const [showReceiptDetailsModal, setShowReceiptDetailsModal] = useState(false);
-
-  const [searchQuery, setSearchQuery] = useState("");
-  const [supplierFilter, setSupplierFilter] = useState("all");
-  const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("all");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-
-  const [materialSearch, setMaterialSearch] = useState("");
+  const [selectedAudit, setSelectedAudit] = useState<InventoryAudit | null>(null);
+  const [receiptItems, setReceiptItems] = useState<ReceiptItemDraft[]>([]);
+  const [activeHistoryTab, setActiveHistoryTab] = useState<"receipts" | "suppliers">("receipts");
+  const [payingReceipt, setPayingReceipt] = useState<GoodsReceipt | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState<string>("");
+  const [supplierFilter, setSupplierFilter] = useState<string>("all");
+  const [receiptSearchQuery, setReceiptSearchQuery] = useState<string>("");
   const [formSupplierId, setFormSupplierId] = useState("");
   const [formNote, setFormNote] = useState("");
   const [formPaidAmount, setFormPaidAmount] = useState("0");
-  const [receiptItems, setReceiptItems] = useState<ReceiptItemDraft[]>([]);
+  const [materialSearch, setMaterialSearch] = useState("");
+
+  // Audits state
+  const [auditItems, setAuditItems] = useState<Array<{
+    material: Material;
+    systemQuantity: number;
+    actualQuantity: number;
+    note: string;
+  }>>([]);
+  const [auditNote, setAuditNote] = useState("");
+  const [editingAuditId, setEditingAuditId] = useState<string | null>(null);
 
   const loadAllData = useCallback(async () => {
     try {
       setIsLoading(true);
-      setLoadErrorMessage("");
-      const [materialResponse, supplierResponse, receiptResponse] = await Promise.all([
+      setNotice(null);
+      const [materialResponse, supplierResponse, receiptResponse, auditsResponse] = await Promise.all([
         fetchMaterials(),
         fetchSuppliers(),
         fetchGoodsReceipts(),
+        fetchInventoryAudits(),
       ]);
-
       setMaterials(materialResponse.data);
       setSuppliers(supplierResponse.data);
       setReceipts(receiptResponse.data);
-
-      if (supplierResponse.data[0]) {
-        setFormSupplierId((currentSupplierId) =>
-          currentSupplierId || supplierResponse.data[0].id
-        );
-      }
+      setAudits(auditsResponse.data || []);
+      setFormSupplierId((current) => current || supplierResponse.data[0]?.id || "");
     } catch (error) {
-      console.error("Không tải được dữ liệu nhập kho:", error);
-      setLoadErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Không tải được dữ liệu nguyên liệu, nhà cung cấp hoặc phiếu nhập."
-      );
+      setNotice({
+        type: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Không tải được dữ liệu kho hàng.",
+      });
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    const loadTimer = window.setTimeout(() => {
-      void loadAllData();
-    }, 0);
-
-    return () => window.clearTimeout(loadTimer);
+    void Promise.resolve().then(loadAllData);
   }, [loadAllData]);
 
-  function showNotice(message: string, type: NoticeState["type"] = "error") {
-    setNotice({ type, message });
-  }
+  const categories = useMemo(
+    () => [...new Set(materials.map((material) => material.category || "Khác"))],
+    [materials]
+  );
+
+  const stockValue = useMemo(
+    () =>
+      materials.reduce(
+        (sum, material) =>
+          sum + Number(material.stockQuantity || 0) * Number(material.importPrice || 0),
+        0
+      ),
+    [materials]
+  );
+
+  const monthlyPurchaseAmount = useMemo(() => {
+    const now = new Date();
+    return receipts.reduce((sum, receipt) => {
+      const createdAt = new Date(receipt.createdAt);
+      if (
+        createdAt.getFullYear() === now.getFullYear() &&
+        createdAt.getMonth() === now.getMonth()
+      ) {
+        return sum + Number(receipt.totalAmount || 0);
+      }
+      return sum;
+    }, 0);
+  }, [receipts]);
+
+  const lowStockCount = useMemo(
+    () => materials.filter((material) => material.isActive && material.stockQuantity <= 5).length,
+    [materials]
+  );
+
+  const lowStockMaterials = useMemo(
+    () =>
+      materials
+        .filter((material) => material.isActive && material.stockQuantity <= 5)
+        .sort((left, right) => left.stockQuantity - right.stockQuantity)
+        .slice(0, 5),
+    [materials]
+  );
+
+  const filteredMaterials = useMemo(() => {
+    const query = normalizeText(searchQuery);
+    return materials.filter((material) => {
+      const text = normalizeText(
+        `${material.sku} ${material.name} ${material.category || ""} ${material.supplierName || ""}`
+      );
+      const matchesSearch = !query || text.includes(query);
+      const matchesCategory =
+        categoryFilter === "all" || (material.category || "Khác") === categoryFilter;
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "active" && material.isActive && material.stockQuantity > 5) ||
+        (statusFilter === "low_stock" && material.isActive && material.stockQuantity <= 5) ||
+        (statusFilter === "out" && material.isActive && material.stockQuantity <= 0) ||
+        (statusFilter === "inactive" && !material.isActive);
+      return matchesSearch && matchesCategory && matchesStatus;
+    });
+  }, [categoryFilter, materials, searchQuery, statusFilter]);
+
+  const materialResults = useMemo(() => {
+    const query = normalizeText(materialSearch);
+    const activeMaterials = materials.filter((material) => material.isActive);
+    if (!query) return activeMaterials.slice(0, 8);
+    return activeMaterials
+      .filter((material) =>
+        normalizeText(
+          `${material.name} ${material.sku} ${material.category} ${material.supplierName || ""}`
+        ).includes(query)
+      )
+      .slice(0, 8);
+  }, [materialSearch, materials]);
+
+  const supplierDebts = useMemo(() => {
+    const map: Record<string, {
+      supplierId: string;
+      supplierName: string;
+      phone: string;
+      address: string;
+      totalImport: number;
+      totalPaid: number;
+      totalDebt: number;
+    }> = {};
+
+    suppliers.forEach((s) => {
+      map[s.id] = {
+        supplierId: s.id,
+        supplierName: s.name,
+        phone: s.phone,
+        address: s.address || "---",
+        totalImport: 0,
+        totalPaid: 0,
+        totalDebt: 0,
+      };
+    });
+
+    receipts.forEach((r) => {
+      if (r.supplierId && map[r.supplierId]) {
+        const total = Number(r.totalAmount || 0);
+        const paid = getPaidAmount(r);
+        const debt = Math.max(total - paid, 0);
+
+        map[r.supplierId].totalImport += total;
+        map[r.supplierId].totalPaid += paid;
+        map[r.supplierId].totalDebt += debt;
+      }
+    });
+
+    return Object.values(map);
+  }, [suppliers, receipts]);
+
+  const filteredReceipts = useMemo(() => {
+    const search = normalizeText(receiptSearchQuery);
+    return receipts.filter((r) => {
+      const code = getReceiptCode(r).toLowerCase();
+      const supplierName = normalizeText(r.supplierName || "");
+      const note = normalizeText(r.note || "");
+      const details = normalizeText(getReceiptDetails(r));
+      
+      const matchesSearch =
+        !search ||
+        code.includes(search) ||
+        supplierName.includes(search) ||
+        note.includes(search) ||
+        details.includes(search);
+
+      const matchesSupplier =
+        supplierFilter === "all" || r.supplierId === supplierFilter;
+
+      return matchesSearch && matchesSupplier;
+    });
+  }, [receipts, receiptSearchQuery, supplierFilter]);
 
   const totalAmount = receiptItems.reduce(
     (sum, item) => sum + item.quantity * item.unitPrice,
@@ -227,61 +429,13 @@ export function StockPage() {
   const paidAmount = Math.min(Number(formPaidAmount || 0), totalAmount);
   const debtAmount = Math.max(totalAmount - paidAmount, 0);
 
-  const materialResults = useMemo(() => {
-    const query = normalizeText(materialSearch);
-    const activeMaterials = materials.filter((material) => material.isActive);
-    if (!query) return activeMaterials.slice(0, 8);
-
-    return activeMaterials
-      .filter((material) => {
-        const haystack = `${material.name} ${material.sku} ${material.category} ${material.unit} ${material.supplierName || ""}`;
-        return normalizeText(haystack).includes(query);
-      })
-      .slice(0, 8);
-  }, [materialSearch, materials]);
-
-  const filteredReceipts = useMemo(() => {
-    const query = normalizeText(searchQuery);
-    const fromTime = fromDate ? new Date(`${fromDate}T00:00:00`).getTime() : null;
-    const toTime = toDate ? new Date(`${toDate}T23:59:59`).getTime() : null;
-
-    return receipts.filter((receipt) => {
-      const receiptTime = new Date(receipt.createdAt).getTime();
-      const status = getPaymentStatus(receipt).key;
-      const text = normalizeText(
-        `${getReceiptCode(receipt)} ${receipt.supplierName || ""} ${receipt.note || ""}`
-      );
-
-      if (query && !text.includes(query)) return false;
-      if (supplierFilter !== "all" && receipt.supplierId !== supplierFilter) return false;
-      if (paymentFilter !== "all" && status !== paymentFilter) return false;
-      if (fromTime && receiptTime < fromTime) return false;
-      if (toTime && receiptTime > toTime) return false;
-
-      return true;
-    });
-  }, [fromDate, paymentFilter, receipts, searchQuery, supplierFilter, toDate]);
-
-  const receiptSummary = useMemo(() => {
-    return receipts.reduce(
-      (summary, receipt) => {
-        const total = Number(receipt.totalAmount || 0);
-        const paid = getPaidAmount(receipt);
-
-        return {
-          totalAmount: summary.totalAmount + total,
-          paidAmount: summary.paidAmount + Math.min(paid, total),
-          debtAmount: summary.debtAmount + Math.max(total - paid, 0),
-        };
-      },
-      { totalAmount: 0, paidAmount: 0, debtAmount: 0 }
-    );
-  }, [receipts]);
+  function showNotice(message: string, type: NoticeState["type"] = "error") {
+    setNotice({ type, message });
+  }
 
   function addMaterialToReceipt(material: Material) {
     setReceiptItems((current) => {
       const existed = current.find((item) => item.material.id === material.id);
-
       if (existed) {
         return current.map((item) =>
           item.material.id === material.id
@@ -289,7 +443,6 @@ export function StockPage() {
             : item
         );
       }
-
       return [
         ...current,
         {
@@ -310,12 +463,6 @@ export function StockPage() {
     );
   }
 
-  function removeReceiptItem(materialId: string) {
-    setReceiptItems((current) =>
-      current.filter((item) => item.material.id !== materialId)
-    );
-  }
-
   function resetReceiptForm() {
     setFormNote("");
     setFormPaidAmount("0");
@@ -323,60 +470,291 @@ export function StockPage() {
     setMaterialSearch("");
   }
 
-  async function handleCreateReceiptSubmit(event: React.FormEvent) {
+  async function handleCreateReceiptSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
     if (!formSupplierId) {
       showNotice("Vui lòng chọn nhà cung cấp trước khi lập phiếu.");
       return;
     }
-
     if (receiptItems.length === 0) {
-      showNotice("Vui lòng chọn ít nhất một nguyên liệu nhập kho.");
+      showNotice("Vui lòng chọn ít nhất một hàng hóa nhập kho.");
       return;
     }
-
     const invalidItem = receiptItems.find(
       (item) => item.quantity <= 0 || item.unitPrice < 0
     );
-
     if (invalidItem) {
       showNotice("Số lượng và giá nhập phải hợp lệ.");
       return;
     }
 
-    const noteParts = [
-      `[paid_amount:${paidAmount}]`,
-      formNote.trim(),
-    ].filter(Boolean);
-
     try {
       setIsSubmitting(true);
       await createGoodsReceipt({
         supplierId: formSupplierId,
-        note: noteParts.join("\n"),
+        note: [`[paid_amount:${paidAmount}]`, formNote.trim()].filter(Boolean).join("\n"),
         materialItems: receiptItems.map((item) => ({
           materialId: item.material.id,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
         })),
       });
-
       resetReceiptForm();
       await loadAllData();
       showNotice("Đã tạo phiếu nhập kho.", "success");
-      navigate("/stock/history");
+      navigate("/stock");
     } catch (error) {
-      showNotice(error instanceof Error ? error.message : "Chưa tạo được phiếu nhập. Vui lòng thử lại.");
+      showNotice(error instanceof Error ? error.message : "Chưa tạo được phiếu nhập.");
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  function addMaterialToAudit(material: Material) {
+    setAuditItems((current) => {
+      const existed = current.find((item) => item.material.id === material.id);
+      if (existed) return current;
+      return [
+        ...current,
+        {
+          material,
+          systemQuantity: Number(material.stockQuantity || 0),
+          actualQuantity: Number(material.stockQuantity || 0),
+          note: "",
+        },
+      ];
+    });
+    setMaterialSearch("");
+  }
+
+  function updateAuditItem(materialId: string, field: "actualQuantity" | "note", value: any) {
+    setAuditItems((current) =>
+      current.map((item) =>
+        item.material.id === materialId
+          ? {
+              ...item,
+              [field]: field === "actualQuantity" ? Math.max(Number(value || 0), 0) : value,
+            }
+          : item
+      )
+    );
+  }
+
+  async function handleAuditSubmit(status: "draft" | "completed") {
+    if (auditItems.length === 0) {
+      showNotice("Vui lòng chọn ít nhất một nguyên liệu để kiểm kê.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setNotice(null);
+
+      const payload = {
+        status,
+        note: auditNote.trim() || null,
+        items: auditItems.map((item) => ({
+          materialId: item.material.id,
+          systemQuantity: item.systemQuantity,
+          actualQuantity: item.actualQuantity,
+          note: item.note ? item.note.trim() : null,
+        })),
+      };
+
+      if (editingAuditId) {
+        await updateInventoryAudit(editingAuditId, payload);
+      } else {
+        await createInventoryAudit(payload);
+      }
+
+      setNotice({
+        type: "success",
+        message: status === "completed" ? "Đã hoàn thành và cân bằng kho." : "Đã lưu phiếu kiểm kê nháp.",
+      });
+
+      // Reset
+      setAuditItems([]);
+      setAuditNote("");
+      setEditingAuditId(null);
+      setMaterialSearch("");
+
+      await loadAllData();
+      navigate("/stock/audit");
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : "Có lỗi xảy ra khi lưu phiếu kiểm kê.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleDeleteAudit(id: string) {
+    if (!window.confirm("Bạn có chắc chắn muốn xóa bản nháp kiểm kê này?")) return;
+    try {
+      setNotice(null);
+      await deleteInventoryAudit(id);
+      setNotice({
+        type: "success",
+        message: "Đã xóa bản nháp kiểm kê thành công.",
+      });
+      await loadAllData();
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : "Không xóa được phiếu kiểm kê.");
+    }
+  }
+
+  async function handlePaymentSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!payingReceipt) return;
+
+    const amount = Number(paymentAmount);
+    const maxAmount = payingReceipt.totalAmount - getPaidAmount(payingReceipt);
+
+    if (isNaN(amount) || amount <= 0 || amount > maxAmount) {
+      showNotice(`Số tiền thanh toán phải lớn hơn 0 và không vượt quá ${formatCurrency(maxAmount)}.`);
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setNotice(null);
+      await payGoodsReceiptDebt(payingReceipt.id, amount);
+      
+      setNotice({
+        type: "success",
+        message: `Đã thanh toán thành công ${formatCurrency(amount)} cho phiếu nhập ${getReceiptCode(payingReceipt)}.`,
+      });
+
+      setPayingReceipt(null);
+      setPaymentAmount("");
+      await loadAllData();
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : "Có lỗi xảy ra khi thực hiện thanh toán.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleViewAuditDetails(auditId: string) {
+    try {
+      setIsLoading(true);
+      setNotice(null);
+      const response = await fetchInventoryAuditById(auditId);
+      if (response.success && response.data) {
+        setSelectedAudit(response.data);
+      } else {
+        showNotice("Không tìm thấy thông tin chi tiết phiếu kiểm kê.");
+      }
+    } catch (error) {
+      showNotice(
+        error instanceof Error ? error.message : "Có lỗi xảy ra khi tải chi tiết phiếu kiểm kê."
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function startEditingAudit(auditId: string) {
+    try {
+      setIsLoading(true);
+      setNotice(null);
+      const response = await fetchInventoryAuditById(auditId);
+      if (!response.success || !response.data) {
+        showNotice("Không tìm thấy thông tin chi tiết phiếu kiểm kê.");
+        return;
+      }
+      const fullAudit = response.data;
+      if (fullAudit.status === "completed") {
+        showNotice("Không thể chỉnh sửa phiếu kiểm kê đã hoàn thành.");
+        return;
+      }
+      setEditingAuditId(fullAudit.id);
+      setAuditNote(fullAudit.note || "");
+
+      const items = (fullAudit.details || []).map((d) => {
+        const mat = materials.find((m) => m.id === d.materialId);
+        return {
+          material: mat || ({
+            id: d.materialId,
+            name: d.materialName || "Nguyên liệu đã bị xóa",
+            sku: d.sku || "",
+            category: d.category || "",
+            unit: d.unit || "",
+            stockQuantity: d.systemQuantity,
+            importPrice: 0,
+            isActive: false,
+            createdAt: "",
+            updatedAt: "",
+          } as Material),
+          systemQuantity: d.systemQuantity,
+          actualQuantity: d.actualQuantity,
+          note: d.note || "",
+        };
+      });
+
+      setAuditItems(items);
+      navigate("/stock/audit/create");
+    } catch (error) {
+      showNotice(
+        error instanceof Error ? error.message : "Có lỗi xảy ra khi tải thông tin phiếu kiểm kê."
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  function cancelAuditEdit() {
+    setAuditItems([]);
+    setAuditNote("");
+    setEditingAuditId(null);
+    setMaterialSearch("");
+    navigate("/stock/audit");
+  }
+
+  async function handleSaveMaterial(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const payload = {
+      name: String(formData.get("name") || "").trim(),
+      sku: String(formData.get("sku") || "").trim() || undefined,
+      category: String(formData.get("category") || "Khác").trim(),
+      unit: String(formData.get("unit") || "").trim(),
+      importPrice: Number(formData.get("importPrice") || 0),
+      supplierId: String(formData.get("supplierId") || "") || null,
+      isActive: String(formData.get("status") || "active") === "active",
+    };
+
+    try {
+      setIsSubmitting(true);
+      if (editingMaterial) {
+        await updateMaterial(editingMaterial.id, payload);
+      } else {
+        await createMaterial(payload);
+      }
+      setShowMaterialModal(false);
+      setEditingMaterial(null);
+      await loadAllData();
+      showNotice(editingMaterial ? "Đã lưu thay đổi hàng hóa." : "Đã thêm hàng hóa mới.", "success");
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : "Chưa lưu được hàng hóa.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleDeleteMaterial(material: Material) {
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa "${material.name}" không?`)) return;
+    try {
+      await deleteMaterial(material.id);
+      await loadAllData();
+      showNotice("Đã xóa hàng hóa.", "success");
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : "Chưa xóa được hàng hóa.");
     }
   }
 
   async function handleSaveSupplier(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-
     const payload = {
       name: String(formData.get("name") || "").trim(),
       contactName: String(formData.get("contact") || "").trim(),
@@ -392,547 +770,929 @@ export function StockPage() {
 
     try {
       setIsSubmitting(true);
-      const response = editingSupplier
-        ? await updateSupplier(editingSupplier.id, payload)
-        : await createSupplier(payload);
-
       if (editingSupplier) {
-        setSuppliers((current) =>
-          current
-            .map((supplier) =>
-              supplier.id === response.data.id ? response.data : supplier
-            )
-            .sort((left, right) => left.name.localeCompare(right.name))
-        );
+        await updateSupplier(editingSupplier.id, payload);
       } else {
-        setSuppliers((current) =>
-          [...current, response.data].sort((left, right) =>
-            left.name.localeCompare(right.name)
-          )
-        );
+        await createSupplier(payload);
       }
-
       setShowSupplierModal(false);
       setEditingSupplier(null);
-      showNotice(
-        editingSupplier
-          ? "Đã lưu thay đổi nhà cung cấp."
-          : "Đã thêm nhà cung cấp mới.",
-        "success"
-      );
+      await loadAllData();
+      showNotice(editingSupplier ? "Đã lưu thay đổi nhà cung cấp." : "Đã thêm nhà cung cấp mới.", "success");
     } catch (error) {
-      showNotice(error instanceof Error ? error.message : "Chưa lưu được nhà cung cấp. Vui lòng thử lại.");
+      showNotice(error instanceof Error ? error.message : "Chưa lưu được nhà cung cấp.");
     } finally {
       setIsSubmitting(false);
     }
   }
 
   async function handleDeleteSupplier(supplier: Supplier) {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa nhà cung cấp "${supplier.name}" không?`)) {
-      return;
-    }
-
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa nhà cung cấp "${supplier.name}" không?`)) return;
     try {
       await deleteSupplier(supplier.id);
       await loadAllData();
       showNotice("Đã xóa nhà cung cấp.", "success");
     } catch (error) {
-      showNotice(error instanceof Error ? error.message : "Chưa xóa được nhà cung cấp. Vui lòng thử lại.");
+      showNotice(error instanceof Error ? error.message : "Chưa xóa được nhà cung cấp.");
     }
   }
 
-  async function handleAddMaterial(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-
-    const payload = {
-      name: String(formData.get("name")),
-      sku: String(formData.get("sku") || "") || undefined,
-      category: String(formData.get("category") || "Khac"),
-      unit: String(formData.get("unit")),
-      importPrice: Number(formData.get("importPrice") || 0),
-      supplierId: String(formData.get("supplierId") || "") || null,
-      isActive: String(formData.get("status") || "active") === "active",
-    };
-
-    try {
-      setIsSubmitting(true);
-      if (editingMaterial) {
-        await updateMaterial(editingMaterial.id, payload);
-      } else {
-        await createMaterial(payload);
-      }
-
-      setShowMaterialModal(false);
-      setEditingMaterial(null);
-      await loadAllData();
-      showNotice(
-        editingMaterial ? "Đã lưu thay đổi nguyên liệu." : "Đã thêm nguyên liệu mới.",
-        "success"
-      );
-    } catch (error) {
-      showNotice(error instanceof Error ? error.message : "Chưa lưu được nguyên liệu. Vui lòng thử lại.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
-  async function handleDeleteMaterial(material: Material) {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa nguyên liệu "${material.name}" không?`)) {
-      return;
-    }
-
-    try {
-      await deleteMaterial(material.id);
-      await loadAllData();
-      showNotice("Đã xóa nguyên liệu.", "success");
-    } catch (error) {
-      showNotice(error instanceof Error ? error.message : "Chưa xóa được nguyên liệu. Vui lòng thử lại.");
-    }
-  }
-
-  const paymentTabs: Array<{ key: PaymentFilter; label: string; count: number }> = [
-    { key: "all", label: "Tất cả", count: receipts.length },
-    {
-      key: "paid",
-      label: "Đã trả đủ",
-      count: receipts.filter((receipt) => getPaymentStatus(receipt).key === "paid").length,
-    },
-    {
-      key: "partial",
-      label: "Nợ một phần",
-      count: receipts.filter((receipt) => getPaymentStatus(receipt).key === "partial").length,
-    },
-    {
-      key: "unpaid",
-      label: "Nợ toàn bộ",
-      count: receipts.filter((receipt) => getPaymentStatus(receipt).key === "unpaid").length,
-    },
-  ];
+  const isImportMode = currentPath === "import";
+  const isAuditMode = currentPath === "audit";
+  const isHistoryMode = currentPath === "history";
+  const subPath = location.pathname.split("/")[3] || "";
+  const isAuditCreateMode = isAuditMode && subPath === "create";
 
   return (
-    <AdminLayout
-      title="Kho hàng"
-      subtitle="Quản lý lịch sử nhập hàng, nhà cung cấp và công nợ NCC."
-    >
-      {notice ? (
-        <div
-          className={`mb-4 flex items-start justify-between border p-4 text-sm font-bold ${
-            notice.type === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-              : "border-rose-200 bg-rose-50 text-rose-700"
-          }`}
-        >
-          <span>{notice.message}</span>
-          <button
-            type="button"
-            onClick={() => setNotice(null)}
-            className="ml-4 text-lg leading-none opacity-70 hover:opacity-100"
-            aria-label="Đóng thông báo"
+    <AdminLayout>
+      <div className="-m-6 min-h-screen space-y-5 bg-[#f8f9ff] p-6 font-['Be_Vietnam_Pro',Inter,sans-serif]">
+        {notice ? (
+          <div
+            className={[
+              "rounded-lg border px-4 py-3 text-sm font-bold",
+              notice.type === "success"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border-rose-200 bg-rose-50 text-rose-700",
+            ].join(" ")}
           >
-            ×
-          </button>
-        </div>
-      ) : null}
+            {notice.message}
+          </div>
+        ) : null}
 
-      {currentTab === "import" ? (
-        <div className="space-y-6">
-          <section className="flex items-start gap-4 border-b border-slate-200 pb-6">
-            <button
-              type="button"
-              onClick={() => navigate("/stock/history")}
-              className="flex h-10 w-10 items-center justify-center border border-slate-200 bg-white text-slate-600 hover:border-[#9d4300] hover:text-[#9d4300]"
-              aria-label="Quay lai"
-            >
-              <Icon name="arrow_back" />
-            </button>
-            <div>
-              <h1 className="text-2xl font-extrabold text-[#2a1b14]">
-                Tạo Phiếu Nhập Kho
-              </h1>
-              <p className="mt-1 text-sm font-medium text-slate-500">
-                Tạo đợt nhập hàng mới từ danh sách nguyên liệu.
-              </p>
-            </div>
-          </section>
+        {isImportMode ? (
+          <form onSubmit={handleCreateReceiptSubmit} className="grid gap-6 xl:grid-cols-[1fr_360px]">
+            <section className="rounded-lg border border-slate-200 bg-white p-5">
+              <StockActionHeader
+                eyebrow="Goods Receipt"
+                title="Lập phiếu nhập kho"
+                onBack={() => navigate("/stock")}
+              />
 
-          {isLoading ? (
-            <div className="border border-slate-200 bg-white p-8 text-center text-sm font-bold text-slate-400">
-              Đang tải dữ liệu...
-            </div>
-          ) : loadErrorMessage ? (
-            <div className="border border-rose-200 bg-rose-50 p-5 text-sm font-bold text-rose-600">
-              Không tải được dữ liệu: {loadErrorMessage}. Hãy kiểm tra backend đang chạy và đăng nhập đúng tài khoản.
-            </div>
-          ) : (
-            <form onSubmit={handleCreateReceiptSubmit} className="grid gap-6 xl:grid-cols-[1fr_360px]">
-              <div className="space-y-6">
-                <section className="border border-slate-200 bg-white p-5">
-                  <div className="mb-4 flex items-center justify-between">
-                    <h2 className="text-sm font-extrabold uppercase tracking-wide text-[#2a1b14]">
-                      Tìm nguyên liệu nhập kho
-                    </h2>
-                  </div>
-                  <div className="relative">
-                    <Icon
-                      name="search"
-                      className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                    />
-                    <input
-                      value={materialSearch}
-                      onChange={(event) => setMaterialSearch(event.target.value)}
-                      placeholder="Nhập tên, mã hoặc danh mục nguyên liệu..."
-                      className="h-12 w-full border border-slate-200 bg-slate-50 pl-12 pr-4 text-sm font-bold outline-none focus:border-[#9d4300]"
-                    />
-                  </div>
-
-                  <div className="mt-3">
-                    <p className="mb-2 text-xs font-bold text-slate-400">
-                      {materialSearch.trim()
-                        ? "Kết quả tìm kiếm"
-                        : "Nguyên liệu gần đây - bấm để thêm vào phiếu"}
-                    </p>
-                    <div className="grid gap-2 md:grid-cols-2">
-                      {materialResults.map((material) => (
-                        <button
-                          key={material.id}
-                          type="button"
-                          onClick={() => addMaterialToReceipt(material)}
-                          className="flex items-center justify-between border border-slate-200 bg-white p-3 text-left hover:border-[#9d4300]"
-                        >
-                          <div>
-                            <p className="font-extrabold text-[#2a1b14]">{material.name}</p>
-                            <p className="text-xs font-semibold text-slate-400">
-                              SKU: {material.sku} - Ton hien tai: {material.stockQuantity} - Giá nhập:{" "}
-                              {formatCurrency(material.importPrice)}
-                            </p>
-                          </div>
-                          <Icon name="add" className="text-[#9d4300]" />
-                        </button>
-                      ))}
-                      {materialResults.length === 0 ? (
-                        <p className="col-span-full border border-dashed border-slate-200 p-4 text-center text-sm font-bold text-slate-400">
-                          Không tìm thấy nguyên liệu phù hợp. Hãy tạo nguyên liệu trong kho hàng trước.
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                </section>
-
-                <section className="border border-slate-200 bg-white p-5">
-                  <h2 className="mb-4 text-sm font-extrabold uppercase tracking-wide text-[#2a1b14]">
-                    Nguyên liệu nhập kho
-                  </h2>
-
-                  {receiptItems.length === 0 ? (
-                    <div className="flex min-h-[140px] items-center justify-center border border-dashed border-slate-200 bg-slate-50 text-center text-sm font-extrabold text-slate-400">
-                      Chưa có nguyên liệu nào được chọn. Hãy dùng ô tìm kiếm ở trên.
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-sm">
-                        <thead className="border-b border-slate-200 text-[11px] uppercase tracking-wide text-slate-400">
-                          <tr>
-                              <th className="py-3">Nguyên liệu</th>
-                              <th className="w-28 py-3">Số lượng</th>
-                              <th className="w-36 py-3">Giá nhập</th>
-                              <th className="w-36 py-3 text-right">Thành tiền</th>
-                              <th className="w-12 py-3" />
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {receiptItems.map((item) => (
-                            <tr key={item.material.id}>
-                              <td className="py-3">
-                                <p className="font-extrabold text-[#2a1b14]">
-                                  {item.material.name}
-                                </p>
-                                <p className="text-xs font-semibold text-slate-400">
-                                  SKU: {item.material.sku} - Đơn vị: {item.material.unit}
-                                </p>
-                              </td>
-                              <td className="py-3">
-                                <input
-                                  type="number"
-                                  min={1}
-                                  value={item.quantity}
-                                  onChange={(event) =>
-                                    updateReceiptItem(
-                                      item.material.id,
-                                      "quantity",
-                                      Number(event.target.value)
-                                    )
-                                  }
-                                  className={inputClass}
-                                />
-                              </td>
-                              <td className="py-3">
-                                <input
-                                  type="number"
-                                  min={0}
-                                  value={item.unitPrice}
-                                  onChange={(event) =>
-                                    updateReceiptItem(
-                                      item.material.id,
-                                      "unitPrice",
-                                      Number(event.target.value)
-                                    )
-                                  }
-                                  className={inputClass}
-                                />
-                              </td>
-                              <td className="py-3 text-right font-extrabold text-[#2a1b14]">
-                                {formatCurrency(item.quantity * item.unitPrice)}
-                              </td>
-                              <td className="py-3 text-right">
-                                <button
-                                  type="button"
-                                  onClick={() => removeReceiptItem(item.material.id)}
-                                  className="text-slate-400 hover:text-rose-500"
-                                  aria-label="Xóa nguyên liệu"
-                                >
-                                  <Icon name="delete" />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </section>
+              <div className="relative">
+                <Icon
+                  name="search"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  value={materialSearch}
+                  onChange={(event) => setMaterialSearch(event.target.value)}
+                  placeholder="Tìm tên, mã hoặc danh mục hàng hóa..."
+                  className="h-12 w-full rounded-lg border border-slate-200 bg-white pl-12 pr-4 text-sm font-bold outline-none focus:border-[#f97316]"
+                />
               </div>
 
-              <aside className="space-y-6">
-                <section className="border border-slate-200 bg-white p-5">
-                  <h2 className="mb-4 border-b border-slate-100 pb-4 text-sm font-extrabold uppercase tracking-wide text-[#2a1b14]">
-                    Thông tin phiếu
-                  </h2>
-                  <div className="space-y-4">
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                {materialResults.map((material) => (
+                  <button
+                    key={material.id}
+                    type="button"
+                    onClick={() => addMaterialToReceipt(material)}
+                    className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4 text-left hover:border-[#f97316]"
+                  >
                     <div>
-                      <label className={labelClass}>Nhà cung cấp *</label>
-                      <div className="relative">
-                        <Icon
-                          name="person"
-                          className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                        />
-                        <select
-                          value={formSupplierId}
-                          onChange={(event) => setFormSupplierId(event.target.value)}
-                          className="h-10 w-full border border-slate-200 bg-white pl-10 pr-3 text-sm font-extrabold text-[#2a1b14] outline-none transition-colors focus:border-[#9d4300]"
-                          required
-                        >
-                          <option value="">Chọn nhà cung cấp</option>
-                          {suppliers.map((supplier) => (
-                            <option key={supplier.id} value={supplier.id}>
-                              {supplier.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      <p className="font-extrabold text-[#0b1c30]">{material.name}</p>
+                      <p className="text-xs font-semibold text-slate-500">
+                        SKU: {material.sku} - Tồn: {material.stockQuantity} - Giá nhập: {formatCurrency(material.importPrice)}
+                      </p>
                     </div>
-                    <div>
-                      <label className={labelClass}>Ghi chú phiếu</label>
-                      <div className="relative">
-                        <Icon name="description" className="absolute left-3 top-3 text-slate-400" />
-                        <textarea
-                          value={formNote}
-                          onChange={(event) => setFormNote(event.target.value)}
-                          placeholder="Lý do nhập hàng, đợt khuyến mãi..."
-                          rows={4}
-                          className="w-full border border-slate-200 bg-white py-3 pl-10 pr-3 text-sm font-semibold outline-none focus:border-[#9d4300]"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className={labelClass}>Đã trả trước (VND)</label>
-                      <div className="relative">
-                        <Icon
-                          name="attach_money"
-                          className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                        />
-                        <input
-                          type="number"
-                          min={0}
-                          max={totalAmount}
-                          value={formPaidAmount}
-                          onChange={(event) => setFormPaidAmount(event.target.value)}
-                          className="h-10 w-full border border-slate-300 bg-white pl-10 pr-3 text-sm font-extrabold text-[#2a1b14] outline-none transition-colors focus:border-[#9d4300]"
-                        />
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setFormPaidAmount(String(totalAmount))}
-                      className="h-10 w-full border border-slate-200 bg-slate-50 text-sm font-extrabold text-slate-600 hover:bg-white"
+                    <Icon name="add" className="text-[#f97316]" />
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-6 overflow-x-auto rounded-lg border border-slate-200">
+                <table className="w-full min-w-180 text-left text-sm">
+                  <thead className="bg-slate-50 text-xs font-extrabold uppercase text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3">Hàng hóa</th>
+                      <th className="px-4 py-3">Số lượng</th>
+                      <th className="px-4 py-3">Giá nhập</th>
+                      <th className="px-4 py-3 text-right">Thành tiền</th>
+                      <th className="px-4 py-3" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {receiptItems.map((item) => (
+                      <tr key={item.material.id}>
+                        <td className="px-4 py-3 font-extrabold text-[#0b1c30]">
+                          {item.material.name}
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            type="number"
+                            min={1}
+                            value={item.quantity}
+                            onChange={(event) =>
+                              updateReceiptItem(item.material.id, "quantity", Number(event.target.value))
+                            }
+                            className={inputClass}
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            type="number"
+                            min={0}
+                            value={item.unitPrice}
+                            onChange={(event) =>
+                              updateReceiptItem(item.material.id, "unitPrice", Number(event.target.value))
+                            }
+                            className={inputClass}
+                          />
+                        </td>
+                        <td className="px-4 py-3 text-right font-extrabold">
+                          {formatCurrency(item.quantity * item.unitPrice)}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setReceiptItems((current) =>
+                                current.filter((draft) => draft.material.id !== item.material.id)
+                              )
+                            }
+                            className="text-slate-400 hover:text-rose-600"
+                          >
+                            <Icon name="delete" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {receiptItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-10 text-center text-sm font-bold text-slate-400">
+                          Chưa chọn hàng hóa nhập kho.
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <aside className="space-y-5">
+              <section className="rounded-lg border border-slate-200 bg-white p-5">
+                <h2 className="mb-4 text-sm font-extrabold uppercase tracking-wide text-[#0b1c30]">
+                  Thông tin phiếu
+                </h2>
+                <div className="space-y-4">
+                  <div>
+                    <label className={labelClass}>Nhà cung cấp *</label>
+                    <select
+                      required
+                      value={formSupplierId}
+                      onChange={(event) => setFormSupplierId(event.target.value)}
+                      className={inputClass}
                     >
-                      Trả dư toàn bộ
+                      <option value="">Chọn nhà cung cấp</option>
+                      {suppliers.map((supplier) => (
+                        <option key={supplier.id} value={supplier.id}>
+                          {supplier.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Ghi chú</label>
+                    <textarea
+                      rows={4}
+                      value={formNote}
+                      onChange={(event) => setFormNote(event.target.value)}
+                      className="w-full rounded-lg border border-slate-200 p-3 text-sm font-semibold outline-none focus:border-[#f97316]"
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Đã trả trước</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={totalAmount}
+                      value={formPaidAmount}
+                      onChange={(event) => setFormPaidAmount(event.target.value)}
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+              </section>
+              <section className="rounded-lg border border-slate-200 bg-white p-5 text-sm font-extrabold">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Tổng tiền hàng</span>
+                  <span>{formatCurrency(totalAmount)}</span>
+                </div>
+                <div className="mt-3 flex justify-between">
+                  <span className="text-slate-500">Đã thanh toán</span>
+                  <span className="text-emerald-600">{formatCurrency(paidAmount)}</span>
+                </div>
+                <div className="mt-3 flex justify-between border-t border-dashed border-slate-200 pt-3">
+                  <span className="text-slate-500">Còn nợ</span>
+                  <span className={debtAmount > 0 ? "text-rose-600" : "text-emerald-600"}>
+                    {formatCurrency(debtAmount)}
+                  </span>
+                </div>
+              </section>
+              <button
+                type="submit"
+                disabled={isSubmitting || receiptItems.length === 0}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#f97316] text-sm font-extrabold text-white hover:bg-[#ea580c] disabled:bg-slate-300"
+              >
+                <Icon name="check" />
+                {isSubmitting ? "Đang xử lý..." : "Xác nhận nhập kho"}
+              </button>
+            </aside>
+          </form>
+        ) : isAuditMode && isAuditCreateMode ? (
+          <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
+            <section className="rounded-lg border border-slate-200 bg-white p-5">
+              <StockActionHeader
+                title={editingAuditId ? "Sửa phiếu kiểm kê" : "Lập phiếu kiểm kê"}
+                onBack={cancelAuditEdit}
+              />
+
+              <div className="relative">
+                <Icon
+                  name="search"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  value={materialSearch}
+                  onChange={(event) => setMaterialSearch(event.target.value)}
+                  placeholder="Tìm tên hoặc mã nguyên liệu để kiểm kê..."
+                  className="h-12 w-full rounded-lg border border-slate-200 bg-white pl-12 pr-4 text-sm font-bold outline-none focus:border-[#f97316]"
+                />
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                {materialResults
+                  .filter((m) => !auditItems.some((item) => item.material.id === m.id))
+                  .map((material) => (
+                    <button
+                      key={material.id}
+                      type="button"
+                      onClick={() => addMaterialToAudit(material)}
+                      className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4 text-left hover:border-[#f97316] transition-all duration-200 shadow-sm"
+                    >
+                      <div>
+                        <p className="font-extrabold text-[#0b1c30]">{material.name}</p>
+                        <p className="text-xs font-semibold text-slate-500">
+                          SKU: {material.sku} - ĐVT: {material.unit} - Tồn hiện tại: {material.stockQuantity}
+                        </p>
+                      </div>
+                      <Icon name="add" className="text-[#f97316]" />
                     </button>
-                  </div>
-                </section>
+                  ))}
+                {materialSearch && materialResults.filter((m) => !auditItems.some((item) => item.material.id === m.id)).length === 0 ? (
+                  <p className="col-span-2 text-center text-sm font-semibold text-slate-400 py-2">
+                    Không tìm thấy nguyên liệu phù hợp hoặc đã có trong danh sách.
+                  </p>
+                ) : null}
+              </div>
 
-                <section className="border border-slate-200 bg-white p-5">
-                  <div className="space-y-4 text-sm font-extrabold">
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Tổng tiền hàng:</span>
-                      <span>{formatCurrency(totalAmount)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Đã thanh toán:</span>
-                      <span className="text-emerald-600">{formatCurrency(paidAmount)}</span>
-                    </div>
-                    <div className="flex justify-between border-t border-dashed border-slate-200 pt-4">
-                      <span className="text-slate-500">Còn nợ nhà cung cấp:</span>
-                      <span className={debtAmount > 0 ? "text-rose-600" : "text-emerald-600"}>
-                        {formatCurrency(debtAmount)}
-                      </span>
-                    </div>
-                  </div>
-                  {debtAmount > 0 ? (
-                    <div className="mt-5 flex gap-3 border border-rose-200 bg-rose-50 p-3 text-xs font-bold leading-6 text-rose-600">
-                      <Icon name="info" className="mt-0.5 text-base" />
-                      <span>
-                        Chưa trả tiền. Hệ thống sẽ ghi nợ toàn bộ{" "}
-                        {formatCurrency(debtAmount)} vào tài khoản nhà cung cấp.
-                      </span>
-                    </div>
-                  ) : null}
-                </section>
+              <div className="mt-6 overflow-x-auto rounded-lg border border-slate-200">
+                <table className="w-full min-w-180 text-left text-sm">
+                  <thead className="bg-slate-50 text-xs font-extrabold uppercase text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3">Nguyên liệu</th>
+                      <th className="px-4 py-3 text-right">Tồn hệ thống</th>
+                      <th className="px-4 py-3 text-right">Tồn thực tế</th>
+                      <th className="px-4 py-3 text-right">Chênh lệch</th>
+                      <th className="px-4 py-3">Ghi chú dòng</th>
+                      <th className="px-4 py-3" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {auditItems.map((item) => {
+                      const variance = item.actualQuantity - item.systemQuantity;
+                      return (
+                        <tr key={item.material.id}>
+                          <td className="px-4 py-3 font-extrabold text-[#0b1c30]">
+                            <div>
+                              <p>{item.material.name}</p>
+                              <p className="text-xs font-normal text-slate-400">{item.material.sku}</p>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold text-slate-500">
+                            {item.systemQuantity} {item.material.unit}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex justify-end">
+                              <input
+                                type="number"
+                                step="any"
+                                min={0}
+                                value={item.actualQuantity}
+                                onChange={(event) =>
+                                  updateAuditItem(item.material.id, "actualQuantity", event.target.value)
+                                }
+                                className="h-9 w-24 rounded border border-slate-200 px-2 text-right text-sm font-bold outline-none focus:border-[#f97316]"
+                              />
+                            </div>
+                          </td>
+                          <td className={`px-4 py-3 text-right font-extrabold ${variance < 0 ? "text-rose-500" : variance > 0 ? "text-emerald-600" : "text-slate-600"}`}>
+                            {variance > 0 ? `+${variance}` : variance} {item.material.unit}
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="text"
+                              value={item.note}
+                              onChange={(event) =>
+                                updateAuditItem(item.material.id, "note", event.target.value)
+                              }
+                              placeholder="Lý do chênh lệch..."
+                              className="h-9 w-full rounded border border-slate-200 px-3 text-xs outline-none focus:border-[#f97316]"
+                            />
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setAuditItems((current) =>
+                                  current.filter((draft) => draft.material.id !== item.material.id)
+                                )
+                              }
+                              className="text-slate-400 hover:text-rose-600"
+                            >
+                              <Icon name="delete" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {auditItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-10 text-center text-sm font-bold text-slate-400">
+                          Chưa chọn nguyên liệu để kiểm kê. Chọn nguyên liệu ở ô tìm kiếm phía trên.
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </section>
 
+            <aside className="space-y-5">
+              <section className="rounded-lg border border-slate-200 bg-white p-5">
+                <h2 className="mb-4 text-sm font-extrabold uppercase tracking-wide text-[#0b1c30]">
+                  Thông tin kiểm kê
+                </h2>
+                <div className="space-y-4">
+                  <div>
+                    <label className={labelClass}>Ghi chú đợt kiểm</label>
+                    <textarea
+                      rows={4}
+                      value={auditNote}
+                      onChange={(event) => setAuditNote(event.target.value)}
+                      placeholder="Mô tả lý do hoặc ghi chú tổng quát..."
+                      className="w-full rounded-lg border border-slate-200 p-3 text-sm font-semibold outline-none focus:border-[#f97316]"
+                    />
+                  </div>
+                </div>
+              </section>
+
+              <div className="space-y-3">
                 <button
-                  type="submit"
-                  disabled={isSubmitting || receiptItems.length === 0}
-                  className="flex h-12 w-full items-center justify-center gap-2 bg-[#9d4300] text-sm font-extrabold text-white shadow-sm hover:bg-[#ea6c0a] disabled:cursor-not-allowed disabled:bg-slate-300"
+                  type="button"
+                  disabled={isSubmitting || auditItems.length === 0}
+                  onClick={() => void handleAuditSubmit("completed")}
+                  className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 text-sm font-extrabold text-white hover:bg-emerald-700 disabled:bg-slate-300 shadow-sm"
                 >
-                  <Icon name="check" />
-                  {isSubmitting ? "Đang xử lý..." : "Xác nhận nhập kho."}
+                  <Icon name="done_all" />
+                  {isSubmitting ? "Đang lưu..." : "Xác nhận & Cân bằng kho"}
                 </button>
                 <button
                   type="button"
-                  onClick={() => navigate("/stock/history")}
-                  className="h-11 w-full border border-slate-200 bg-white text-sm font-extrabold text-slate-600 hover:bg-slate-50"
+                  disabled={isSubmitting || auditItems.length === 0}
+                  onClick={() => void handleAuditSubmit("draft")}
+                  className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#f97316] text-sm font-extrabold text-white hover:bg-[#ea580c] disabled:bg-slate-300 shadow-sm"
+                >
+                  <Icon name="save" />
+                  Lưu bản tạm tính
+                </button>
+                <button
+                  type="button"
+                  onClick={cancelAuditEdit}
+                  className="flex h-12 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white text-sm font-extrabold text-slate-700 hover:bg-slate-50"
                 >
                   Hủy bỏ
                 </button>
-              </aside>
-            </form>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-6">
-          <section className="flex flex-col gap-4 border-b border-slate-200 pb-6 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h1 className="flex items-center gap-3 text-3xl font-extrabold text-[#2a1b14]">
-                <Icon name="local_shipping" className="text-[#9d4300]" />
-                Nhập kho và Công nợ
-              </h1>
-              <p className="mt-1 text-sm font-medium text-slate-500">
-                Quản lý lịch sử nhập hàng từ nhà cung cấp, theo dõi chi tiết phiếu nhập và công nợ NCC.
-              </p>
+              </div>
+            </aside>
+          </div>
+        ) : isAuditMode ? (
+          <div className="space-y-6">
+            <section className="rounded-xl border border-slate-100 bg-white p-5 shadow-[0_14px_34px_rgba(15,23,42,0.06)]">
+              <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-4">
+                <div>
+                  <h1 className="text-2xl font-extrabold text-[#0b1c30]">
+                    Lịch sử kiểm kê kho hàng
+                  </h1>
+                  <p className="text-sm font-semibold text-slate-500">
+                    Danh sách các đợt kiểm kê thực tế và điều chỉnh chênh lệch tồn kho nguyên vật liệu
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <BackToStockButton
+                    onClick={() => navigate("/stock")}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => navigate("/stock/audit/create")}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#f97316] px-4 text-sm font-extrabold text-white shadow-sm hover:bg-[#ea580c] transition"
+                  >
+                    <Icon name="add" className="text-[18px]" />
+                    Tạo phiếu kiểm mới
+                  </button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[980px] text-left text-sm">
+                  <thead className="bg-slate-50 text-[11px] font-extrabold uppercase tracking-wide text-slate-400">
+                    <tr>
+                      <th className="px-4 py-4">Mã phiếu</th>
+                      <th className="px-5 py-4">Ngày kiểm kê</th>
+                      <th className="px-5 py-4">Nhân viên thực hiện</th>
+                      <th className="px-5 py-4">Ghi chú</th>
+                      <th className="px-5 py-4">Trạng thái</th>
+                      <th className="px-5 py-4 text-right">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {audits.map((audit) => (
+                      <tr key={audit.id} className="transition hover:bg-slate-50">
+                        <td className="px-4 py-5 font-bold text-slate-700">
+                          KK-{audit.id.slice(0, 8).toUpperCase()}
+                        </td>
+                        <td className="px-5 py-4 font-semibold text-slate-600">
+                          {formatDateTime(audit.createdAt)}
+                        </td>
+                        <td className="px-5 py-4 font-semibold text-slate-600">
+                          {audit.createdByName || "Nhân viên"}
+                        </td>
+                        <td className="px-5 py-4 font-semibold text-slate-500 max-w-xs truncate">
+                          {audit.note || "---"}
+                        </td>
+                        <td className="px-5 py-4">
+                          {audit.status === "completed" ? (
+                            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-extrabold text-emerald-600">
+                              Đã cân bằng kho
+                            </span>
+                          ) : (
+                            <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-extrabold text-amber-600">
+                              Phiếu tạm
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => void handleViewAuditDetails(audit.id)}
+                              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:border-[#f97316] hover:text-[#f97316]"
+                              title="Xem chi tiết"
+                            >
+                              <Icon name="visibility" className="text-[20px]" />
+                            </button>
+                            {audit.status === "draft" && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => void startEditingAudit(audit.id)}
+                                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-emerald-600 hover:border-emerald-500 hover:bg-emerald-50"
+                                  title="Kiểm tiếp"
+                                >
+                                  <Icon name="edit" className="text-[20px]" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleDeleteAudit(audit.id)}
+                                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-rose-500 hover:border-rose-500 hover:bg-rose-50"
+                                  title="Xóa phiếu"
+                                >
+                                  <Icon name="delete" className="text-[20px]" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {audits.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-5 py-12 text-center text-sm font-bold text-slate-400">
+                          Không tìm thấy phiếu kiểm kê nào trong lịch sử.
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        ) : isHistoryMode ? (
+          <div className="space-y-6">
+            <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-4">
+              <div>
+                <h1 className="text-2xl font-extrabold text-[#0b1c30]">
+                  Lịch sử nhập kho & Quản lý công nợ
+                </h1>
+                <p className="text-sm font-semibold text-slate-500">
+                  Quản lý danh sách phiếu nhập hàng và theo dõi công nợ với các nhà cung cấp
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <BackToStockButton onClick={() => {
+                  setSupplierFilter("all");
+                  setReceiptSearchQuery("");
+                  navigate("/stock");
+                }} />
+              </div>
             </div>
-            <div className="flex gap-2">
+
+            {/* Tab buttons */}
+            <div className="flex border-b border-slate-200">
               <button
                 type="button"
-                onClick={() => navigate("/stock/import")}
-                className="flex h-10 items-center gap-2 bg-[#9d4300] px-5 text-sm font-extrabold text-white shadow-sm hover:bg-[#ea6c0a]"
+                onClick={() => setActiveHistoryTab("receipts")}
+                className={`px-5 py-3 text-sm font-extrabold border-b-2 transition-all duration-200 ${
+                  activeHistoryTab === "receipts"
+                    ? "border-[#f97316] text-[#f97316]"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
               >
-                <Icon name="add" />
-                Lập phiếu nhập mới
+                Lịch sử phiếu nhập
               </button>
               <button
                 type="button"
-                onClick={() => void loadAllData()}
-                className="flex h-10 w-10 items-center justify-center border border-slate-200 bg-white text-slate-600 hover:border-[#9d4300] hover:text-[#9d4300]"
-                aria-label="Lam moi"
+                onClick={() => setActiveHistoryTab("suppliers")}
+                className={`px-5 py-3 text-sm font-extrabold border-b-2 transition-all duration-200 ${
+                  activeHistoryTab === "suppliers"
+                    ? "border-[#f97316] text-[#f97316]"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
               >
-                <Icon name="refresh" />
+                Công nợ nhà cung cấp
               </button>
             </div>
-          </section>
 
-          <nav className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => navigate("/stock/history")}
-              className={[
-                "h-10 border px-4 text-sm font-extrabold transition-colors",
-                (currentTab !== "suppliers" && currentTab !== "materials")
-                  ? "border-[#9d4300] bg-[#9d4300] text-white"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-[#9d4300] hover:text-[#9d4300]",
-              ].join(" ")}
-            >
-              Lịch sử nhập hàng
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/stock/materials")}
-              className={[
-                "h-10 border px-4 text-sm font-extrabold transition-colors",
-                currentTab === "materials"
-                  ? "border-[#9d4300] bg-[#9d4300] text-white"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-[#9d4300] hover:text-[#9d4300]",
-              ].join(" ")}
-            >
-              Nguyên liệu
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/stock/suppliers")}
-              className={[
-                "h-10 border px-4 text-sm font-extrabold transition-colors",
-                currentTab === "suppliers"
-                  ? "border-[#9d4300] bg-[#9d4300] text-white"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-[#9d4300] hover:text-[#9d4300]",
-              ].join(" ")}
-            >
-              Nhà cung cấp
-            </button>
-          </nav>
+            {activeHistoryTab === "receipts" ? (
+              <div className="space-y-4">
+                {/* Toolbar */}
+                <div className="flex flex-col gap-3 md:flex-row md:items-center">
+                  <div className="relative flex-1">
+                    <Icon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      value={receiptSearchQuery}
+                      onChange={(e) => setReceiptSearchQuery(e.target.value)}
+                      placeholder="Tìm theo mã phiếu, nhà cung cấp, ghi chú..."
+                      className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-10 pr-3 text-sm font-semibold text-[#0b1c30] outline-none focus:border-[#f97316]"
+                    />
+                  </div>
+                  <div className="w-full md:w-64">
+                    <select
+                      value={supplierFilter}
+                      onChange={(e) => setSupplierFilter(e.target.value)}
+                      className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-[#0b1c30] outline-none focus:border-[#f97316]"
+                    >
+                      <option value="all">Tất cả nhà cung cấp</option>
+                      {suppliers.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {(receiptSearchQuery || supplierFilter !== "all") && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReceiptSearchQuery("");
+                        setSupplierFilter("all");
+                      }}
+                      className="h-10 px-4 text-xs font-bold text-rose-500 hover:underline"
+                    >
+                      Xóa lọc
+                    </button>
+                  )}
+                </div>
 
-          {isLoading ? (
-            <div className="border border-slate-200 bg-white p-8 text-center text-sm font-bold text-slate-400">
-              Đang tải dữ liệu...
+                <div className="overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-sm">
+                  <table className="w-full min-w-[980px] text-left text-sm">
+                    <thead className="bg-slate-50 text-[11px] font-extrabold uppercase tracking-wide text-slate-400">
+                      <tr>
+                        <th className="px-5 py-4">Mã phiếu</th>
+                        <th className="px-5 py-4">Ngày nhập</th>
+                        <th className="px-5 py-4">Nhà cung cấp</th>
+                        <th className="px-5 py-4">Nguyên liệu</th>
+                        <th className="px-5 py-4 text-right">Tổng tiền hàng</th>
+                        <th className="px-5 py-4 text-right">Đã thanh toán</th>
+                        <th className="px-5 py-4 text-right">Còn nợ</th>
+                        <th className="px-5 py-4 text-right">Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredReceipts.map((r) => {
+                        const paid = getPaidAmount(r);
+                        const debt = Math.max(r.totalAmount - paid, 0);
+                        return (
+                          <tr key={r.id} className="transition hover:bg-slate-50">
+                            <td className="px-5 py-4 font-bold text-slate-700">
+                              {getReceiptCode(r)}
+                            </td>
+                            <td className="px-5 py-4 font-semibold text-slate-600">
+                              {formatDateTime(r.createdAt)}
+                            </td>
+                            <td className="px-5 py-4 font-bold text-slate-700">
+                              {r.supplierName || "---"}
+                            </td>
+                            <td className="px-5 py-4 font-semibold text-slate-500 max-w-xs truncate" title={getReceiptDetails(r)}>
+                              {getReceiptDetails(r)}
+                            </td>
+                            <td className="px-5 py-4 text-right font-extrabold text-slate-700">
+                              {formatCurrency(r.totalAmount)}
+                            </td>
+                            <td className="px-5 py-4 text-right font-semibold text-emerald-600">
+                              {formatCurrency(paid)}
+                            </td>
+                            <td className={`px-5 py-4 text-right font-extrabold ${debt > 0 ? "text-rose-600 bg-rose-50/50" : "text-slate-400"}`}>
+                              {formatCurrency(debt)}
+                            </td>
+                            <td className="px-5 py-4">
+                              <div className="flex justify-end gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedReceipt(r)}
+                                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:border-[#f97316] hover:text-[#f97316]"
+                                  title="Xem chi tiết"
+                                >
+                                  <Icon name="visibility" className="text-[18px]" />
+                                </button>
+                                {debt > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setPayingReceipt(r);
+                                      setPaymentAmount(debt.toString());
+                                    }}
+                                    className="flex h-8 px-2.5 items-center justify-center gap-1 rounded-lg bg-[#f97316] text-[11px] font-extrabold text-white hover:bg-[#ea580c] shadow-sm"
+                                    title="Thanh toán nợ"
+                                  >
+                                    <Icon name="payments" className="text-[14px]" />
+                                    Thanh toán
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {filteredReceipts.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="px-5 py-12 text-center text-sm font-bold text-slate-400">
+                            Không tìm thấy phiếu nhập nào.
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-sm">
+                  <table className="w-full min-w-[800px] text-left text-sm">
+                    <thead className="bg-slate-50 text-[11px] font-extrabold uppercase tracking-wide text-slate-400">
+                      <tr>
+                        <th className="px-5 py-4">Tên nhà cung cấp</th>
+                        <th className="px-5 py-4">Số điện thoại</th>
+                        <th className="px-5 py-4">Địa chỉ</th>
+                        <th className="px-5 py-4 text-right">Tổng tiền nhập</th>
+                        <th className="px-5 py-4 text-right">Đã trả</th>
+                        <th className="px-5 py-4 text-right">Còn nợ</th>
+                        <th className="px-5 py-4 text-right">Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {supplierDebts.map((s) => (
+                        <tr key={s.supplierId} className="transition hover:bg-slate-50">
+                          <td className="px-5 py-4 font-bold text-slate-700">
+                            {s.supplierName}
+                          </td>
+                          <td className="px-5 py-4 font-semibold text-slate-600">
+                            {s.phone}
+                          </td>
+                          <td className="px-5 py-4 font-medium text-slate-500 max-w-xs truncate">
+                            {s.address}
+                          </td>
+                          <td className="px-5 py-4 text-right font-semibold text-slate-600">
+                            {formatCurrency(s.totalImport)}
+                          </td>
+                          <td className="px-5 py-4 text-right font-semibold text-emerald-600">
+                            {formatCurrency(s.totalPaid)}
+                          </td>
+                          <td className={`px-5 py-4 text-right font-extrabold ${s.totalDebt > 0 ? "text-rose-600 bg-rose-50/50" : "text-slate-400"}`}>
+                            {formatCurrency(s.totalDebt)}
+                          </td>
+                          <td className="px-5 py-4 text-right">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSupplierFilter(s.supplierId);
+                                setActiveHistoryTab("receipts");
+                              }}
+                              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 hover:border-[#f97316] hover:text-[#f97316]"
+                            >
+                              <Icon name="list_alt" className="text-[16px]" />
+                              Xem phiếu nhập
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {supplierDebts.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="px-5 py-12 text-center text-sm font-bold text-slate-400">
+                            Chưa có nhà cung cấp nào.
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-4">
+              <SummaryCard
+                icon="wallet"
+                title="Giá trị tồn kho"
+                value={formatCurrency(stockValue)}
+                description="12.5% so với tháng trước"
+                tone="bg-orange-50 text-[#f97316]"
+                trend="up"
+              />
+              <SummaryCard
+                icon="error"
+                title="Mặt hàng tồn thấp"
+                value={String(lowStockCount)}
+                description="Xem chi tiết"
+                tone="bg-amber-50 text-amber-500"
+                trend="neutral"
+              />
+              <SummaryCard
+                icon="shopping_cart"
+                title="Tổng tiền nhập (tháng này)"
+                value={formatCurrency(monthlyPurchaseAmount)}
+                description="15.3% so với tháng trước"
+                tone="bg-blue-50 text-blue-500"
+                trend="up"
+              />
+              <SummaryCard
+                icon="u_turn_left"
+                title="Tổng tiền xuất (tháng này)"
+                value={formatCurrency(Math.round(monthlyPurchaseAmount * 0.78))}
+                description="8.7% so với tháng trước"
+                tone="bg-purple-50 text-purple-500"
+                trend="down"
+              />
             </div>
-          ) : loadErrorMessage ? (
-            <div className="border border-rose-200 bg-rose-50 p-5 text-sm font-bold text-rose-600">
-              Không tải được dữ liệu: {loadErrorMessage}. Hãy kiểm tra backend đang chạy và đăng nhập đúng tài khoản.
-            </div>
-          ) : currentTab === "materials" ? (
-            <>
-              <section className="grid gap-4 md:grid-cols-3">
-                <StatCard
-                  icon="inventory_2"
-                  label="Tổng nguyên liệu"
-                  value={String(materials.length)}
-                  tone="bg-blue-50 text-blue-600"
-                />
-                <StatCard
-                  icon="check_circle"
-                  label="Đang hoạt động"
-                  value={String(materials.filter((m) => m.isActive).length)}
-                  tone="bg-emerald-50 text-emerald-600"
-                />
-                <StatCard
-                  icon="warning"
-                  label="Ngừng hoạt động"
-                  value={String(materials.filter((m) => !m.isActive).length)}
-                  tone="bg-amber-50 text-amber-600"
-                />
+
+            <div className="space-y-6">
+              <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+              <section>
+                <div className="rounded-xl border border-slate-100 bg-white shadow-[0_14px_34px_rgba(15,23,42,0.06)]">
+                <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                  <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-extrabold text-[#0b1c30]">
+                    Cảnh báo tồn thấp
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter("low_stock")}
+                    className="text-xs font-bold text-[#f97316] hover:text-[#ea580c]"
+                  >
+                    Xem tất cả
+                  </button>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-180 text-left text-sm">
+                    <thead className="bg-slate-50 text-[11px] font-extrabold uppercase tracking-wide text-slate-400">
+                      <tr>
+                        <th className="px-5 py-4">Tên hàng</th>
+                        <th className="px-5 py-4">Nhóm hàng</th>
+                        <th className="px-5 py-4">Đơn vị</th>
+                        <th className="px-5 py-4 text-right">Tồn hiện tại</th>
+                        <th className="px-5 py-4 text-right">Tồn tối thiểu</th>
+                        <th className="px-5 py-4">Trạng thái</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {lowStockMaterials.map((material) => (
+                        <tr key={material.id}>
+                          <td className="px-5 py-4">
+                            <span className="font-semibold text-[#0b1c30]">{material.name}</span>
+                          </td>
+                          <td className="px-5 py-4 font-medium text-slate-500">
+                            {material.category || "Khác"}
+                          </td>
+                          <td className="px-5 py-4 font-medium text-slate-500">{material.unit}</td>
+                          <td className="px-5 py-4 text-right font-extrabold text-red-500">
+                            {material.stockQuantity}
+                          </td>
+                          <td className="px-5 py-4 text-right font-medium text-slate-500">5</td>
+                          <td className="px-5 py-4">
+                            <StatusBadge material={material} />
+                          </td>
+                        </tr>
+                      ))}
+                      {lowStockMaterials.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-5 py-10 text-center text-sm font-bold text-slate-400">
+                            Không có mặt hàng tồn thấp.
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+                </div>
               </section>
 
-              <section className="border border-slate-200 bg-white p-4">
-                <div className="grid gap-3 md:grid-cols-[1fr_180px]">
-                  <div className="relative">
-                    <Icon
-                      name="search"
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                    />
-                    <input
-                      value={searchQuery}
-                      onChange={(event) => setSearchQuery(event.target.value)}
-                      placeholder="Tìm kiếm tên, SKU, danh mục nguyên liệu..."
-                      className="h-10 w-full border border-slate-200 bg-white pl-10 pr-3 text-sm font-semibold outline-none focus:border-[#9d4300]"
-                    />
+              <aside>
+                <section className="h-full rounded-xl border border-slate-100 bg-white p-5 shadow-[0_14px_34px_rgba(15,23,42,0.06)]">
+                  <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-extrabold text-[#0b1c30]">
+                    Thao tác kho
+                  </h2>
+                  <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-2">
+                    {[
+                      ["Nhập kho", "cloud_download", "text-emerald-500", () => navigate("/stock/import")],
+                      ["Kiểm kê", "assignment", "text-purple-500", () => navigate("/stock/audit")],
+                      ["Lịch sử", "history", "text-amber-500", () => navigate("/stock/history")],
+                      ["Nhà cung cấp", "storefront", "text-slate-500", () => setShowSupplierModal(true)],
+                    ].map(([label, icon, tone, onClick]) => (
+                      <button
+                        key={label as string}
+                        type="button"
+                        onClick={onClick as () => void}
+                        className="flex min-h-[88px] flex-col items-center justify-center gap-2 rounded-xl bg-slate-50 p-3 text-center transition hover:bg-orange-50"
+                      >
+                        <span
+                          className={`flex h-10 w-10 items-center justify-center rounded-lg bg-white shadow-sm ${tone as string}`}
+                        >
+                          <Icon name={icon as string} />
+                        </span>
+                        <span className="text-xs font-extrabold text-[#0b1c30]">{label as string}</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              </aside>
+              </div>
+
+              <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-[0_14px_34px_rgba(15,23,42,0.06)]">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-extrabold text-[#0b1c30]">
+                      Danh mục hàng hóa
+                    </h2>
+                  </div>
+                  <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center">
+                    <div className="relative min-w-0 flex-1">
+                      <Icon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        value={searchQuery}
+                        onChange={(event) => setSearchQuery(event.target.value)}
+                        placeholder="Tìm kiếm tên hàng, mã hàng, barcode..."
+                        className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-10 pr-3 text-sm font-semibold text-[#0b1c30] outline-none focus:border-[#f97316]"
+                      />
+                    </div>
+                    <select
+                      value={categoryFilter}
+                      onChange={(event) => setCategoryFilter(event.target.value)}
+                      className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 outline-none focus:border-[#f97316]"
+                    >
+                      <option value="all">Nhóm hàng</option>
+                      {categories.map((category) => (
+                        <option key={category} value={category}>
+                          {category}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={statusFilter}
+                      onChange={(event) =>
+                        setStatusFilter(event.target.value as MaterialStatusFilter)
+                      }
+                      className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 outline-none focus:border-[#f97316]"
+                    >
+                      <option value="all">Trạng thái</option>
+                      <option value="active">Còn hàng</option>
+                      <option value="low_stock">Sắp hết</option>
+                      <option value="out">Hết hàng</option>
+                      <option value="inactive">Ngừng bán</option>
+                    </select>
+                    <button
+                      type="button"
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-slate-100 px-4 text-sm font-extrabold text-slate-700 hover:bg-orange-50 hover:text-[#f97316]"
+                    >
+                      <Icon name="download" className="text-[18px]" />
+                      Xuất Excel
+                    </button>
                   </div>
                   <button
                     type="button"
@@ -940,824 +1700,560 @@ export function StockPage() {
                       setEditingMaterial(null);
                       setShowMaterialModal(true);
                     }}
-                    className="h-10 border border-slate-200 bg-white text-sm font-extrabold text-slate-600 hover:border-[#9d4300] hover:text-[#9d4300] flex items-center justify-center gap-1"
+                    className="mb-4 inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#f97316] px-4 text-sm font-extrabold text-white shadow-sm hover:bg-[#ea580c]"
                   >
-                    <Icon name="add" className="text-sm" />
-                    Thêm nguyên liệu
+                    <Icon name="add" className="text-[18px]" />
+                    Thêm hàng
                   </button>
-                </div>
-              </section>
 
-              <section className="overflow-x-auto border border-slate-200 bg-white">
-                <table className="w-full min-w-[900px] text-left text-sm">
-                  <thead className="border-b border-slate-200 text-[11px] font-extrabold uppercase tracking-wide text-slate-400">
-                    <tr>
-                      <th className="px-5 py-4">Nguyên liệu</th>
-                      <th className="px-5 py-4">Danh mục</th>
-                      <th className="px-5 py-4">Đơn vị</th>
-                      <th className="px-5 py-4 text-right">Số lượng tồn</th>
-                      <th className="px-5 py-4 text-right">Giá nhập mặc định</th>
-                      <th className="px-5 py-4">Nhà cung cấp mặc định</th>
-                      <th className="px-5 py-4">Trạng thái</th>
-                      <th className="px-5 py-4 text-right">Thao tác</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {materials
-                      .filter((material) => {
-                        const query = normalizeText(searchQuery);
-                        const text = normalizeText(
-                          `${material.name} ${material.sku} ${material.category || ""} ${material.unit} ${material.supplierName || ""}`
-                        );
-
-                        return !query || text.includes(query);
-                      })
-                      .map((material) => {
-                        return (
-                          <tr key={material.id} className="hover:bg-slate-50">
-                            <td className="px-5 py-4">
-                              <p className="font-extrabold text-[#2a1b14]">{material.name}</p>
-                              <p className="text-xs font-semibold text-slate-400">
-                                SKU: {material.sku}
-                              </p>
-                            </td>
-                            <td className="px-5 py-4 font-bold text-slate-600">
-                              {material.category || "Chưa phân loại"}
-                            </td>
-                            <td className="px-5 py-4 font-bold text-slate-600">
-                              {material.unit}
-                            </td>
-                            <td
-                              className={[
-                                "px-5 py-4 text-right font-extrabold",
-                                material.stockQuantity <= 0
-                                  ? "text-red-600"
-                                  : material.stockQuantity <= 5
-                                    ? "text-amber-600"
-                                    : "text-[#2a1b14]",
-                              ].join(" ")}
-                            >
-                              {material.stockQuantity}
-                            </td>
-                            <td className="px-5 py-4 text-right font-extrabold text-[#2a1b14]">
-                              {formatCurrency(material.importPrice)}
-                            </td>
-                            <td className="px-5 py-4 text-slate-500">
-                              {material.supplierName || "Chưa liên kết"}
-                            </td>
-                            <td className="px-5 py-4">
-                              <span
-                                className={[
-                                  "inline-flex px-2 py-1 text-xs font-extrabold rounded",
-                                  material.isActive
-                                    ? "bg-emerald-50 text-emerald-600"
-                                    : "bg-rose-50 text-rose-600",
-                                ].join(" ")}
-                              >
-                                {material.isActive ? "Hoạt động" : "Ngừng hoạt động"}
-                              </span>
-                            </td>
-                            <td className="px-5 py-4 text-right space-x-2">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[980px] text-left text-sm">
+                    <thead className="bg-slate-50 text-[11px] font-extrabold uppercase tracking-wide text-slate-400">
+                      <tr>
+                        <th className="px-4 py-4">Mã hàng</th>
+                        <th className="px-5 py-4">Tên hàng</th>
+                        <th className="px-5 py-4">Nhóm hàng</th>
+                        <th className="px-5 py-4">Đơn vị</th>
+                        <th className="px-5 py-4 text-right">Tồn kho</th>
+                        <th className="px-5 py-4 text-right">Tồn tối thiểu</th>
+                        <th className="px-5 py-4 text-right">Giá nhập</th>
+                        <th className="px-5 py-4">Nhà cung cấp</th>
+                        <th className="px-5 py-4">Trạng thái</th>
+                        <th className="px-5 py-4 text-right">Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredMaterials.map((material) => (
+                        <tr key={material.id} className="transition hover:bg-slate-50">
+                          <td className="px-4 py-5 font-semibold text-slate-600">{material.sku}</td>
+                          <td className="px-5 py-4">
+                            <p className="font-extrabold text-[#0b1c30]">{material.name}</p>
+                          </td>
+                          <td className="px-5 py-4 font-semibold text-slate-600">
+                            {material.category || "Khác"}
+                          </td>
+                          <td className="px-5 py-4 font-semibold text-slate-600">{material.unit}</td>
+                          <td className="px-5 py-4 text-right font-extrabold text-[#0b1c30]">
+                            {material.stockQuantity}
+                          </td>
+                          <td className="px-5 py-4 text-right font-semibold text-slate-500">5</td>
+                          <td className="px-5 py-4 text-right font-extrabold text-[#0b1c30]">
+                            {formatCurrency(material.importPrice)}
+                          </td>
+                          <td className="px-5 py-4 text-slate-500">
+                            {material.supplierName || "Chưa liên kết"}
+                          </td>
+                          <td className="px-5 py-4">
+                            <StatusBadge material={material} />
+                          </td>
+                          <td className="px-5 py-4">
+                            <div className="flex justify-end gap-2">
                               <button
                                 type="button"
                                 onClick={() => {
                                   setEditingMaterial(material);
                                   setShowMaterialModal(true);
                                 }}
-                                className="inline-flex h-8 w-8 items-center justify-center border border-slate-200 text-slate-600 hover:border-[#9d4300] hover:text-[#9d4300]"
-                                aria-label="Sửa nguyên liệu"
+                                className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:border-[#f97316] hover:text-[#f97316]"
                               >
-                                <Icon name="edit" className="text-sm" />
+                                <Icon name="edit" className="text-[20px]" />
                               </button>
                               <button
                                 type="button"
                                 onClick={() => void handleDeleteMaterial(material)}
-                                className="inline-flex h-8 w-8 items-center justify-center border border-slate-200 text-slate-600 hover:border-rose-500 hover:text-rose-500"
-                                aria-label="Xóa nguyên liệu"
+                                className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:border-rose-500 hover:text-rose-600"
                               >
-                                <Icon name="delete" className="text-sm" />
+                                <Icon name="delete" className="text-[20px]" />
                               </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    {materials.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={7}
-                          className="px-5 py-10 text-center text-sm font-bold text-slate-400"
-                        >
-                          Chưa có nguyên liệu nào phù hợp.
-                        </td>
-                      </tr>
-                    ) : null}
-                  </tbody>
-                </table>
-              </section>
-            </>
-          ) : currentTab === "suppliers" ? (
-            <>
-              <section className="grid gap-4 md:grid-cols-3">
-                <StatCard
-                  icon="storefront"
-                  label="Tổng nhà cung cấp"
-                  value={String(suppliers.length)}
-                  tone="bg-blue-50 text-blue-600"
-                />
-                <StatCard
-                  icon="receipt_long"
-                  label="Phiếu nhập có NCC"
-                  value={String(receipts.filter((receipt) => receipt.supplierId).length)}
-                  tone="bg-emerald-50 text-emerald-600"
-                />
-                <StatCard
-                  icon="trending_down"
-                  label="Công nợ NCC"
-                  value={formatCurrency(receiptSummary.debtAmount)}
-                  tone="bg-amber-50 text-amber-600"
-                />
-              </section>
-
-              <section className="border border-slate-200 bg-white p-4">
-                <div className="grid gap-3 md:grid-cols-[1fr_160px]">
-                  <div className="relative">
-                    <Icon
-                      name="search"
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                    />
-                    <input
-                      value={searchQuery}
-                      onChange={(event) => setSearchQuery(event.target.value)}
-                      placeholder="Tìm tên nhà cung cấp, người liên hệ, số điện thoại..."
-                      className="h-10 w-full border border-slate-200 bg-white pl-10 pr-3 text-sm font-semibold outline-none focus:border-[#9d4300]"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingSupplier(null);
-                      setShowSupplierModal(true);
-                    }}
-                    className="h-10 border border-slate-200 bg-white text-sm font-extrabold text-slate-600 hover:border-[#9d4300] hover:text-[#9d4300] flex items-center justify-center gap-1"
-                  >
-                    <Icon name="add" className="text-sm" />
-                    Thêm NCC
-                  </button>
-                </div>
-              </section>
-
-              <section className="overflow-x-auto border border-slate-200 bg-white">
-                <table className="w-full min-w-[900px] text-left text-sm">
-                  <thead className="border-b border-slate-200 text-[11px] font-extrabold uppercase tracking-wide text-slate-400">
-                    <tr>
-                      <th className="px-5 py-4">Nhà cung cấp</th>
-                      <th className="px-5 py-4">Người liên hệ</th>
-                      <th className="px-5 py-4">Điện thoại</th>
-                      <th className="px-5 py-4">Email</th>
-                      <th className="px-5 py-4">Địa chỉ</th>
-                      <th className="px-5 py-4 text-right">Số phiếu nhập</th>
-                      <th className="px-5 py-4 text-right">Công nợ</th>
-                      <th className="px-5 py-4 text-right">Thao tác</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {suppliers
-                      .filter((supplier) => {
-                        const query = normalizeText(searchQuery);
-                        const text = normalizeText(
-                          `${supplier.name} ${supplier.contactName || ""} ${supplier.phone || ""} ${supplier.email || ""}`
-                        );
-
-                        return !query || text.includes(query);
-                      })
-                      .map((supplier) => {
-                        const supplierReceipts = receipts.filter(
-                          (receipt) => receipt.supplierId === supplier.id
-                        );
-                        const supplierDebt = supplierReceipts.reduce((sum, receipt) => {
-                          const total = Number(receipt.totalAmount || 0);
-                          return sum + Math.max(total - getPaidAmount(receipt), 0);
-                        }, 0);
-
-                        return (
-                          <tr key={supplier.id} className="hover:bg-slate-50">
-                            <td className="px-5 py-4">
-                              <p className="font-extrabold text-[#2a1b14]">{supplier.name}</p>
-                              <p className="text-xs font-semibold text-slate-400">
-                                ID: {supplier.id.slice(0, 8).toUpperCase()}
-                              </p>
-                            </td>
-                            <td className="px-5 py-4 font-bold text-slate-600">
-                              {supplier.contactName || "Chưa lưu"}
-                            </td>
-                            <td className="px-5 py-4 font-bold text-slate-600">
-                              {supplier.phone}
-                            </td>
-                            <td className="px-5 py-4 text-slate-500">
-                              {supplier.email || "Trong"}
-                            </td>
-                            <td className="max-w-[240px] truncate px-5 py-4 text-slate-500">
-                              {supplier.address || "Trong"}
-                            </td>
-                            <td className="px-5 py-4 text-right font-extrabold text-[#2a1b14]">
-                              {supplierReceipts.length}
-                            </td>
-                            <td className="px-5 py-4 text-right font-extrabold text-amber-600">
-                              {formatCurrency(supplierDebt)}
-                            </td>
-                            <td className="px-5 py-4 text-right space-x-2">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingSupplier(supplier);
-                                  setShowSupplierModal(true);
-                                }}
-                                className="inline-flex h-8 w-8 items-center justify-center border border-slate-200 text-slate-600 hover:border-[#9d4300] hover:text-[#9d4300]"
-                                aria-label="Sửa nhà cung cấp"
-                              >
-                                <Icon name="edit" className="text-sm" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => void handleDeleteSupplier(supplier)}
-                                className="inline-flex h-8 w-8 items-center justify-center border border-slate-200 text-slate-600 hover:border-rose-500 hover:text-rose-500"
-                                aria-label="Xóa nhà cung cấp"
-                              >
-                                <Icon name="delete" className="text-sm" />
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    {suppliers.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={8}
-                          className="px-5 py-10 text-center text-sm font-bold text-slate-400"
-                        >
-                          Chưa có nhà cung cấp nào.
-                        </td>
-                      </tr>
-                    ) : null}
-                  </tbody>
-                </table>
-              </section>
-            </>
-          ) : (
-            <>
-              <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <StatCard
-                  icon="local_shipping"
-                  label="Tổng giá trị nhập"
-                  value={formatCurrency(receiptSummary.totalAmount)}
-                  tone="bg-blue-50 text-blue-600"
-                />
-                <StatCard
-                  icon="attach_money"
-                  label="Đã chi thanh toán"
-                  value={formatCurrency(receiptSummary.paidAmount)}
-                  tone="bg-emerald-50 text-emerald-600"
-                />
-                <StatCard
-                  icon="trending_down"
-                  label="Công nợ NCC còn lạiC"
-                  value={formatCurrency(receiptSummary.debtAmount)}
-                  tone="bg-slate-50 text-slate-500"
-                />
-                <StatCard
-                  icon="shield"
-                  label="Tổng số phiếu nhập"
-                  value={String(receipts.length)}
-                  tone="bg-indigo-50 text-indigo-600"
-                />
-              </section>
-
-              <section className="flex flex-col gap-4 border-b border-slate-200 pb-2 xl:flex-row xl:items-center xl:justify-between">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="mr-2 text-[11px] font-extrabold uppercase tracking-wide text-slate-400">
-                    Thanh toán:
-                  </span>
-                  {paymentTabs.map((tab) => (
-                    <button
-                      key={tab.key}
-                      type="button"
-                      onClick={() => setPaymentFilter(tab.key)}
-                      className={[
-                        "h-9 border px-4 text-xs font-extrabold transition-colors",
-                        paymentFilter === tab.key
-                          ? "border-[#9d4300] bg-[#9d4300] text-white"
-                          : "border-slate-200 bg-white text-slate-600 hover:border-[#9d4300] hover:text-[#9d4300]",
-                      ].join(" ")}
-                    >
-                      {tab.label} ({tab.count})
-                    </button>
-                  ))}
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <input
-                    type="date"
-                    value={fromDate}
-                    onChange={(event) => setFromDate(event.target.value)}
-                    className="h-9 border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600"
-                  />
-                  <input
-                    type="date"
-                    value={toDate}
-                    onChange={(event) => setToDate(event.target.value)}
-                    className="h-9 border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600"
-                  />
-                </div>
-              </section>
-
-              <section className="border border-slate-200 bg-white p-4">
-                <div className="grid gap-3 lg:grid-cols-[290px_1fr_160px]">
-                  <select
-                    value={supplierFilter}
-                    onChange={(event) => setSupplierFilter(event.target.value)}
-                    className={inputClass}
-                  >
-                    <option value="all">Tất cả nhà cung cấp</option>
-                    {suppliers.map((supplier) => (
-                      <option key={supplier.id} value={supplier.id}>
-                        {supplier.name}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="relative">
-                    <Icon
-                      name="search"
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                    />
-                    <input
-                      value={searchQuery}
-                      onChange={(event) => setSearchQuery(event.target.value)}
-                      placeholder="Tìm mã phiếu, nhà cung cấp, ghi chú..."
-                      className="h-10 w-full border border-slate-200 bg-white pl-10 pr-3 text-sm font-semibold outline-none focus:border-[#9d4300]"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingSupplier(null);
-                      setShowSupplierModal(true);
-                    }}
-                    className="h-10 border border-slate-200 bg-white text-sm font-extrabold text-slate-600 hover:border-[#9d4300] hover:text-[#9d4300]"
-                  >
-                    Thêm NCC
-                  </button>
-                </div>
-              </section>
-
-              <section className="overflow-x-auto border border-slate-200 bg-white">
-                <table className="w-full min-w-[960px] text-left text-sm">
-                  <thead className="border-b border-slate-200 text-[11px] font-extrabold uppercase tracking-wide text-slate-400">
-                    <tr>
-                      <th className="px-5 py-4">Mã phiếu</th>
-                      <th className="px-5 py-4">Nhà cung cấp</th>
-                      <th className="px-5 py-4 text-right">ổng tiền hàng</th>
-                      <th className="px-5 py-4 text-right">Đã thanh toán</th>
-                      <th className="px-5 py-4">Trạng thái thanh toán</th>
-                      <th className="px-5 py-4">Ngày nhập</th>
-                      <th className="px-5 py-4">Người lập phiếu</th>
-                      <th className="px-5 py-4 text-center">Chi tiết</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredReceipts.map((receipt) => {
-                      const paid = getPaidAmount(receipt);
-                      const status = getPaymentStatus(receipt);
-
-                      return (
-                        <tr key={receipt.id} className="hover:bg-slate-50">
-                          <td className="px-5 py-4">
-                            <p className="inline-block bg-slate-50 px-2 py-1 text-xs font-extrabold text-[#2a1b14]">
-                              {getReceiptCode(receipt)}
-                            </p>
-                          </td>
-                          <td className="px-5 py-4">
-                            <p className="font-extrabold text-[#2a1b14]">
-                              {receipt.supplierName || "Không có NCC"}
-                            </p>
-                            <p className="max-w-[240px] truncate text-xs font-semibold text-slate-400">
-                              {getReceiptDetails(receipt)}
-                            </p>
-                          </td>
-                          <td className="px-5 py-4 text-right font-extrabold text-[#2a1b14]">
-                            {formatCurrency(receipt.totalAmount)}
-                          </td>
-                          <td className="px-5 py-4 text-right font-extrabold text-emerald-600">
-                            {formatCurrency(Math.min(paid, receipt.totalAmount))}
-                          </td>
-                          <td className="px-5 py-4">
-                            <span
-                              className={`inline-flex px-3 py-1 text-xs font-extrabold ${status.className}`}
-                            >
-                              {status.label}
-                            </span>
-                          </td>
-                          <td className="px-5 py-4 text-xs font-bold text-slate-500">
-                            {formatDateTime(receipt.createdAt)}
-                          </td>
-                          <td className="px-5 py-4 font-bold text-slate-600">
-                            {receipt.createdByName || "Quản trị hệ thống"}
-                          </td>
-                          <td className="px-5 py-4 text-center">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedReceipt(receipt);
-                                setShowReceiptDetailsModal(true);
-                              }}
-                              className="inline-flex h-9 w-9 items-center justify-center border border-slate-200 text-slate-600 hover:border-[#9d4300] hover:text-[#9d4300]"
-                              aria-label="Xem chi tiết"
-                            >
-                              <Icon name="visibility" />
-                            </button>
+                            </div>
                           </td>
                         </tr>
-                      );
-                    })}
-
-                    {filteredReceipts.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={8}
-                          className="px-5 py-10 text-center text-sm font-bold text-slate-400"
-                        >
-                          Chưa có phiếu nhập phù hợp.
-                        </td>
-                      </tr>
-                    ) : null}
-                  </tbody>
-                </table>
-              </section>
-            </>
-          )}
+                      ))}
+                      {!isLoading && filteredMaterials.length === 0 ? (
+                        <tr>
+                          <td colSpan={10} className="px-5 py-12 text-center text-sm font-bold text-slate-400">
+                            Không có hàng hóa phù hợp với bộ lọc hiện tại.
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+          </div>
         </div>
-      )}
+        )}
 
-      {showSupplierModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <form
-            onSubmit={handleSaveSupplier}
-            className="w-full max-w-md bg-white p-6 shadow-2xl"
-          >
-            <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
-              <h2 className="text-lg font-extrabold text-[#2a1b14]">
-                {editingSupplier ? "Sửa nhà cung cấp" : "Thêm nhà cung cấp mới"}
-              </h2>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowSupplierModal(false);
-                  setEditingSupplier(null);
-                }}
-                className="p-1 text-slate-400 hover:bg-slate-100"
-              >
-                <Icon name="close" />
-              </button>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <label className={labelClass}>Tên nhà cung cấp *</label>
-                <input
-                  required
-                  name="name"
-                  type="text"
-                  placeholder="Nhà cung cấp A"
-                  defaultValue={editingSupplier?.name || ""}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className={labelClass}>Người liên hệ</label>
-                <input
-                  name="contact"
-                  type="text"
-                  placeholder="Anh B"
-                  defaultValue={editingSupplier?.contactName || ""}
-                  className={inputClass}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className={labelClass}>Số điện thoại *</label>
-                  <input
-                    required
-                    name="phone"
-                    type="tel"
-                    inputMode="numeric"
-                    pattern="[0-9]{10}"
-                    maxLength={10}
-                    title="Số điện thoại phải gồm đúng 10 chữ số"
-                    placeholder="090..."
-                    defaultValue={editingSupplier?.phone || ""}
-                    className={inputClass}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Email</label>
-                  <input
-                    name="email"
-                    type="email"
-                    placeholder="example@mail.com"
-                    defaultValue={editingSupplier?.email || ""}
-                    className={inputClass}
-                  />
-                </div>
-              </div>
-              <div>
-                <label className={labelClass}>Địa chỉ</label>
-                <input
-                  name="address"
-                  type="text"
-                  placeholder="Hồ Chí Minh"
-                  defaultValue={editingSupplier?.address || ""}
-                  className={inputClass}
-                />
-              </div>
-              <div className="flex gap-3 border-t border-slate-100 pt-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowSupplierModal(false);
-                    setEditingSupplier(null);
-                  }}
-                  className="h-10 flex-1 border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50"
-                >
-                  Hủy bỏ
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="h-10 flex-1 bg-[#9d4300] text-xs font-bold text-white hover:bg-[#803600] disabled:bg-slate-300"
-                >
-                  {isSubmitting ? "Đang xử lý..." : editingSupplier ? "Lưu thay đổi" : "Thêm mới"}
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-      ) : null}
-
-      {showMaterialModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <form
-            onSubmit={handleAddMaterial}
-            className="w-full max-w-md bg-white p-6 shadow-2xl"
-          >
-            <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
-              <h2 className="text-lg font-extrabold text-[#2a1b14]">
-                {editingMaterial ? "Sửa nguyên liệu" : "Thêm nguyên liệu mới"}
-              </h2>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowMaterialModal(false);
-                  setEditingMaterial(null);
-                }}
-                className="p-1 text-slate-400 hover:bg-slate-100"
-              >
-                <Icon name="close" />
-              </button>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <label className={labelClass}>Tên nguyên liệu *</label>
-                <input
-                  required
-                  name="name"
-                  type="text"
-                  placeholder="VD: Cà phê hạt"
-                  defaultValue={editingMaterial?.name || ""}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className={labelClass}>Mã nguyên liệu / SKU</label>
-                <input
-                  name="sku"
-                  type="text"
-                  placeholder="VD: NL-CAFE"
-                  defaultValue={editingMaterial?.sku || ""}
-                  disabled={!!editingMaterial}
-                  className={inputClass}
-                />
-                {editingMaterial && (
-                  <p className="mt-1 text-[11px] text-slate-400 font-semibold">
-                    Không thể thay đổi mã SKU của nguyên liệu đã tạo.
-                  </p>
-                )}
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className={labelClass}>Danh mục</label>
-                  <input
-                    name="category"
-                    type="text"
-                    placeholder="VD: Cà phê, Sữa"
-                    defaultValue={editingMaterial?.category || ""}
-                    className={inputClass}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Đơn vị tính *</label>
-                  <input
-                    required
-                    name="unit"
-                    type="text"
-                    placeholder="VD: kg, lon, túi"
-                    defaultValue={editingMaterial?.unit || ""}
-                    className={inputClass}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className={labelClass}>Giá nhập mặc định *</label>
-                  <input
-                    required
-                    name="importPrice"
-                    type="number"
-                    min={0}
-                    defaultValue={editingMaterial?.importPrice ?? 0}
-                    className={inputClass}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Trạng thái</label>
-                  <select
-                    name="status"
-                    defaultValue={editingMaterial ? (editingMaterial.isActive ? "active" : "inactive") : "active"}
-                    className={inputClass}
-                  >
-                    <option value="active">Hoạt động</option>
-                    <option value="inactive">Ngừng hoạt động</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className={labelClass}>Nhà cung cấp mặc định</label>
-                <select
-                  name="supplierId"
-                  defaultValue={editingMaterial?.supplierId || ""}
-                  className={inputClass}
-                >
-                  <option value="">Chọn nhà cung cấp</option>
-                  {suppliers.map((supplier) => (
-                    <option key={supplier.id} value={supplier.id}>
-                      {supplier.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex gap-3 border-t border-slate-100 pt-3">
+        {showMaterialModal ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+            <form
+              onSubmit={handleSaveMaterial}
+              className="w-full max-w-md rounded-lg bg-white p-6 shadow-2xl"
+            >
+              <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+                <h2 className="text-lg font-extrabold text-[#0b1c30]">
+                  {editingMaterial ? "Sửa hàng hóa" : "Thêm hàng hóa mới"}
+                </h2>
                 <button
                   type="button"
                   onClick={() => {
                     setShowMaterialModal(false);
                     setEditingMaterial(null);
                   }}
-                  className="h-10 flex-1 border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                  className="p-1 text-slate-400 hover:bg-slate-100"
                 >
-                  Hủy bỏ
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="h-10 flex-1 bg-[#9d4300] text-xs font-bold text-white hover:bg-[#803600] disabled:bg-slate-300"
-                >
-                  {isSubmitting ? "Đang xử lý..." : editingMaterial ? "Lưu thay đổi" : "Thêm mới"}
+                  <Icon name="close" />
                 </button>
               </div>
-            </div>
-          </form>
-        </div>
-      ) : null}
-
-      {showReceiptDetailsModal && selectedReceipt ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="w-full max-w-2xl bg-white p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
-            <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
-              <h2 className="text-lg font-extrabold text-[#2a1b14] flex items-center gap-2">
-                <Icon name="receipt_long" className="text-[#9d4300]" />
-                Chi tiết phiếu nhập: {getReceiptCode(selectedReceipt)}
-              </h2>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowReceiptDetailsModal(false);
-                  setSelectedReceipt(null);
-                }}
-                className="p-1 text-slate-400 hover:bg-slate-100"
-              >
-                <Icon name="close" />
-              </button>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4 text-xs font-semibold text-slate-600 mb-6 bg-slate-50 p-4 border border-slate-100">
-              <div>
-                <p className="text-slate-400 uppercase text-[10px] tracking-wider mb-1">Nhà cung cấp</p>
-                <p className="text-[#2a1b14] font-bold text-sm">{selectedReceipt.supplierName || "Không có NCC"}</p>
-              </div>
-              <div>
-                <p className="text-slate-400 uppercase text-[10px] tracking-wider mb-1">Ngày nhập</p>
-                <p className="text-[#2a1b14] font-bold text-sm">{formatDateTime(selectedReceipt.createdAt)}</p>
-              </div>
-              <div>
-                <p className="text-slate-400 uppercase text-[10px] tracking-wider mb-1">Người lập phiếu</p>
-                <p className="text-[#2a1b14] font-bold text-sm">{selectedReceipt.createdByName || "Quản trị hệ thống"}</p>
-              </div>
-              <div>
-                <p className="text-slate-400 uppercase text-[10px] tracking-wider mb-1">Trạng thái thanh toán</p>
-                <span className={`inline-flex px-2 py-0.5 text-xs font-extrabold ${getPaymentStatus(selectedReceipt).className}`}>
-                  {getPaymentStatus(selectedReceipt).label}
-                </span>
-              </div>
-              {getDisplayNote(selectedReceipt.note) && (
-                <div className="col-span-2 border-t border-slate-200/60 pt-2 mt-1">
-                  <p className="text-slate-400 uppercase text-[10px] tracking-wider mb-1">Ghi chú</p>
-                  <p className="text-[#2a1b14] whitespace-pre-wrap">{getDisplayNote(selectedReceipt.note)}</p>
+              <div className="space-y-3">
+                <div>
+                  <label className={labelClass}>Tên hàng hóa *</label>
+                  <input
+                    required
+                    name="name"
+                    type="text"
+                    placeholder="VD: Cà phê hạt"
+                    defaultValue={editingMaterial?.name || ""}
+                    className={inputClass}
+                  />
                 </div>
-              )}
-            </div>
-
-            <div className="overflow-x-auto mb-6">
-              <table className="w-full text-left text-sm">
-                <thead className="border-b border-slate-200 text-[11px] font-extrabold uppercase tracking-wide text-slate-400">
-                  <tr>
-                    <th className="py-2">Nguyên liệu</th>
-                    <th className="w-20 py-2 text-center">Số lượng</th>
-                    <th className="w-28 py-2 text-right">Đơn giá</th>
-                    <th className="w-28 py-2 text-right">Thành tiền</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-semibold text-slate-600">
-                  {Array.isArray(selectedReceipt.materialDetails) && selectedReceipt.materialDetails.length > 0 ? (
-                    selectedReceipt.materialDetails.map((detail) => (
-                      <tr key={detail.id}>
-                        <td className="py-3">
-                          <p className="font-extrabold text-[#2a1b14]">{detail.materialName}</p>
-                          <p className="text-[11px] text-slate-400">SKU: {detail.materialId.slice(0, 8).toUpperCase()} - Đơn vị: {detail.unit}</p>
-                        </td>
-                        <td className="py-3 text-center">{detail.quantity}</td>
-                        <td className="py-3 text-right">{formatCurrency(detail.unitPrice)}</td>
-                        <td className="py-3 text-right font-bold text-[#2a1b14]">{formatCurrency(detail.lineTotal)}</td>
-                      </tr>
-                    ))
-                  ) : Array.isArray(selectedReceipt.details) && selectedReceipt.details.length > 0 ? (
-                    selectedReceipt.details.map((detail) => (
-                      <tr key={detail.id}>
-                        <td className="py-3">
-                          <p className="font-extrabold text-[#2a1b14]">{detail.productName}</p>
-                        </td>
-                        <td className="py-3 text-center">{detail.quantity}</td>
-                        <td className="py-3 text-right">{formatCurrency(detail.unitPrice)}</td>
-                        <td className="py-3 text-right font-bold text-[#2a1b14]">{formatCurrency(detail.lineTotal)}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={4} className="py-4 text-center text-slate-400 font-bold">Không tìm thấy chi tiết nguyên liệu.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="border-t border-slate-200 pt-4 space-y-2 text-sm font-extrabold">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Tổng tiền hàng:</span>
-                <span>{formatCurrency(selectedReceipt.totalAmount)}</span>
+                <div>
+                  <label className={labelClass}>Mã hàng / SKU</label>
+                  <input
+                    name="sku"
+                    type="text"
+                    placeholder="VD: NL-CAFE"
+                    defaultValue={editingMaterial?.sku || ""}
+                    disabled={!!editingMaterial}
+                    className={inputClass}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className={labelClass}>Danh mục</label>
+                    <input
+                      name="category"
+                      type="text"
+                      placeholder="VD: Cà phê, Sữa"
+                      defaultValue={editingMaterial?.category || ""}
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Đơn vị tính *</label>
+                    <input
+                      required
+                      name="unit"
+                      type="text"
+                      placeholder="VD: kg, lon"
+                      defaultValue={editingMaterial?.unit || ""}
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className={labelClass}>Giá nhập *</label>
+                    <input
+                      required
+                      name="importPrice"
+                      type="number"
+                      min={0}
+                      defaultValue={editingMaterial?.importPrice ?? 0}
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Trạng thái</label>
+                    <select
+                      name="status"
+                      defaultValue={editingMaterial ? (editingMaterial.isActive ? "active" : "inactive") : "active"}
+                      className={inputClass}
+                    >
+                      <option value="active">Hoạt động</option>
+                      <option value="inactive">Ngừng bán</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className={labelClass}>Nhà cung cấp</label>
+                  <select
+                    name="supplierId"
+                    defaultValue={editingMaterial?.supplierId || ""}
+                    className={inputClass}
+                  >
+                    <option value="">Chọn nhà cung cấp</option>
+                    {suppliers.map((supplier) => (
+                      <option key={supplier.id} value={supplier.id}>
+                        {supplier.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex gap-3 border-t border-slate-100 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMaterialModal(false);
+                      setEditingMaterial(null);
+                    }}
+                    className="h-10 flex-1 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="h-10 flex-1 rounded-lg bg-[#f97316] text-xs font-bold text-white hover:bg-[#ea580c] disabled:bg-slate-300"
+                  >
+                    {isSubmitting ? "Đang xử lý..." : editingMaterial ? "Lưu thay đổi" : "Thêm mới"}
+                  </button>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Đã thanh toán:</span>
-                <span className="text-emerald-600">{formatCurrency(getPaidAmount(selectedReceipt))}</span>
-              </div>
-              <div className="flex justify-between border-t border-dashed border-slate-200 pt-3 text-base">
-                <span className="text-[#2a1b14]">Còn nợ nhà cung cấp:</span>
-                <span className={selectedReceipt.totalAmount - getPaidAmount(selectedReceipt) > 0 ? "text-rose-600" : "text-emerald-600"}>
-                  {formatCurrency(Math.max(selectedReceipt.totalAmount - getPaidAmount(selectedReceipt), 0))}
-                </span>
-              </div>
-            </div>
+            </form>
+          </div>
+        ) : null}
 
-            <div className="flex gap-3 border-t border-slate-100 pt-4 mt-6">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowReceiptDetailsModal(false);
-                  setSelectedReceipt(null);
-                }}
-                className="h-10 w-full bg-[#9d4300] text-xs font-bold text-white hover:bg-[#ea6c0a]"
-              >
-                Đóng
-              </button>
+        {showSupplierModal ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+            <form
+              onSubmit={handleSaveSupplier}
+              className="w-full max-w-md rounded-lg bg-white p-6 shadow-2xl"
+            >
+              <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+                <h2 className="text-lg font-extrabold text-[#0b1c30]">
+                  {editingSupplier ? "Sửa nhà cung cấp" : "Thêm nhà cung cấp mới"}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSupplierModal(false);
+                    setEditingSupplier(null);
+                  }}
+                  className="p-1 text-slate-400 hover:bg-slate-100"
+                >
+                  <Icon name="close" />
+                </button>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className={labelClass}>Tên nhà cung cấp *</label>
+                  <input
+                    required
+                    name="name"
+                    type="text"
+                    placeholder="Nhà cung cấp A"
+                    defaultValue={editingSupplier?.name || ""}
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Người liên hệ</label>
+                  <input
+                    name="contact"
+                    type="text"
+                    placeholder="Anh B"
+                    defaultValue={editingSupplier?.contactName || ""}
+                    className={inputClass}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className={labelClass}>Số điện thoại *</label>
+                    <input
+                      required
+                      name="phone"
+                      type="tel"
+                      inputMode="numeric"
+                      pattern="[0-9]{10}"
+                      maxLength={10}
+                      placeholder="090..."
+                      defaultValue={editingSupplier?.phone || ""}
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Email</label>
+                    <input
+                      name="email"
+                      type="email"
+                      placeholder="example@mail.com"
+                      defaultValue={editingSupplier?.email || ""}
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className={labelClass}>Địa chỉ</label>
+                  <input
+                    name="address"
+                    type="text"
+                    placeholder="TP. Hồ Chí Minh"
+                    defaultValue={editingSupplier?.address || ""}
+                    className={inputClass}
+                  />
+                </div>
+                <div className="flex gap-3 border-t border-slate-100 pt-3">
+                  {editingSupplier ? (
+                    <button
+                      type="button"
+                      onClick={() => void handleDeleteSupplier(editingSupplier)}
+                      className="h-10 rounded-lg border border-rose-200 px-4 text-xs font-bold text-rose-600 hover:bg-rose-50"
+                    >
+                      Xóa
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSupplierModal(false);
+                      setEditingSupplier(null);
+                    }}
+                    className="h-10 flex-1 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="h-10 flex-1 rounded-lg bg-[#f97316] text-xs font-bold text-white hover:bg-[#ea580c] disabled:bg-slate-300"
+                  >
+                    {isSubmitting ? "Đang xử lý..." : editingSupplier ? "Lưu thay đổi" : "Thêm mới"}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        ) : null}
+
+        {selectedReceipt ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+            <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-2xl">
+              <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+                <h2 className="text-lg font-extrabold text-[#0b1c30]">
+                  Chi tiết phiếu nhập: {getReceiptCode(selectedReceipt)}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setSelectedReceipt(null)}
+                  className="p-1 text-slate-400 hover:bg-slate-100"
+                >
+                  <Icon name="close" />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-4 rounded-lg border border-slate-100 bg-slate-50 p-4 text-sm">
+                <div>
+                  <p className="text-xs font-bold uppercase text-slate-400">Nhà cung cấp</p>
+                  <p className="mt-1 font-extrabold text-[#0b1c30]">
+                    {selectedReceipt.supplierName || "Không có"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase text-slate-400">Ngày nhập</p>
+                  <p className="mt-1 font-extrabold text-[#0b1c30]">
+                    {formatDateTime(selectedReceipt.createdAt)}
+                  </p>
+                </div>
+              </div>
+              <p className="mt-4 text-sm font-semibold text-slate-600">
+                {getReceiptDetails(selectedReceipt)}
+              </p>
+              <div className="mt-5 space-y-2 text-sm font-extrabold">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Tổng tiền hàng</span>
+                  <span>{formatCurrency(selectedReceipt.totalAmount)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Đã thanh toán</span>
+                  <span className="text-emerald-600">{formatCurrency(getPaidAmount(selectedReceipt))}</span>
+                </div>
+                <div className="flex justify-between border-t border-dashed border-slate-200 pt-3">
+                  <span className="text-slate-500">Còn nợ</span>
+                  <span className="text-rose-600">
+                    {formatCurrency(Math.max(selectedReceipt.totalAmount - getPaidAmount(selectedReceipt), 0))}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+
+        {payingReceipt ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+            <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-6 shadow-2xl">
+              <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+                <h2 className="text-lg font-extrabold text-[#0b1c30]">
+                  Thanh toán công nợ phiếu nhập
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPayingReceipt(null);
+                    setPaymentAmount("");
+                  }}
+                  className="p-1 text-slate-400 hover:bg-slate-100"
+                >
+                  <Icon name="close" />
+                </button>
+              </div>
+
+              <form onSubmit={handlePaymentSubmit} className="space-y-4">
+                <div className="rounded-lg bg-slate-50 p-4 text-xs space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Mã phiếu:</span>
+                    <span className="font-bold text-slate-700">{getReceiptCode(payingReceipt)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Nhà cung cấp:</span>
+                    <span className="font-bold text-slate-700">{payingReceipt.supplierName || "Không rõ"}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-dashed border-slate-200 pt-2 font-semibold">
+                    <span className="text-slate-500">Tổng tiền hàng:</span>
+                    <span className="text-slate-700">{formatCurrency(payingReceipt.totalAmount)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Đã thanh toán trước:</span>
+                    <span className="text-emerald-600">{formatCurrency(getPaidAmount(payingReceipt))}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-sm">
+                    <span className="text-slate-500">Còn nợ:</span>
+                    <span className="text-rose-600">
+                      {formatCurrency(payingReceipt.totalAmount - getPaidAmount(payingReceipt))}
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className={labelClass}>Số tiền chi trả (VND) *</label>
+                  <input
+                    required
+                    type="number"
+                    min={1}
+                    max={payingReceipt.totalAmount - getPaidAmount(payingReceipt)}
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                    className={inputClass}
+                    placeholder="Nhập số tiền..."
+                  />
+                  <p className="mt-1.5 text-[11px] text-slate-400">
+                    Số tiền thanh toán phải lớn hơn 0 và không vượt quá khoản nợ còn lại.
+                  </p>
+                </div>
+
+                <div className="flex gap-3 border-t border-slate-100 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPayingReceipt(null);
+                      setPaymentAmount("");
+                    }}
+                    className="h-10 flex-1 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="h-10 flex-1 rounded-lg bg-[#f97316] text-xs font-bold text-white hover:bg-[#ea580c] disabled:bg-slate-300 shadow-sm"
+                  >
+                    {isSubmitting ? "Đang xử lý..." : "Xác nhận thanh toán"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        ) : null}
+
+        {selectedAudit ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+            <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6 shadow-2xl">
+              <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+                <h2 className="text-lg font-extrabold text-[#0b1c30]">
+                  Chi tiết phiếu kiểm kê: KK-{selectedAudit.id.slice(0, 8).toUpperCase()}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setSelectedAudit(null)}
+                  className="p-1 text-slate-400 hover:bg-slate-100"
+                >
+                  <Icon name="close" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 rounded-lg border border-slate-100 bg-slate-50 p-4 text-xs">
+                <div>
+                  <p className="font-bold text-slate-400 uppercase">Nhân viên lập</p>
+                  <p className="mt-1 font-extrabold text-[#0b1c30]">{selectedAudit.createdByName || "Nhân viên"}</p>
+                </div>
+                <div>
+                  <p className="font-bold text-slate-400 uppercase">Ngày lập</p>
+                  <p className="mt-1 font-extrabold text-[#0b1c30]">{formatDateTime(selectedAudit.createdAt)}</p>
+                </div>
+                <div>
+                  <p className="font-bold text-slate-400 uppercase">Trạng thái</p>
+                  <p className="mt-1 font-extrabold">
+                    {selectedAudit.status === "completed" ? (
+                      <span className="text-emerald-600">Đã cân bằng kho</span>
+                    ) : (
+                      <span className="text-amber-600">Phiếu tạm tính (Nháp)</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <p className="text-xs font-bold text-slate-400 uppercase">Ghi chú phiếu kiểm</p>
+                <p className="mt-1 text-sm font-semibold text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                  {selectedAudit.note || "Không có ghi chú"}
+                </p>
+              </div>
+
+              <h3 className="mt-6 mb-3 text-sm font-extrabold text-[#0b1c30] uppercase tracking-wide">
+                Danh sách nguyên liệu kiểm kê
+              </h3>
+              <div className="overflow-x-auto rounded-lg border border-slate-200">
+                <table className="w-full min-w-180 text-left text-sm">
+                  <thead className="bg-slate-50 text-xs font-extrabold uppercase text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3">Nguyên liệu</th>
+                      <th className="px-4 py-3 text-right">Tồn hệ thống</th>
+                      <th className="px-4 py-3 text-right">Tồn thực tế</th>
+                      <th className="px-4 py-3 text-right">Chênh lệch</th>
+                      <th className="px-4 py-3">Ghi chú dòng</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {(selectedAudit.details || []).map((detail) => (
+                      <tr key={detail.id}>
+                        <td className="px-4 py-3 font-extrabold text-[#0b1c30]">
+                          <div>
+                            <p>{detail.materialName || "Nguyên liệu đã xóa"}</p>
+                            <p className="text-xs font-normal text-slate-400">{detail.sku}</p>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-right font-semibold text-slate-500">
+                          {detail.systemQuantity} {detail.unit}
+                        </td>
+                        <td className="px-4 py-3 text-right font-extrabold text-[#0b1c30]">
+                          {detail.actualQuantity} {detail.unit}
+                        </td>
+                        <td className={`px-4 py-3 text-right font-extrabold ${detail.variance < 0 ? "text-rose-500" : detail.variance > 0 ? "text-emerald-600" : "text-slate-600"}`}>
+                          {detail.variance > 0 ? `+${detail.variance}` : detail.variance} {detail.unit}
+                        </td>
+                        <td className="px-4 py-3 text-slate-500 text-xs italic">
+                          {detail.note || "---"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
     </AdminLayout>
   );
 }
+
+export default StockPage;

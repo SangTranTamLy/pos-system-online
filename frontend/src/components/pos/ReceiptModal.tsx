@@ -1,4 +1,4 @@
-﻿import type { PosOrderResult, PosPaymentMethod } from "../../api/pos.api";
+import type { PosOrderResult, PosPaymentMethod } from "../../api/pos.api";
 import { Icon } from "../../layouts/AdminLayout";
 import cashImage from "../../assets/tien.jpg";
 import qrImage from "../../assets/qr.png";
@@ -67,7 +67,7 @@ function escapeHtml(value: string) {
 
 function buildReceiptHtml(order: PosOrderResult, employeeName: string) {
   const orderCode = `#HD${order.id.slice(0, 10)}`;
-  const createdAt = new Date().toLocaleString("vi-VN");
+  const createdAt = new Date().toLocaleString("vi-VN", { hour12: false });
   const paymentLabel = getPaymentMethodLabel(order.payment.paymentMethod);
   const detailRows = order.details
     .map(
@@ -102,7 +102,7 @@ function buildReceiptHtml(order: PosOrderResult, employeeName: string) {
             margin: 0;
             padding: 0;
             background: #ffffff;
-            color: #2a1b14;
+            color: #0b1c30;
             font-family: Inter, Arial, sans-serif;
           }
 
@@ -126,7 +126,7 @@ function buildReceiptHtml(order: PosOrderResult, employeeName: string) {
             height: 42px;
             margin: 0 auto 10px;
             border-radius: 999px;
-            background: #9d4300;
+            background: #f97316;
             color: #ffffff;
             display: flex;
             align-items: center;
@@ -212,7 +212,7 @@ function buildReceiptHtml(order: PosOrderResult, employeeName: string) {
           }
 
           .primary {
-            color: #9d4300;
+            color: #f97316;
           }
 
           .thanks {
@@ -335,10 +335,10 @@ function ReceiptPreview({ order, employeeName }: { order: PosOrderResult; employ
   return (
     <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
       <div className="mb-8 text-center">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#9d4300] text-white">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#f97316] text-white">
           <Icon name="bolt" filled className="text-3xl" />
         </div>
-        <p className="font-['Plus_Jakarta_Sans',sans-serif] text-lg font-extrabold tracking-wide text-[#2a1b14]">
+        <p className="font-['Plus_Jakarta_Sans',sans-serif] text-lg font-extrabold tracking-wide text-[#0b1c30]">
           QuickServe POS  
         </p>
         <p className="mt-1 text-sm text-slate-500">Hotline: 1900 8888</p>
@@ -347,21 +347,21 @@ function ReceiptPreview({ order, employeeName }: { order: PosOrderResult; employ
       <div className="space-y-3 border-t border-dashed border-slate-300 pt-5 text-sm">
         <div className="flex justify-between gap-4">
           <span className="font-semibold text-slate-500">Số HĐ:</span>
-          <span className="font-extrabold text-[#2a1b14]">#HD{order.id.slice(0, 10)}</span>
+          <span className="font-extrabold text-[#0b1c30]">#HD{order.id.slice(0, 10)}</span>
         </div>
         <div className="flex justify-between gap-4">
           <span className="font-semibold text-slate-500">Ngày:</span>
-          <span className="font-semibold text-[#2a1b14]">
-            {new Date().toLocaleString("vi-VN")}
+          <span className="font-semibold text-[#0b1c30]">
+            {new Date().toLocaleString("vi-VN", { hour12: false })}
           </span>
         </div>
         <div className="flex justify-between gap-4">
           <span className="font-semibold text-slate-500">Nhân viên:</span>
-          <span className="font-semibold text-[#2a1b14]">{employeeName}</span>
+          <span className="font-semibold text-[#0b1c30]">{employeeName}</span>
         </div>
         <div className="flex justify-between gap-4">
           <span className="font-semibold text-slate-500">Khách hàng:</span>
-          <span className="font-semibold text-[#2a1b14]">Khách lẻ</span>
+          <span className="font-semibold text-[#0b1c30]">Khách lẻ</span>
         </div>
       </div>
 
@@ -376,11 +376,11 @@ function ReceiptPreview({ order, employeeName }: { order: PosOrderResult; employ
         <tbody className="divide-y divide-slate-100">
           {order.details.map((detail) => (
             <tr key={detail.id}>
-              <td className="py-4 font-semibold text-[#2a1b14]">{detail.productName}</td>
+              <td className="py-4 font-semibold text-[#0b1c30]">{detail.productName}</td>
               <td className="py-4 text-center font-semibold text-slate-500">
                 {detail.quantity}
               </td>
-              <td className="py-4 text-right font-semibold text-[#2a1b14]">
+              <td className="py-4 text-right font-semibold text-[#0b1c30]">
                 {formatCurrency(detail.lineTotal)}
               </td>
             </tr>
@@ -391,17 +391,17 @@ function ReceiptPreview({ order, employeeName }: { order: PosOrderResult; employ
       <div className="space-y-3 border-t border-dashed border-slate-300 py-5 text-sm">
         <div className="flex justify-between">
           <span className="text-slate-500">Tạm tính:</span>
-          <span className="font-semibold text-[#2a1b14]">{formatCurrency(order.totalAmount)}</span>
+          <span className="font-semibold text-[#0b1c30]">{formatCurrency(order.totalAmount)}</span>
         </div>
         <div className="flex justify-between text-xl font-extrabold">
-          <span className="uppercase text-[#2a1b14]">Tổng cộng:</span>
-          <span className="text-[#9d4300]">{formatCurrency(order.finalAmount)}</span>
+          <span className="uppercase text-[#0b1c30]">Tổng cộng:</span>
+          <span className="text-[#f97316]">{formatCurrency(order.finalAmount)}</span>
         </div>
       </div>
 
       <div className="flex items-center justify-between border-y border-dashed border-slate-300 py-4 text-sm">
-        <span className="font-extrabold uppercase text-[#9d4300]">Phương thức:</span>
-        <span className="flex items-center gap-2 font-semibold text-[#2a1b14]">
+        <span className="font-extrabold uppercase text-[#f97316]">Phương thức:</span>
+        <span className="flex items-center gap-2 font-semibold text-[#0b1c30]">
           <img
             src={getPaymentMethodImage(order.payment.paymentMethod)}
             alt={getPaymentMethodLabel(order.payment.paymentMethod)}
@@ -412,7 +412,7 @@ function ReceiptPreview({ order, employeeName }: { order: PosOrderResult; employ
       </div>
 
       <div className="mt-6 text-center">
-        <p className="font-['Plus_Jakarta_Sans',sans-serif] font-extrabold text-[#2a1b14]">
+        <p className="font-['Plus_Jakarta_Sans',sans-serif] font-extrabold text-[#0b1c30]">
           Cảm ơn Quý khách!
         </p>
         <p className="mt-2 text-sm text-slate-500">Hẹn gặp lại quý khách lần sau</p>
@@ -438,7 +438,7 @@ function ReceiptModal({ order, onClose }: ReceiptModalProps) {
             >
               <Icon name="arrow_back" className="text-xl" />
             </button>
-            <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-2xl font-extrabold text-[#2a1b14]">
+            <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-2xl font-extrabold text-[#0b1c30]">
               Thanh toán thành công
             </h3>
           </div>
@@ -457,7 +457,7 @@ function ReceiptModal({ order, onClose }: ReceiptModalProps) {
           </div>
         </header>
 
-        <div className="grid bg-[#faf8f6] lg:grid-cols-[1fr_260px]">
+        <div className="grid bg-[#f8f9ff] lg:grid-cols-[1fr_260px]">
           <section className="flex justify-center p-6 lg:p-8">
             <ReceiptPreview order={order} employeeName={employeeName} />
           </section>
@@ -471,7 +471,7 @@ function ReceiptModal({ order, onClose }: ReceiptModalProps) {
                 <button
                   type="button"
                   onClick={() => printReceipt(order, employeeName)}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#9d4300] px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-orange-100 transition-colors hover:bg-orange-600"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#f97316] px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-orange-100 transition-colors hover:bg-orange-600"
                 >
                   <Icon name="print" className="text-lg" />
                   In hóa đơn
@@ -479,7 +479,7 @@ function ReceiptModal({ order, onClose }: ReceiptModalProps) {
                 <button
                   type="button"
                   onClick={() => printReceipt(order, employeeName)}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-[#2a1b14] shadow-sm transition-colors hover:bg-slate-50"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-[#0b1c30] shadow-sm transition-colors hover:bg-slate-50"
                 >
                   <Icon name="picture_as_pdf" className="text-lg" />
                   Tải PDF
@@ -489,7 +489,7 @@ function ReceiptModal({ order, onClose }: ReceiptModalProps) {
 
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
               <p className="text-xs font-semibold text-slate-500">Mã đơn</p>
-              <p className="mt-1 font-extrabold text-[#2a1b14]">#HD{order.id.slice(0, 10)}</p>
+              <p className="mt-1 font-extrabold text-[#0b1c30]">#HD{order.id.slice(0, 10)}</p>
             </div>
           </aside>
         </div>

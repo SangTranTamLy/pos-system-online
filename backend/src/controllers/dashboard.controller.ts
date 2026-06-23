@@ -24,7 +24,7 @@ export async function getDashboardSummaryController(req: Request, res: Response)
 
     res.json({
         success: true,
-        message: "Lấy dữ liệu tổng quan dashboard thành công",
+        message: "Đã tải dữ liệu tổng quan dashboard.",
         data: summary,
     });
 }

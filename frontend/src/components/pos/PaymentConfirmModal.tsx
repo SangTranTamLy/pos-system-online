@@ -51,7 +51,7 @@ export default function PaymentConfirmModal({
       <div className="w-full max-w-3xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
           <div>
-            <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-2xl font-extrabold text-[#2a1b14]">
+            <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-2xl font-extrabold text-[#0b1c30]">
               Xác nhận thanh toán
             </h3>
             <p className="mt-1 text-sm text-slate-500">
@@ -71,7 +71,7 @@ export default function PaymentConfirmModal({
 
         <div className="space-y-5 p-6">
           <section className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-            <div className="mb-4 flex items-center gap-3 text-lg font-extrabold text-[#2a1b14]">
+            <div className="mb-4 flex items-center gap-3 text-lg font-extrabold text-[#0b1c30]">
               <Icon name="receipt_long" />
               <span>Chi tiết đơn hàng</span>
             </div>
@@ -82,12 +82,12 @@ export default function PaymentConfirmModal({
                   className="flex items-start justify-between gap-4 py-4 first:pt-0 last:pb-0"
                 >
                   <div>
-                    <p className="font-extrabold text-[#2a1b14]">{item.product.name}</p>
+                    <p className="font-extrabold text-[#0b1c30]">{item.product.name}</p>
                     <p className="mt-1 text-sm font-semibold text-slate-500">
                       {item.quantity} x {formatCurrency(item.product.salePrice)}
                     </p>
                   </div>
-                  <p className="shrink-0 font-extrabold text-[#2a1b14]">
+                  <p className="shrink-0 font-extrabold text-[#0b1c30]">
                     {formatCurrency(item.product.salePrice * item.quantity)}
                   </p>
                 </div>
@@ -109,13 +109,13 @@ export default function PaymentConfirmModal({
                 <span>VAT 0%</span>
                 <span>{formatCurrency(0)}</span>
               </div>
-              <div className="flex justify-between gap-4 text-xl font-extrabold text-[#2a1b14]">
+              <div className="flex justify-between gap-4 text-xl font-extrabold text-[#0b1c30]">
                 <span>Tổng thanh toán</span>
-                <span className="text-[#9d4300]">{formatCurrency(finalAmount)}</span>
+                <span className="text-[#f97316]">{formatCurrency(finalAmount)}</span>
               </div>
               <div className="flex justify-between gap-4 text-sm text-slate-600">
                 <span>Phuong thuc</span>
-                <span className="font-extrabold text-[#2a1b14]">
+                <span className="font-extrabold text-[#0b1c30]">
                   {getPaymentMethodLabel(paymentMethod)}
                 </span>
               </div>
@@ -139,7 +139,7 @@ export default function PaymentConfirmModal({
               type="button"
               onClick={onConfirm}
               disabled={isProcessing}
-              className="flex items-center justify-center gap-2 rounded-xl bg-[#2a1b14] px-6 py-3 font-extrabold text-white hover:bg-[#132a45] disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex items-center justify-center gap-2 rounded-xl bg-[#0b1c30] px-6 py-3 font-extrabold text-white hover:bg-[#132a45] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Icon name="check_circle" />
               {paymentMethod === "qr"

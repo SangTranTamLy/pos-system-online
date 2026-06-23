@@ -13,7 +13,7 @@ export default function EmployeeRevenueTable({ data }: { data: EmployeeRevenue[]
   return (
     <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 bg-slate-50 p-4">
-        <h3 className="font-['Plus_Jakarta_Sans',sans-serif] font-bold text-[#2a1b14]">
+        <h3 className="font-['Plus_Jakarta_Sans',sans-serif] font-bold text-[#0b1c30]">
           Doanh thu theo nhân viên
         </h3>
       </div>
@@ -32,9 +32,9 @@ export default function EmployeeRevenueTable({ data }: { data: EmployeeRevenue[]
               data.map((item, index) => (
                 <tr key={item.id} className="transition-colors hover:bg-slate-50">
                   <td className="px-6 py-4 text-center font-bold text-slate-400">{index + 1}</td>
-                  <td className="px-6 py-4 font-semibold text-[#2a1b14]">{item.full_name}</td>
+                  <td className="px-6 py-4 font-semibold text-[#0b1c30]">{item.full_name}</td>
                   <td className="px-6 py-4 text-center">{item.total_orders}</td>
-                  <td className="px-6 py-4 text-right font-extrabold text-[#9d4300]">
+                  <td className="px-6 py-4 text-right font-extrabold text-[#f97316]">
                     {formatCurrency(item.total_revenue)}
                   </td>
                 </tr>

@@ -130,7 +130,8 @@ export async function getFinancialSummary(
     `
     SELECT 
       COALESCE(SUM(o.final_amount), 0) AS totalRevenue,
-      COALESCE(SUM(cogs_query.order_cogs), 0) AS totalCOGS
+      COALESCE(SUM(cogs_query.order_cogs), 0) AS totalCOGS,
+      COUNT(o.id) AS totalOrders
     FROM orders o
     LEFT JOIN (
       SELECT od.order_id, SUM(od.quantity * p.import_price) AS order_cogs
@@ -147,12 +148,16 @@ export async function getFinancialSummary(
   const totalCOGS = Number(rows[0]?.totalCOGS || 0);
   const grossProfit = totalRevenue - totalCOGS;
   const grossProfitMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
+  const totalOrders = Number(rows[0]?.totalOrders || 0);
+  const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
   return {
     totalRevenue,
     totalCOGS,
     grossProfit,
-    grossProfitMargin
+    grossProfitMargin,
+    totalOrders,
+    averageOrderValue
   };
 }
 

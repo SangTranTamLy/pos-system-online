@@ -1,6 +1,23 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Plus+Jakarta+Sans:wght@600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=Inter:wght@400;600&family=Plus+Jakarta+Sans:wght@600;700&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap");
 @import "tailwindcss";
+
+html {
+  font-size: 16px;
+}
+
+@media (min-width: 1024px) {
+  html {
+    font-size: 17.5px; /* Scale up for 1024px POS touch monitors */
+  }
+}
+
+@media (min-width: 1440px) {
+  html {
+    font-size: 18.5px; /* Scale up for Full HD screen terminals */
+  }
+}
+
 
 /* ─── Square corners everywhere ─────────────────────────────── */
 *,

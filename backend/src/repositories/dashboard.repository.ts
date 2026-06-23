@@ -154,6 +154,69 @@ export async function getRecentMaterials() {
     return rows;
 }
 
+export async function getLowStockItems() {
+    const [rows] = await db.execute<RowDataPacket[]>(`
+        SELECT
+          id,
+          name,
+          COALESCE(sku, '') AS sku,
+          'material' AS type,
+          COALESCE(stock_quantity, 0) AS stockQuantity,
+          5 AS threshold,
+          unit
+        FROM raw_materials
+        WHERE is_active = 1
+          AND COALESCE(stock_quantity, 0) <= 5
+
+        UNION ALL
+
+        SELECT
+          id,
+          name,
+          COALESCE(sku, '') AS sku,
+          'product' AS type,
+          COALESCE(stock_quantity, 0) AS stockQuantity,
+          10 AS threshold,
+          NULL AS unit
+        FROM products
+        WHERE status = 'active'
+          AND is_tracked_stock = 1
+          AND COALESCE(stock_quantity, 0) <= 10
+
+        ORDER BY stockQuantity ASC, name ASC
+        LIMIT 8
+    `);
+
+    return rows;
+}
+
+export async function getCategorySales(startDate?: string, endDate?: string) {
+    let dateCondition = "1=1";
+    let params: string[] = [];
+    if (startDate && endDate) {
+        dateCondition = "DATE(o.created_at) >= ? AND DATE(o.created_at) <= ?";
+        params = [startDate, endDate];
+    }
+
+    const [rows] = await db.execute<RowDataPacket[]>(`
+        SELECT
+          c.name,
+          COALESCE(SUM(od.quantity), 0) AS quantity,
+          COALESCE(SUM(od.line_total), 0) AS revenue
+        FROM order_details od
+        JOIN orders o ON o.id = od.order_id
+        JOIN products p ON p.id = od.product_id
+        JOIN categories c ON c.id = p.category_id
+        WHERE o.status = 'completed'
+          AND ${dateCondition}
+        GROUP BY c.id, c.name
+        ORDER BY revenue DESC
+        LIMIT 6
+    `, params);
+
+    return rows;
+}
+
 export async function getPaymentMethodStats(startDate?: string, endDate?: string) {
     let dateCondition = "1=1";
     let params: string[] = [];

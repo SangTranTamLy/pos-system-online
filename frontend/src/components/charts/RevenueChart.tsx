@@ -98,7 +98,7 @@ export default function RevenueChart({
     <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-bold text-[#2a1b14]">
+          <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-bold text-[#0b1c30]">
             {getRevenueChartTitle(period)}
           </h4>
           <p className="text-xs text-slate-400">{getRevenueChartSubtitle(period)}</p>
@@ -107,14 +107,14 @@ export default function RevenueChart({
           <select
             value={period}
             onChange={(event) => onPeriodChange(event.target.value as DashboardRevenuePeriod)}
-            className="h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-600 outline-none transition-colors hover:border-orange-200 focus:border-[#9d4300]"
+            className="h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-600 outline-none transition-colors hover:border-orange-200 focus:border-[#f97316]"
             aria-label="Chọn kỳ xem doanh thu"
           >
             <option value="month">Tháng</option>
             <option value="year">Nam</option>
           </select>
           <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#9d4300]" />
+            <span className="h-2.5 w-2.5 rounded-full bg-[#f97316]" />
             Doanh thu
           </div>
         </div>
@@ -154,7 +154,7 @@ export default function RevenueChart({
               {data.map((point) => (
                 <Cell
                   key={point.label}
-                  fill={isCurrentRevenuePoint(point, period) ? "#9d4300" : "#fdba74"}
+                  fill={isCurrentRevenuePoint(point, period) ? "#f97316" : "#fdba74"}
                 />
               ))}
             </Bar>

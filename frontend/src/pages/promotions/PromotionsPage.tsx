@@ -58,7 +58,7 @@ function StatCard({ label, value, icon, accent }: StatCardProps) {
           {label}
         </span>
       </div>
-      <p className="text-3xl font-extrabold text-[#2a1b14]">{value}</p>
+      <p className="text-3xl font-extrabold text-[#0b1c30]">{value}</p>
     </div>
   );
 }
@@ -97,10 +97,10 @@ function StatusBadge({ promotion }: { promotion: Promotion }) {
 function EmptyState({ onAdd }: { onAdd: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="mb-4 flex h-16 w-16 items-center justify-center bg-orange-50 text-[#9d4300]">
+      <div className="mb-4 flex h-16 w-16 items-center justify-center bg-orange-50 text-[#f97316]">
         <Icon name="redeem" className="text-4xl" />
       </div>
-      <p className="mb-1 text-lg font-bold text-[#2a1b14]">
+      <p className="mb-1 text-lg font-bold text-[#0b1c30]">
         Chưa có khuyến mãi nào
       </p>
       <p className="mb-6 text-sm text-slate-500">
@@ -196,10 +196,10 @@ function PromotionModal({ editing, products, onClose, onSaved }: ModalProps) {
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-[#9d4300]">
+            <p className="text-xs font-bold uppercase tracking-widest text-[#f97316]">
               {editing ? "Chỉnh sửa" : "Tạo mới"}
             </p>
-            <h2 className="text-lg font-extrabold text-[#2a1b14]">
+            <h2 className="text-lg font-extrabold text-[#0b1c30]">
               {editing ? "Cập nhật khuyến mãi" : "Tạo khuyến mãi"}
             </h2>
           </div>
@@ -228,7 +228,7 @@ function PromotionModal({ editing, products, onClose, onSaved }: ModalProps) {
               value={form.productId}
               onChange={(e) => setField("productId", e.target.value)}
               required
-              className="w-full border border-slate-300 bg-white px-3 py-2.5 text-sm text-[#2a1b14] outline-none transition-colors focus:border-[#9d4300] focus:ring-1 focus:ring-[#9d4300]"
+              className="w-full border border-slate-300 bg-white px-3 py-2.5 text-sm text-[#0b1c30] outline-none transition-colors focus:border-[#f97316] focus:ring-1 focus:ring-[#f97316]"
             >
               <option value="">Chọn sản phẩm</option>
               {products.map((product) => (
@@ -252,7 +252,7 @@ function PromotionModal({ editing, products, onClose, onSaved }: ModalProps) {
               placeholder="VD: SALE20, WELCOME10"
               maxLength={30}
               required
-              className="w-full border border-slate-300 bg-white px-3 py-2.5 text-sm font-mono font-semibold uppercase text-[#2a1b14] outline-none transition-colors focus:border-[#9d4300] focus:ring-1 focus:ring-[#9d4300]"
+              className="w-full border border-slate-300 bg-white px-3 py-2.5 text-sm font-mono font-semibold uppercase text-[#0b1c30] outline-none transition-colors focus:border-[#f97316] focus:ring-1 focus:ring-[#f97316]"
             />
           </div>
 
@@ -267,7 +267,7 @@ function PromotionModal({ editing, products, onClose, onSaved }: ModalProps) {
               onChange={(e) => setField("name", e.target.value)}
               placeholder="VD: Giảm 20% khai trương"
               required
-              className="w-full border border-slate-300 bg-white px-3 py-2.5 text-sm text-[#2a1b14] outline-none transition-colors focus:border-[#9d4300] focus:ring-1 focus:ring-[#9d4300]"
+              className="w-full border border-slate-300 bg-white px-3 py-2.5 text-sm text-[#0b1c30] outline-none transition-colors focus:border-[#f97316] focus:ring-1 focus:ring-[#f97316]"
             />
           </div>
 
@@ -285,7 +285,7 @@ function PromotionModal({ editing, products, onClose, onSaved }: ModalProps) {
                     e.target.value as "percent" | "fixed"
                   )
                 }
-                className="w-full border border-slate-300 bg-white px-3 py-2.5 text-sm text-[#2a1b14] outline-none transition-colors focus:border-[#9d4300] focus:ring-1 focus:ring-[#9d4300]"
+                className="w-full border border-slate-300 bg-white px-3 py-2.5 text-sm text-[#0b1c30] outline-none transition-colors focus:border-[#f97316] focus:ring-1 focus:ring-[#f97316]"
               >
                 <option value="percent">Phần trăm (%)</option>
                 <option value="fixed">Cố định (VNĐ)</option>
@@ -306,7 +306,7 @@ function PromotionModal({ editing, products, onClose, onSaved }: ModalProps) {
                     setField("discountValue", Number(e.target.value))
                   }
                   required
-                  className="w-full border border-slate-300 bg-white py-2.5 pl-3 pr-10 text-sm text-[#2a1b14] outline-none transition-colors focus:border-[#9d4300] focus:ring-1 focus:ring-[#9d4300]"
+                  className="w-full border border-slate-300 bg-white py-2.5 pl-3 pr-10 text-sm text-[#0b1c30] outline-none transition-colors focus:border-[#f97316] focus:ring-1 focus:ring-[#f97316]"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
                   {form.discountType === "percent" ? "%" : "đ"}
@@ -325,7 +325,7 @@ function PromotionModal({ editing, products, onClose, onSaved }: ModalProps) {
                 type="date"
                 value={form.startAt}
                 onChange={(e) => setField("startAt", e.target.value)}
-                className="w-full border border-slate-300 bg-white px-3 py-2.5 text-sm text-[#2a1b14] outline-none transition-colors focus:border-[#9d4300] focus:ring-1 focus:ring-[#9d4300]"
+                className="w-full border border-slate-300 bg-white px-3 py-2.5 text-sm text-[#0b1c30] outline-none transition-colors focus:border-[#f97316] focus:ring-1 focus:ring-[#f97316]"
               />
             </div>
             <div>
@@ -336,7 +336,7 @@ function PromotionModal({ editing, products, onClose, onSaved }: ModalProps) {
                 type="date"
                 value={form.endAt}
                 onChange={(e) => setField("endAt", e.target.value)}
-                className="w-full border border-slate-300 bg-white px-3 py-2.5 text-sm text-[#2a1b14] outline-none transition-colors focus:border-[#9d4300] focus:ring-1 focus:ring-[#9d4300]"
+                className="w-full border border-slate-300 bg-white px-3 py-2.5 text-sm text-[#0b1c30] outline-none transition-colors focus:border-[#f97316] focus:ring-1 focus:ring-[#f97316]"
               />
             </div>
           </div>
@@ -352,7 +352,7 @@ function PromotionModal({ editing, products, onClose, onSaved }: ModalProps) {
                   onChange={(e) => setField("isActive", e.target.checked)}
                 />
                 <div
-                  className={`h-5 w-9 transition-colors ${form.isActive ? "bg-[#9d4300]" : "bg-slate-300"}`}
+                  className={`h-5 w-9 transition-colors ${form.isActive ? "bg-[#f97316]" : "bg-slate-300"}`}
                 />
                 <div
                   className={`absolute top-0.5 h-4 w-4 bg-white shadow transition-all ${form.isActive ? "left-4" : "left-0.5"}`}
@@ -376,7 +376,7 @@ function PromotionModal({ editing, products, onClose, onSaved }: ModalProps) {
             <button
               type="submit"
               disabled={loading}
-              className="inline-flex h-10 items-center justify-center gap-2 bg-[#9d4300] px-4 text-sm font-bold text-white transition-colors hover:bg-[#803600] disabled:opacity-60"
+              className="inline-flex h-10 items-center justify-center gap-2 bg-[#f97316] px-4 text-sm font-bold text-white transition-colors hover:bg-[#ea580c] disabled:opacity-60"
             >
               {loading && (
                 <Icon name="progress_activity" className="animate-spin text-base" />
@@ -425,7 +425,7 @@ function DeleteConfirm({
           <p className="text-xs font-bold uppercase tracking-widest text-red-500">
             Xác nhận xoá
           </p>
-          <h2 className="text-lg font-extrabold text-[#2a1b14]">Xoá khuyến mãi</h2>
+          <h2 className="text-lg font-extrabold text-[#0b1c30]">Xoá khuyến mãi</h2>
         </div>
         <div className="px-6 py-5">
           {error && (
@@ -436,7 +436,7 @@ function DeleteConfirm({
           <p className="mb-1 text-sm text-slate-700">
             Bạn sắp xoá mã khuyến mãi:
           </p>
-          <p className="mb-4 font-mono text-base font-extrabold text-[#2a1b14]">
+          <p className="mb-4 font-mono text-base font-extrabold text-[#0b1c30]">
             {promotion.code}
           </p>
           <p className="text-sm text-slate-500">
@@ -567,10 +567,10 @@ export default function PromotionsPage() {
       {/* ── Header ── */}
       <div className="mb-6">
         <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-[#9d4300]">
+          <p className="text-xs font-bold uppercase tracking-widest text-[#f97316]">
             Ưu đãi bán hàng
           </p>
-          <h1 className="text-2xl font-extrabold text-[#2a1b14]">
+          <h1 className="text-2xl font-extrabold text-[#0b1c30]">
             Danh sách khuyến mãi
           </h1>
         </div>
@@ -591,7 +591,7 @@ export default function PromotionsPage() {
           label="Tổng mã"
           value={stats.total}
           icon="redeem"
-          accent="#9d4300"
+          accent="#f97316"
         />
         <StatCard
           label="Đang hoạt động"
@@ -627,13 +627,13 @@ export default function PromotionsPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Tìm mã hoặc tên khuyến mãi..."
-              className="w-full border border-slate-200 bg-slate-50 py-2 pl-9 pr-4 text-sm text-[#2a1b14] outline-none transition-colors focus:border-[#9d4300] focus:bg-white"
+              className="w-full border border-slate-200 bg-slate-50 py-2 pl-9 pr-4 text-sm text-[#0b1c30] outline-none transition-colors focus:border-[#f97316] focus:bg-white"
             />
           </div>
           <button
             type="button"
             onClick={openAdd}
-            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 bg-[#9d4300] px-4 text-sm font-bold text-white transition-colors hover:bg-[#803600]"
+            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 bg-[#f97316] px-4 text-sm font-bold text-white transition-colors hover:bg-[#ea580c]"
           >
             <Icon name="add" />
             Tạo khuyến mãi
@@ -706,14 +706,14 @@ export default function PromotionsPage() {
                     >
                       {/* Code */}
                       <td className="px-5 py-3.5">
-                        <span className="font-mono text-sm font-extrabold tracking-wider text-[#2a1b14]">
+                        <span className="font-mono text-sm font-extrabold tracking-wider text-[#0b1c30]">
                           {p.code}
                         </span>
                       </td>
 
                       {/* Name */}
                       <td className="px-5 py-3.5">
-                        <span className="font-semibold text-[#2a1b14]">
+                        <span className="font-semibold text-[#0b1c30]">
                           {p.name}
                         </span>
                       </td>
@@ -728,7 +728,7 @@ export default function PromotionsPage() {
                       </td>
 
                       {/* Discount value */}
-                      <td className="px-5 py-3.5 text-right font-extrabold text-[#9d4300]">
+                      <td className="px-5 py-3.5 text-right font-extrabold text-[#f97316]">
                         {p.discountType === "percent"
                           ? `${p.discountValue}%`
                           : `${p.discountValue.toLocaleString("vi-VN")} đ`}
@@ -755,7 +755,7 @@ export default function PromotionsPage() {
                           onClick={() => handleToggle(p)}
                           disabled={togglingId === p.id}
                           title={p.isActive ? "Tắt" : "Bật"}
-                          className={`relative inline-flex h-5 w-9 items-center transition-colors disabled:opacity-50 ${p.isActive ? "bg-[#9d4300]" : "bg-slate-300"}`}
+                          className={`relative inline-flex h-5 w-9 items-center transition-colors disabled:opacity-50 ${p.isActive ? "bg-[#f97316]" : "bg-slate-300"}`}
                         >
                           <span
                             className={`absolute h-4 w-4 bg-white shadow transition-all ${p.isActive ? "left-4" : "left-0.5"}`}
@@ -770,7 +770,7 @@ export default function PromotionsPage() {
                             type="button"
                             onClick={() => openEdit(p)}
                             title="Chỉnh sửa"
-                            className="flex h-8 w-8 items-center justify-center text-slate-500 transition-colors hover:bg-slate-100 hover:text-[#9d4300]"
+                            className="flex h-8 w-8 items-center justify-center text-slate-500 transition-colors hover:bg-slate-100 hover:text-[#f97316]"
                           >
                             <Icon name="edit" className="text-[18px]" />
                           </button>

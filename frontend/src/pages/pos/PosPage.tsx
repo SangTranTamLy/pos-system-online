@@ -515,14 +515,14 @@ function PosPage() {
       <AdminLayout title="Bán hàng">
         <div className="flex h-[calc(100vh-8rem)] items-center justify-center">
           <div className="flex max-w-md flex-col items-center text-center gap-4 rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-orange-100 text-[#9d4300]">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-orange-100 text-[#f97316]">
               <Icon name="lock" className="text-3xl" />
             </div>
-            <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-extrabold text-[#2a1b14]">
+            <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-extrabold text-[#0b1c30]">
               POS Đã Khóa
             </h2>
             <p className="text-sm font-medium text-slate-600 leading-relaxed">
-              Bạn chưa có ca làm việc nào đang mở. Vui lòng vào mục <span className="font-bold text-[#2a1b14]">Ca làm</span> để đăng ký ca hoặc yêu cầu Quản lý mở ca.
+              Bạn chưa có ca làm việc nào đang mở. Vui lòng vào mục <span className="font-bold text-[#0b1c30]">Ca làm</span> để đăng ký ca hoặc yêu cầu Quản lý mở ca.
             </p>
           </div>
         </div>
@@ -547,7 +547,7 @@ function PosPage() {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Tìm sản phẩm theo tên hoặc SKU..."
-                className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 pr-4 pl-10 text-sm outline-none transition-all focus:border-[#9d4300] focus:bg-white focus:ring-2 focus:ring-orange-100"
+                className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 pr-4 pl-10 text-sm outline-none transition-all focus:border-[#f97316] focus:bg-white focus:ring-2 focus:ring-orange-100"
               />
             </div>
 
@@ -558,8 +558,8 @@ function PosPage() {
                 className={[
                   "h-10 whitespace-nowrap rounded-full px-4 text-sm font-bold transition-colors",
                   categoryFilter === "all"
-                    ? "bg-[#9d4300] text-white"
-                    : "bg-slate-50 text-slate-600 hover:bg-orange-50 hover:text-[#9d4300]",
+                    ? "bg-[#f97316] text-white"
+                    : "bg-slate-50 text-slate-600 hover:bg-orange-50 hover:text-[#f97316]",
                 ].join(" ")}
               >
                 Tất cả
@@ -572,8 +572,8 @@ function PosPage() {
                   className={[
                     "h-10 whitespace-nowrap rounded-full px-4 text-sm font-bold transition-colors",
                     categoryFilter === category
-                      ? "bg-[#9d4300] text-white"
-                      : "bg-slate-50 text-slate-600 hover:bg-orange-50 hover:text-[#9d4300]",
+                      ? "bg-[#f97316] text-white"
+                      : "bg-slate-50 text-slate-600 hover:bg-orange-50 hover:text-[#f97316]",
                   ].join(" ")}
                 >
                   {category}
@@ -591,7 +591,7 @@ function PosPage() {
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-extrabold text-[#2a1b14]">
+                <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-extrabold text-[#0b1c30]">
                   Thực đơn
                 </h2>
                 <p className="text-sm text-slate-500">
@@ -623,7 +623,7 @@ function PosPage() {
           <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
               <div>
-                <h2 className="flex items-center gap-2 font-['Plus_Jakarta_Sans',sans-serif] text-lg font-extrabold text-[#2a1b14]">
+                <h2 className="flex items-center gap-2 font-['Plus_Jakarta_Sans',sans-serif] text-lg font-extrabold text-[#0b1c30]">
                   <Icon name="shopping_cart" className="text-xl" />
                   Giỏ hàng
                 </h2>
@@ -653,7 +653,7 @@ function PosPage() {
                   className="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-3 rounded-xl bg-slate-50 p-3"
                 >
                   <div className="min-w-0">
-                    <p className="truncate font-bold text-[#2a1b14]">{item.product.name}</p>
+                    <p className="truncate font-bold text-[#0b1c30]">{item.product.name}</p>
                     <p className="text-xs text-slate-500">
                       {formatCurrency(item.product.salePrice)}
                     </p>
@@ -662,23 +662,23 @@ function PosPage() {
                   <button
                     type="button"
                     onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:text-[#9d4300]"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:text-[#f97316]"
                   >
                     -
                   </button>
-                  <span className="min-w-5 text-center text-sm font-bold text-[#2a1b14]">
+                  <span className="min-w-5 text-center text-sm font-bold text-[#0b1c30]">
                     {item.quantity}
                   </span>
                   <button
                     type="button"
                     onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:text-[#9d4300]"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:text-[#f97316]"
                   >
                     +
                   </button>
 
                   <div className="flex items-center gap-2">
-                    <p className="min-w-20 text-right text-sm font-extrabold text-[#2a1b14]">
+                    <p className="min-w-20 text-right text-sm font-extrabold text-[#0b1c30]">
                       {formatCurrency(item.product.salePrice * item.quantity)}
                     </p>
                     <button
@@ -695,7 +695,7 @@ function PosPage() {
 
             <div className="space-y-4 border-t border-slate-200 p-5">
               <label className="block space-y-2">
-                <span className="text-sm font-bold text-[#2a1b14]">
+                <span className="text-sm font-bold text-[#0b1c30]">
                   Số điện thoại khách
                 </span>
                 <input
@@ -707,7 +707,7 @@ function PosPage() {
                     setCustomerPhone(value);
                   }}
                   placeholder="Nhập SĐT khách quen..."
-                  className="h-11 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
+                  className="h-11 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
                 />
                 {customerLookupMessage ? (
                   <p
@@ -731,7 +731,7 @@ function PosPage() {
                     setPromotionPreview(null);
                   }
                 }}
-                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
+                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
               >
                 <option value="">Chọn mã khuyến mãi</option>
                 {activePromotions.map((item) => (
@@ -749,7 +749,7 @@ function PosPage() {
                     setPromoMessage("");
                   }}
                   placeholder="Mã giảm giá"
-                  className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
+                  className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
                 />
                 <button
                   type="button"
@@ -775,7 +775,7 @@ function PosPage() {
               ) : null}
 
               <label className="block space-y-2">
-                <span className="text-sm font-bold text-[#2a1b14]">Thanh toán</span>
+                <span className="text-sm font-bold text-[#0b1c30]">Thanh toán</span>
                 <div className="grid grid-cols-3 gap-2">
                   {paymentMethods.map((method) => {
                     const isSelected = paymentMethod === method.value;
@@ -788,7 +788,7 @@ function PosPage() {
                         className={[
                           "flex h-20 flex-col items-center justify-center gap-1.5 rounded-xl border bg-white px-2 text-xs font-bold transition-all",
                           isSelected
-                            ? "border-[#9d4300] bg-orange-50 text-[#9d4300] shadow-sm shadow-orange-100"
+                            ? "border-[#f97316] bg-orange-50 text-[#f97316] shadow-sm shadow-orange-100"
                             : "border-slate-200 text-slate-600 hover:bg-slate-50",
                         ].join(" ")}
                         aria-pressed={isSelected}
@@ -814,15 +814,15 @@ function PosPage() {
                     <span>-{formatCurrency(discountAmount)}</span>
                   </div>
                 ) : null}
-                <div className="flex justify-between text-xl font-extrabold text-[#2a1b14]">
+                <div className="flex justify-between text-xl font-extrabold text-[#0b1c30]">
                   <span>Tổng cộng</span>
-                  <span className="text-[#9d4300]">{formatCurrency(finalAmount)}</span>
+                  <span className="text-[#f97316]">{formatCurrency(finalAmount)}</span>
                 </div>
               </div>
 
               {paymentMethod === "cash" && finalAmount > 0 ? (
                 <label className="block space-y-2">
-                  <span className="text-sm font-bold text-[#2a1b14]">Tiền khách đưa</span>
+                  <span className="text-sm font-bold text-[#0b1c30]">Tiền khách đưa</span>
                   <input
                     type="number"
                     min={0}
@@ -837,7 +837,7 @@ function PosPage() {
                       setCashPaid(String(value));
                     }}
                     placeholder="Nhập số tiền khách đưa..."
-                    className="h-11 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
+                    className="h-11 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
                   />
                   {cashPaidAmount > 0 && cashPaidAmount < finalAmount ? (
                     <p className="text-xs text-red-600">
@@ -865,7 +865,7 @@ function PosPage() {
                   onChange={(event) => setNote(event.target.value)}
                   rows={2}
                   placeholder="Ghi chú đơn hàng..."
-                  className="w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
+                  className="w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
                 />
               </label>
 
@@ -875,7 +875,7 @@ function PosPage() {
                   void handleCheckout();
                 }}
                 disabled={cartItems.length === 0 || isProcessing}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#2a1b14] px-6 py-4 font-extrabold text-white shadow-lg shadow-slate-200 transition-all hover:bg-[#132a45] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0b1c30] px-6 py-4 font-extrabold text-white shadow-lg shadow-slate-200 transition-all hover:bg-[#132a45] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Icon name="credit_card" />
                 {isProcessing ? "Đang thanh toán..." : `Thanh toán ${formatCurrency(finalAmount)}`}
@@ -890,7 +890,7 @@ function PosPage() {
           <div className="mb-3 flex items-center justify-between">
             <div>
               <p className="text-xs font-bold uppercase text-slate-400">Giỏ hàng</p>
-              <p className="font-extrabold text-[#2a1b14]">
+              <p className="font-extrabold text-[#0b1c30]">
                 {cartItems.length} mon - {formatCurrency(finalAmount)}
               </p>
             </div>
@@ -900,7 +900,7 @@ function PosPage() {
                 void handleCheckout();
               }}
               disabled={cartItems.length === 0 || isProcessing}
-              className="rounded-2xl bg-[#2a1b14] px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-slate-200 disabled:opacity-50"
+              className="rounded-2xl bg-[#0b1c30] px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-slate-200 disabled:opacity-50"
             >
               Thanh toán
             </button>
@@ -909,7 +909,7 @@ function PosPage() {
             {cartItems.map((item) => (
               <span
                 key={item.product.id}
-                className="whitespace-nowrap rounded-full bg-orange-50 px-3 py-1 text-xs font-bold text-[#9d4300]"
+                className="whitespace-nowrap rounded-full bg-orange-50 px-3 py-1 text-xs font-bold text-[#f97316]"
               >
                 {item.product.name} x{item.quantity}
               </span>
@@ -992,7 +992,7 @@ function PosPage() {
                 key={idx}
                 className="flex items-center justify-between rounded-xl bg-red-50 border border-red-100 p-3 text-xs"
               >
-                <div className="font-bold text-[#2a1b14]">{alert.name}</div>
+                <div className="font-bold text-[#0b1c30]">{alert.name}</div>
                 <div className="text-right">
                   <span className="font-extrabold text-red-600">
                     {alert.stockQuantity}

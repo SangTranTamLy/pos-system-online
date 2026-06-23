@@ -294,4 +294,40 @@ CALL create_index_if_missing('shifts', 'idx_shifts_user_id', 'user_id');
 CALL create_index_if_missing('shifts', 'idx_shifts_status', 'status');
 CALL create_index_if_missing('shifts', 'idx_shifts_time', 'expected_start_time,expected_end_time');
 
+CREATE TABLE IF NOT EXISTS settings (
+  `key` VARCHAR(120) PRIMARY KEY,
+  `value` TEXT NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS inventory_audits (
+  id CHAR(36) PRIMARY KEY,
+  created_by CHAR(36) NOT NULL,
+  status VARCHAR(30) NOT NULL,
+  note TEXT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_inventory_audits_created_by FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS inventory_audit_details (
+  id CHAR(36) PRIMARY KEY,
+  audit_id CHAR(36) NOT NULL,
+  material_id CHAR(36) NOT NULL,
+  system_quantity DECIMAL(12, 2) NOT NULL,
+  actual_quantity DECIMAL(12, 2) NOT NULL,
+  variance DECIMAL(12, 2) NOT NULL,
+  note TEXT NULL,
+  CONSTRAINT fk_inventory_audit_details_audit_id FOREIGN KEY (audit_id) REFERENCES inventory_audits(id) ON DELETE CASCADE,
+  CONSTRAINT fk_inventory_audit_details_material_id FOREIGN KEY (material_id) REFERENCES raw_materials(id) ON DELETE RESTRICT
+);
+
+CALL create_index_if_missing('inventory_audits', 'idx_inventory_audits_created_by', 'created_by');
+CALL create_index_if_missing('inventory_audits', 'idx_inventory_audits_status', 'status');
+CALL create_index_if_missing('inventory_audit_details', 'idx_inventory_audit_details_audit_id', 'audit_id');
+CALL create_index_if_missing('inventory_audit_details', 'idx_inventory_audit_details_material_id', 'material_id');
+
 DROP PROCEDURE IF EXISTS create_index_if_missing;
+
+

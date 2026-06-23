@@ -123,7 +123,7 @@ function getActionBadge(actionType: string) {
     case "HUY_CA":
       return <span className="rounded-xl bg-red-50 px-3 py-1.5 text-xs font-black text-red-600 border border-red-150 uppercase">[ HỦY CA ]</span>;
     case "SUA_CAU_HINH":
-      return <span className="rounded-xl bg-red-50 px-3 py-1.5 text-xs font-black text-red-600 border border-red-150 uppercase">[ CẤU HÌNH ]</span>;
+      return <span className="rounded-xl bg-red-50 px-3 py-1.5 text-xs font-black text-red-600 border border-red-150 uppercase">[ CÀI ĐẶT ]</span>;
 
     // Cần lưu ý / Quản lý khách hàng, khuyến mãi (Tím / Vàng)
     case "SUA_NHAN_VIEN":
@@ -227,7 +227,7 @@ export default function AuditLogsPage() {
 
   const handleExportExcel = () => {
     const formattedData = logs.map(log => ({
-      timestamp: new Date(log.timestamp).toLocaleString("vi-VN"),
+      timestamp: new Date(log.timestamp).toLocaleString("vi-VN", { hour12: false }),
       employee: `${log.userName} (${log.role})`,
       action: log.actionType,
       target: log.targetObject || "",
@@ -261,7 +261,7 @@ export default function AuditLogsPage() {
     >
       {/* Title & Export bar */}
       <section className="mb-6 flex flex-col justify-between gap-4 border-b border-slate-100 pb-4 sm:flex-row sm:items-center">
-        <h1 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-black tracking-tight text-[#2a1b14]">
+        <h1 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-black tracking-tight text-[#0b1c30]">
           NHẬT KÝ HOẠT ĐỘNG TẠI QUẦY
         </h1>
         <button
@@ -294,12 +294,12 @@ export default function AuditLogsPage() {
                 setPage(1);
                 void loadLogs(1, actionType, val);
               }}
-              className="h-11.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-600 outline-none focus:border-[#9d4300]"
+              className="h-11.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-600 outline-none focus:border-[#f97316]"
             >
               <option value="">-- Tất cả các ca --</option>
               {shifts.map(shift => (
                 <option key={shift.id} value={shift.id}>
-                  {shift.userName ? `${shift.userName} - ` : ""}Ca {new Date(shift.expectedStartTime).toLocaleDateString('vi-VN')} ({new Date(shift.expectedStartTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })})
+                  {shift.userName ? `${shift.userName} - ` : ""}Ca {new Date(shift.expectedStartTime).toLocaleDateString('vi-VN')} ({new Date(shift.expectedStartTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })})
                 </option>
               ))}
             </select>
@@ -313,7 +313,7 @@ export default function AuditLogsPage() {
                 setPage(1);
                 void loadLogs(1, val, shiftId);
               }}
-              className="h-11.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-600 outline-none focus:border-[#9d4300]"
+              className="h-11.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-600 outline-none focus:border-[#f97316]"
             >
               <option value="">-- Chọn loại hành động --</option>
               <option value="BAN_HANG">BÁN HÀNG (Xanh lá)</option>
@@ -338,7 +338,7 @@ export default function AuditLogsPage() {
               <option value="DANG_NHAP">ĐĂNG NHẬP (Xanh)</option>
               <option value="DANG_XUAT">ĐĂNG XUẤT (Xám)</option>
               <option value="IN_LAI_BILL">IN LẠI BILL (Xám)</option>
-              <option value="SUA_CAU_HINH">SỬA CẤU HÌNH (Đỏ)</option>
+              <option value="SUA_CAU_HINH">SỬA CÀI ĐẶT (Đỏ)</option>
             </select>
           </div>
         </FilterBar>
@@ -355,7 +355,7 @@ export default function AuditLogsPage() {
       {loading ? (
         <div className="flex h-80 items-center justify-center rounded-3xl border border-slate-200 bg-white">
           <div className="flex flex-col items-center gap-2">
-            <Icon name="autorenew" className="animate-spin text-3xl text-[#9d4300]" />
+            <Icon name="autorenew" className="animate-spin text-3xl text-[#f97316]" />
             <p className="text-xs font-bold text-slate-400">Đang truy xuất nhật ký...</p>
           </div>
         </div>
@@ -383,14 +383,15 @@ export default function AuditLogsPage() {
                           year: "numeric",
                           hour: "2-digit",
                           minute: "2-digit",
-                          second: "2-digit"
+                          second: "2-digit",
+                          hour12: false
                         })}
                       </td>
-                      <td className="px-6 py-4 text-[#2a1b14]">
+                      <td className="px-6 py-4 text-[#0b1c30]">
                         {log.userName} <span className="font-semibold text-slate-400">({translateRole(log.role)})</span>
                       </td>
                       <td className="px-6 py-4">{getActionBadge(log.actionType)}</td>
-                      <td className="px-6 py-4 text-[#9d4300] font-extrabold">{log.targetObject}</td>
+                      <td className="px-6 py-4 text-[#f97316] font-extrabold">{log.targetObject}</td>
                       <td className="px-6 py-4 text-slate-500 font-medium whitespace-pre-line leading-relaxed max-w-md">
                         <div>{log.description}</div>
                         {renderValueChanges(log.oldValues, log.newValues)}

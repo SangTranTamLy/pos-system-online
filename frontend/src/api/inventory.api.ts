@@ -199,6 +199,15 @@ export async function createGoodsReceipt(payload: {
   return handleResponse<GoodsReceipt>(response);
 }
 
+export async function payGoodsReceiptDebt(id: string, amount: number) {
+  const response = await fetch(`${API_BASE_URL}/inventory/receipts/${id}/pay`, {
+    method: "PUT",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ amount }),
+  });
+  return handleResponse<{ success: boolean; message?: string }>(response);
+}
+
 export async function adjustStock(payload: {
   productId: string;
   newQuantity: number;
@@ -239,3 +248,84 @@ export async function deleteMaterial(id: string) {
   });
   return handleResponse<Material>(response);
 }
+
+export type InventoryAuditDetail = {
+  id: string;
+  auditId: string;
+  materialId: string;
+  materialName?: string;
+  sku?: string;
+  category?: string;
+  unit?: string;
+  systemQuantity: number;
+  actualQuantity: number;
+  variance: number;
+  note: string | null;
+};
+
+export type InventoryAudit = {
+  id: string;
+  createdBy: string;
+  createdByName?: string | null;
+  status: "draft" | "completed";
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+  details?: InventoryAuditDetail[];
+};
+
+export type CreateInventoryAuditPayload = {
+  status: "draft" | "completed";
+  note?: string | null;
+  items: Array<{
+    materialId: string;
+    systemQuantity: number;
+    actualQuantity: number;
+    note?: string | null;
+  }>;
+};
+
+export type UpdateInventoryAuditPayload = CreateInventoryAuditPayload;
+
+export async function fetchInventoryAudits() {
+  const response = await fetch(`${API_BASE_URL}/inventory/audits`, {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+  return handleResponse<InventoryAudit[]>(response);
+}
+
+export async function fetchInventoryAuditById(id: string) {
+  const response = await fetch(`${API_BASE_URL}/inventory/audits/${id}`, {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+  return handleResponse<InventoryAudit>(response);
+}
+
+export async function createInventoryAudit(payload: CreateInventoryAuditPayload) {
+  const response = await fetch(`${API_BASE_URL}/inventory/audits`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<InventoryAudit>(response);
+}
+
+export async function updateInventoryAudit(id: string, payload: UpdateInventoryAuditPayload) {
+  const response = await fetch(`${API_BASE_URL}/inventory/audits/${id}`, {
+    method: "PUT",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<InventoryAudit>(response);
+}
+
+export async function deleteInventoryAudit(id: string) {
+  const response = await fetch(`${API_BASE_URL}/inventory/audits/${id}`, {
+    method: "DELETE",
+    headers: getAuthHeaders(),
+  });
+  return handleResponse<{ success: boolean; message?: string }>(response);
+}
+

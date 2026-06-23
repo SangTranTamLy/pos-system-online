@@ -166,7 +166,7 @@ export default function EmployeePage() {
           <h1 className="text-xl font-bold text-gray-800 hidden sm:block">Danh sách nhân viên</h1>
           <button
             onClick={() => handleOpenModal()}
-            className="bg-[#9d4300] hover:bg-orange-600 text-white px-4 py-2 rounded-lg shadow transition-colors text-sm font-semibold ml-auto"
+            className="bg-[#f97316] hover:bg-orange-600 text-white px-4 py-2 rounded-lg shadow transition-colors text-sm font-semibold ml-auto"
           >
             + Thêm nhân viên
           </button>
@@ -191,7 +191,7 @@ export default function EmployeePage() {
                 <tbody className="divide-y divide-slate-200">
                   {users.map((user) => (
                     <tr key={user.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="p-4 font-bold text-[#2a1b14]">{user.fullName}</td>
+                      <td className="p-4 font-bold text-[#0b1c30]">{user.fullName}</td>
                       <td className="px-6 py-4">
                         {user.email ? (
                           <span className="text-slate-600">{user.email}</span>
@@ -218,7 +218,7 @@ export default function EmployeePage() {
                         </div>
                       </td>
                       <td className="p-4 text-center">
-                        <span className="bg-orange-50 text-[#9d4300] text-[11px] px-2.5 py-0.5 rounded-full font-bold">
+                        <span className="bg-orange-50 text-[#f97316] text-[11px] px-2.5 py-0.5 rounded-full font-bold">
                           {translateRole(user.roleName)}
                         </span>
                       </td>
@@ -266,9 +266,9 @@ export default function EmployeePage() {
         )}
 
         {isModalOpen && (
-          <div className="fixed inset-0 bg-[#2a1b14]/45 flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-[#0b1c30]/45 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-              <h2 className="text-xl font-bold mb-4 text-[#2a1b14]">
+              <h2 className="text-xl font-bold mb-4 text-[#0b1c30]">
                 {editingUser ? "Cập nhật nhân viên" : "Thêm nhân viên mới"}
               </h2>
               {(() => {
@@ -285,7 +285,7 @@ export default function EmployeePage() {
                         required
                         value={formData.fullName}
                         onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                        className="w-full border border-slate-300 rounded-lg p-2 focus:outline-none focus:border-[#9d4300] focus:ring-1 focus:ring-[#9d4300]"
+                        className="w-full border border-slate-300 rounded-lg p-2 focus:outline-none focus:border-[#f97316] focus:ring-1 focus:ring-[#f97316]"
                         placeholder="Nhập họ tên"
                         autoComplete="off"
                         data-lpignore="true"
@@ -298,7 +298,7 @@ export default function EmployeePage() {
                         required
                         value={formData.roleId}
                         onChange={(e) => setFormData({ ...formData, roleId: e.target.value })}
-                        className="w-full border border-slate-300 rounded-lg p-2 focus:outline-none focus:border-[#9d4300] focus:ring-1 focus:ring-[#9d4300] bg-white"
+                        className="w-full border border-slate-300 rounded-lg p-2 focus:outline-none focus:border-[#f97316] focus:ring-1 focus:ring-[#f97316] bg-white"
                       >
                         <option value="" disabled>Chọn vai trò</option>
                         {roles.map((role) => (
@@ -318,7 +318,7 @@ export default function EmployeePage() {
                             required
                             value={formData.email}
                             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                            className="w-full border border-slate-300 rounded-lg p-2 focus:outline-none focus:border-[#9d4300] focus:ring-1 focus:ring-[#9d4300]"
+                            className="w-full border border-slate-300 rounded-lg p-2 focus:outline-none focus:border-[#f97316] focus:ring-1 focus:ring-[#f97316]"
                             placeholder="Nhập email"
                             autoComplete="new-password"
                             data-lpignore="true"
@@ -334,7 +334,7 @@ export default function EmployeePage() {
                               required={!editingUser}
                               value={formData.password}
                               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                              className="w-full border border-slate-300 rounded-lg py-2 pl-2 pr-10 focus:outline-none focus:border-[#9d4300] focus:ring-1 focus:ring-[#9d4300]"
+                              className="w-full border border-slate-300 rounded-lg py-2 pl-2 pr-10 focus:outline-none focus:border-[#f97316] focus:ring-1 focus:ring-[#f97316]"
                               placeholder="Nhập mật khẩu"
                               autoComplete="new-password"
                               data-lpignore="true"
@@ -367,7 +367,7 @@ export default function EmployeePage() {
                               setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '').slice(0, 10) });
                               if (formErrors.phone) setFormErrors({ ...formErrors, phone: "" });
                             }}
-                            className={`w-full border ${formErrors.phone ? 'border-red-500' : 'border-slate-300'} rounded-lg p-2 focus:outline-none focus:border-[#9d4300] focus:ring-1 focus:ring-[#9d4300]`}
+                            className={`w-full border ${formErrors.phone ? 'border-red-500' : 'border-slate-300'} rounded-lg p-2 focus:outline-none focus:border-[#f97316] focus:ring-1 focus:ring-[#f97316]`}
                             placeholder="Nhập số điện thoại (10 chữ số)"
                             autoComplete="off"
                             data-lpignore="true"
@@ -390,7 +390,7 @@ export default function EmployeePage() {
                                 setFormData({ ...formData, pinCode: e.target.value.replace(/\D/g, '').slice(0, 6) });
                                 if (formErrors.pinCode) setFormErrors({ ...formErrors, pinCode: "" });
                               }}
-                              className={`w-full border ${formErrors.pinCode ? 'border-red-500' : 'border-slate-300'} rounded-lg py-2 pl-2 pr-10 focus:outline-none focus:border-[#9d4300] focus:ring-1 focus:ring-[#9d4300]`}
+                              className={`w-full border ${formErrors.pinCode ? 'border-red-500' : 'border-slate-300'} rounded-lg py-2 pl-2 pr-10 focus:outline-none focus:border-[#f97316] focus:ring-1 focus:ring-[#f97316]`}
                               placeholder="Nhập 6 chữ số PIN"
                               autoComplete="new-password"
                               data-lpignore="true"
@@ -422,7 +422,7 @@ export default function EmployeePage() {
                       </button>
                       <button
                         type="submit"
-                        className="px-4 py-2 bg-[#9d4300] text-white rounded-lg hover:bg-orange-600 font-semibold shadow-sm"
+                        className="px-4 py-2 bg-[#f97316] text-white rounded-lg hover:bg-orange-600 font-semibold shadow-sm"
                       >
                         {editingUser ? "Cập nhật" : "Lưu"}
                       </button>

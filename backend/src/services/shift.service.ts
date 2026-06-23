@@ -23,7 +23,7 @@ export const registerShift = async (
 
   const isOverlap = await shiftRepo.checkOverlappingShifts(userId, start, end);
   if (isOverlap) {
-    throw new ApiError(409, "Thời gian đăng ký bị trùng lặp với ca làm việc khác");
+    throw new ApiError(409, "Thời gian ca làm bị trùng lặp với ca làm việc khác");
   }
 
   const id = uuidv4();

@@ -38,7 +38,7 @@ export default function ProductCard({ product, onAdd }: ProductCardProps) {
             ].join(" ")}
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center rounded-xl bg-orange-50 text-[#9d4300]">
+          <div className="flex h-full w-full items-center justify-center rounded-xl bg-orange-50 text-[#f97316]">
             <Icon name="restaurant" className="text-5xl" />
           </div>
         )}
@@ -47,7 +47,7 @@ export default function ProductCard({ product, onAdd }: ProductCardProps) {
       <div className="flex flex-1 flex-col px-4 pb-4 pt-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="line-clamp-2 text-[15px] font-extrabold leading-snug text-[#2a1b14]">
+            <h3 className="line-clamp-2 text-[15px] font-extrabold leading-snug text-[#0b1c30]">
               {product.name}
             </h3>
             <p className="mt-1 text-xs font-semibold text-slate-400">
@@ -60,7 +60,7 @@ export default function ProductCard({ product, onAdd }: ProductCardProps) {
               "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-extrabold",
               isUnavailable
                 ? "bg-slate-100 text-slate-500"
-                : "bg-orange-50 text-[#9d4300]",
+                : "bg-orange-50 text-[#f97316]",
             ].join(" ")}
           >
             {isUnavailable
@@ -72,7 +72,7 @@ export default function ProductCard({ product, onAdd }: ProductCardProps) {
         </div>
 
         <div className="mt-auto flex items-end justify-between gap-3 pt-5">
-          <p className="text-xl font-extrabold text-[#9d4300]">
+          <p className="text-xl font-extrabold text-[#f97316]">
             {formatCurrency(product.salePrice)}
           </p>
 
@@ -86,7 +86,7 @@ export default function ProductCard({ product, onAdd }: ProductCardProps) {
               "flex h-10 w-10 items-center justify-center rounded-xl text-xl font-bold shadow-sm",
               isUnavailable
                 ? "cursor-not-allowed bg-slate-100 text-slate-400"
-                : "cursor-pointer bg-orange-50 text-[#9d4300]",
+                : "cursor-pointer bg-orange-50 text-[#f97316]",
             ].join(" ")}
             aria-label={`Thêm ${product.name} vào giỏ`}
           >

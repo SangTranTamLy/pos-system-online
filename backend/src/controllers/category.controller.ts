@@ -17,7 +17,7 @@ export async function getCategoriesController(_req: Request, res: Response) {
 
   res.json({
     success: true,
-    message: "Lấy danh mục thành công",
+    message: "Đã tải danh sách danh mục.",
     data: categories,
   });
 }
@@ -28,7 +28,7 @@ export async function createCategoryController(req: Request, res: Response) {
 
   res.status(201).json({
     success: true,
-    message: "Tạo danh mục thành công",
+    message: "Đã tạo danh mục.",
     data: category,
   });
 }
@@ -39,7 +39,7 @@ export async function uploadCategoryImageController(req: Request, res: Response)
 
   res.status(201).json({
     success: true,
-    message: "Cập nhật ảnh danh mục thành công",
+    message: "Đã tải ảnh danh mục.",
     data: image,
   });
 }
@@ -50,7 +50,7 @@ export async function updateCategoryController(req: Request, res: Response) {
 
   res.json({
     success: true,
-    message: "Cập nhật danh mục thành công",
+    message: "Đã cập nhật danh mục.",
     data: category,
   });
 }
@@ -68,7 +68,7 @@ export async function updateCategoryStatusController(
 
   res.json({
     success: true,
-    message: "Cập nhật trạng thái danh mục thành công",
+    message: "Đã cập nhật trạng thái danh mục.",
     data: category,
   });
 }
@@ -79,7 +79,7 @@ export async function deleteCategoryController(req: Request, res: Response) {
 
   res.json({
     success: true,
-    message: "Xóa danh mục thành công",
+    message: "Đã xóa danh mục.",
     data: category,
   });
 }

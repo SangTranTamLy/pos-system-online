@@ -10,6 +10,7 @@ import {
   getRevenueByPeriod,
   getCustomerRetention
 } from "../repositories/report.repository";
+import { getTopProducts } from "../repositories/dashboard.repository";
 import type { ComparisonPoint } from "../types/report.types";
 
 export async function getEmployeeRevenueService(
@@ -32,7 +33,15 @@ export async function getEmployeeRevenueService(
 export async function getFinancialReportService(startDate?: string, endDate?: string) {
   const summary = await getFinancialSummary(startDate, endDate);
   const trend = await getFinancialTrend(startDate, endDate);
-  return { summary, trend };
+  const topProductsRaw = await getTopProducts(startDate, endDate);
+  
+  const topProducts = topProductsRaw.map((item) => ({
+    name: String(item.name),
+    soldQuantity: Number(item.soldQuantity ?? 0),
+    revenue: Number(item.revenue ?? 0),
+  }));
+
+  return { summary, trend, topProducts };
 }
 
 // 2. Service báo cáo tồn kho & giá trị kho

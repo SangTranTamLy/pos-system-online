@@ -1,85 +1,108 @@
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || "http://localhost:5000/api";
+const API_BASE_URL =
+  (import.meta.env.VITE_API_BASE_URL as string) || "http://localhost:5000/api";
 
 export type DashboardRevenuePeriod = "month" | "year";
 
 export type DashboardSummary = {
-    stats: {
-        todayRevenue: number;
-        todayOrders: number;
-        activeCategories: number;
-        totalMaterials: number;
-        totalCustomers: number;
-        activeProducts: number;
-        totalStockValue: number;
-    };
-    revenueTrend: Array<{
-        sort: number;
-        label: string;
-        revenue: number;
-    }>;
-    topProducts: Array<{
-        name: string;
-        imageUrl?: string;
-        soldQuantity: number;
-        revenue: number;
-    }>;
-    recentOrders: Array<{
-        id: string;
-        customerName: string;
-        finalAmount: number;
-        status: string;
-        createdAt: string;
-    }>;
-    materials: Array<{
-        name: string;
-        sku: string;
-        category: string;
-        importPrice: number;
-    }>;
-    paymentMethods: Array<{
-        method: string;
-        revenue: number;
-        percentage: number;
-        ordersCount: number;
-    }>;
-    currentShift: {
-        id: string;
-        userName: string;
-        expectedStartTime: string;
-        expectedEndTime: string;
-    } | null;
+  stats: {
+    todayRevenue: number;
+    todayOrders: number;
+    activeCategories: number;
+    totalMaterials: number;
+    totalCustomers: number;
+    activeProducts: number;
+    totalStockValue: number;
+  };
+  revenueTrend: Array<{
+    sort: number;
+    label: string;
+    revenue: number;
+  }>;
+  topProducts: Array<{
+    name: string;
+    imageUrl?: string;
+    soldQuantity: number;
+    revenue: number;
+  }>;
+  recentOrders: Array<{
+    id: string;
+    customerName: string;
+    finalAmount: number;
+    status: string;
+    createdAt: string;
+  }>;
+  materials: Array<{
+    name: string;
+    sku: string;
+    category: string;
+    importPrice: number;
+  }>;
+  lowStockItems: Array<{
+    id: string;
+    name: string;
+    sku: string;
+    type: "product" | "material";
+    stockQuantity: number;
+    threshold: number;
+    unit: string | null;
+  }>;
+  categorySales: Array<{
+    name: string;
+    quantity: number;
+    revenue: number;
+  }>;
+  paymentMethods: Array<{
+    method: string;
+    revenue: number;
+    percentage: number;
+    ordersCount: number;
+  }>;
+  currentShift: {
+    id: string;
+    userName: string;
+    expectedStartTime: string;
+    expectedEndTime: string;
+  } | null;
 };
 
 type ApiResponse<T> = {
-    success: boolean;
-    message: string;
-    data: T;
+  success: boolean;
+  message: string;
+  data: T;
 };
 
 function getAuthHeaders() {
-    const token = localStorage.getItem("auth_token");
+  const token = localStorage.getItem("auth_token");
 
-    return {
-        "Content-Type": "application/json",
-        Authorization: token ? `Bearer ${token}` : "",
-    };
+  return {
+    "Content-Type": "application/json",
+    Authorization: token ? `Bearer ${token}` : "",
+  };
 }
 
-export async function getDashboardSummary(period: DashboardRevenuePeriod = "month", startDate?: string, endDate?: string) {
-    const params = new URLSearchParams({ period });
-    if (startDate) params.append("startDate", startDate);
-    if (endDate) params.append("endDate", endDate);
-    const response = await fetch(`${API_BASE_URL}/dashboard/summary?${params.toString()}`, {
-        method: "GET",
-        headers: getAuthHeaders(),
-        cache: "no-store",
-    });
+export async function getDashboardSummary(
+  period: DashboardRevenuePeriod = "month",
+  startDate?: string,
+  endDate?: string
+) {
+  const params = new URLSearchParams({ period });
+  if (startDate) params.append("startDate", startDate);
+  if (endDate) params.append("endDate", endDate);
 
-    const data = await response.json();
-
-    if (!response.ok) {
-        throw new Error(data.message || "Không tải được dữ liệu dashboard");
+  const response = await fetch(
+    `${API_BASE_URL}/dashboard/summary?${params.toString()}`,
+    {
+      method: "GET",
+      headers: getAuthHeaders(),
+      cache: "no-store",
     }
+  );
 
-    return data as ApiResponse<DashboardSummary>;
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || "Không tải được dữ liệu dashboard");
+  }
+
+  return data as ApiResponse<DashboardSummary>;
 }

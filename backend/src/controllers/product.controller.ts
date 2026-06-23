@@ -5,8 +5,8 @@ import {
   getProductDetailService,
   getProductsService,
   uploadProductImageService,
-  updateProductStatusService,
   updateProductService,
+  updateProductStatusService,
 } from "../services/product.service";
 
 function getParamId(id: string | string[]) {
@@ -18,7 +18,7 @@ export async function getProductsController(_req: Request, res: Response) {
 
   return res.json({
     success: true,
-    message: "Lấy danh sách sản phẩm thành công",
+    message: "Đã tải danh sách sản phẩm.",
     data: products,
   });
 }
@@ -28,7 +28,7 @@ export async function getProductDetailController(req: Request, res: Response) {
 
   return res.json({
     success: true,
-    message: "Lấy chi tiết sản phẩm thành công",
+    message: "Đã tải chi tiết sản phẩm.",
     data: product,
   });
 }
@@ -39,7 +39,7 @@ export async function uploadProductImageController(req: Request, res: Response) 
 
   return res.status(201).json({
     success: true,
-    message: "Tải ảnh sản phẩm thành công",
+    message: "Đã tải ảnh sản phẩm.",
     data: image,
   });
 }
@@ -50,7 +50,7 @@ export async function createProductController(req: Request, res: Response) {
 
   return res.status(201).json({
     success: true,
-    message: "Tạo sản phẩm thành công",
+    message: "Đã tạo sản phẩm.",
     data: product,
   });
 }
@@ -61,7 +61,7 @@ export async function updateProductController(req: Request, res: Response) {
 
   return res.json({
     success: true,
-    message: "Cập nhật sản phẩm thành công",
+    message: "Đã cập nhật sản phẩm.",
     data: product,
   });
 }
@@ -76,7 +76,7 @@ export async function updateProductStatusController(req: Request, res: Response)
 
   return res.json({
     success: true,
-    message: "Cập nhật trạng thái sản phẩm thành công",
+    message: "Đã cập nhật trạng thái sản phẩm.",
     data: product,
   });
 }
@@ -87,7 +87,7 @@ export async function deleteProductController(req: Request, res: Response) {
 
   return res.json({
     success: true,
-    message: "Xóa sản phẩm thành công",
+    message: "Đã xóa sản phẩm.",
     data: product,
   });
 }

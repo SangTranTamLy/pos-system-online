@@ -1,4 +1,5 @@
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || "http://localhost:5000/api";
+const API_BASE_URL =
+  (import.meta.env.VITE_API_BASE_URL as string) || "http://localhost:5000/api";
 
 export type ProductStatus = "active" | "paused" | "out_of_stock";
 
@@ -50,12 +51,8 @@ type ApiResponse<T> = {
   data: T;
 };
 
-function getAuthToken() {
-  return localStorage.getItem("auth_token");
-}
-
 function getAuthHeaders() {
-  const token = getAuthToken();
+  const token = localStorage.getItem("auth_token");
 
   return {
     "Content-Type": "application/json",

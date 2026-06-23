@@ -6,13 +6,21 @@ export interface EmployeeRevenueReport {
   total_revenue: number;
 }
 
-// Báo cáo Tài chính
 export interface FinancialReportData {
   totalRevenue: number;
   totalCOGS: number;
   grossProfit: number;
   grossProfitMargin: number;
+  totalOrders: number;
+  averageOrderValue: number;
 }
+
+export interface TopProductReportData {
+  name: string;
+  soldQuantity: number;
+  revenue: number;
+}
+
 
 export interface FinancialTrendPoint {
   label: string; // e.g., "20/06" hoặc "Tháng 06"

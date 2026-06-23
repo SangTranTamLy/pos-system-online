@@ -10,85 +10,107 @@ import {
 } from "../../api/category.api";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 
-type CategoryStatCard = {
-  label: string;
-  value: string;
-  icon: string;
-  iconBg: string;
-  iconText: string;
+type CategoryLogicType = "prepared" | "stock_returnable";
+type LogicFilter = "all" | CategoryLogicType;
+type ProductFilter = "all" | "has_products" | "empty";
+type NoticeState = {
+  type: "success" | "error";
+  message: string;
 };
 
-const baseStatCards: CategoryStatCard[] = [
-  {
-    label: "Tổng danh mục",
-    value: "0",
-    icon: "folder_zip",
-    iconBg: "bg-orange-50",
-    iconText: "text-[#9d4300]",
-  },
-  {
-    label: "Đang hoạt động",
-    value: "0",
-    icon: "check_circle",
-    iconBg: "bg-green-50",
-    iconText: "text-green-600",
-  },
-];
+type CategoryFormState = {
+  name: string;
+  description: string;
+  imageUrl: string;
+  logicType: CategoryLogicType;
+};
 
-const defaultFormState = {
+const defaultFormState: CategoryFormState = {
   name: "",
   description: "",
   imageUrl: "",
-  displayOrder: "1",
-  logicType: "prepared" as CategoryLogicType,
+  logicType: "prepared",
 };
-type CategoryLogicType = "prepared" | "stock_returnable";
 
 function getCategoryLogicType(category: ApiCategory): CategoryLogicType {
-  if (category.isTrackedStock) {
-    return "stock_returnable";
+  return category.isTrackedStock ? "stock_returnable" : "prepared";
+}
+
+function getLogicMeta(logicType: CategoryLogicType) {
+  if (logicType === "stock_returnable") {
+    return {
+      label: "Hàng bán có số lượng",
+      description: "Dùng cho sản phẩm có sẵn như nước lon, nước chai hoặc hàng đóng gói.",
+      className: "bg-emerald-50 text-emerald-700 ring-emerald-100",
+      icon: "inventory_2",
+    };
   }
 
-  return "prepared";
+  return {
+    label: "Món pha chế / chế biến",
+    description: "Dùng cho món được pha chế hoặc chế biến sau khi khách đặt.",
+    className: "bg-orange-50 text-[#f97316] ring-orange-100",
+    icon: "local_cafe",
+  };
 }
-function CategoryStatCard({ card }: { card: CategoryStatCard }) {
+
+function StatCard({
+  label,
+  value,
+  icon,
+  tone,
+}: {
+  label: string;
+  value: string;
+  icon: string;
+  tone: string;
+}) {
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
-      <div className="mb-3 flex items-center justify-between">
-        <div className={`rounded-lg p-2 ${card.iconBg} ${card.iconText}`}>
-          <Icon name={card.icon} className="scale-90" />
+    <article className="border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+            {label}
+          </p>
+          <p className="mt-2 text-2xl font-extrabold text-[#0b1c30]">{value}</p>
         </div>
+        <span className={`flex h-11 w-11 items-center justify-center ${tone}`}>
+          <Icon name={icon} />
+        </span>
       </div>
-      <p className="text-xs font-semibold uppercase tracking-tight text-slate-500">
-        {card.label}
-      </p>
-      <h3 className="mt-1 text-xl font-bold text-[#2a1b14]">{card.value}</h3>
     </article>
   );
 }
 
 function CategoryPage() {
   const navigate = useNavigate();
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [showToast, setShowToast] = useState(false);
   const [categories, setCategories] = useState<ApiCategory[]>([]);
-  const [editingCategory, setEditingCategory] = useState<ApiCategory | null>(null);
+  const [search, setSearch] = useState("");
+  const [logicFilter, setLogicFilter] = useState<LogicFilter>("all");
+  const [productFilter, setProductFilter] = useState<ProductFilter>("all");
+  const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [formState, setFormState] = useState(defaultFormState);
+  const [editingCategory, setEditingCategory] = useState<ApiCategory | null>(null);
+  const [formState, setFormState] = useState<CategoryFormState>(defaultFormState);
+  const [notice, setNotice] = useState<NoticeState | null>(null);
+
+  const pageSize = 8;
 
   const loadCategories = useCallback(async () => {
     try {
-      setErrorMessage("");
+      setNotice(null);
       const response = await getCategories();
       setCategories(response.data);
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "Không tải được danh mục"
-      );
+      setNotice({
+        type: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Không tải được danh sách danh mục.",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -110,59 +132,80 @@ function CategoryPage() {
     };
 
     window.addEventListener("keydown", handleEscape);
-    return () => {
-      window.removeEventListener("keydown", handleEscape);
-    };
+    return () => window.removeEventListener("keydown", handleEscape);
   }, [isModalOpen]);
 
   useEffect(() => {
-    if (!showToast) {
+    if (!notice) {
       return undefined;
     }
 
-    const timer = window.setTimeout(() => {
-      setShowToast(false);
-    }, 3500);
+    const timer = window.setTimeout(() => setNotice(null), 3500);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
 
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [showToast]);
-
-  const pageSize = 5;
-
-  const categoryStats = useMemo(() => {
-    return [
-      { ...baseStatCards[0], value: String(categories.length) },
+  const stats = useMemo(
+    () => [
       {
-        ...baseStatCards[1],
+        label: "Tổng danh mục",
+        value: String(categories.length),
+        icon: "category",
+        tone: "bg-orange-50 text-[#f97316]",
+      },
+      {
         label: "Có sản phẩm",
         value: String(categories.filter((category) => category.productCount > 0).length),
         icon: "package_2",
-        iconBg: "bg-blue-50",
-        iconText: "text-blue-600",
+        tone: "bg-sky-50 text-sky-700",
       },
-    ];
-  }, [categories]);
+      {
+        label: "Có theo dõi số lượng",
+        value: String(categories.filter((category) => category.isTrackedStock).length),
+        icon: "inventory_2",
+        tone: "bg-emerald-50 text-emerald-700",
+      },
+      {
+        label: "Chưa có sản phẩm",
+        value: String(categories.filter((category) => category.productCount === 0).length),
+        icon: "remove_shopping_cart",
+        tone: "bg-slate-100 text-slate-600",
+      },
+    ],
+    [categories]
+  );
 
   const filteredCategories = useMemo(() => {
     const query = search.trim().toLowerCase();
 
     return categories.filter((category) => {
+      const logicType = getCategoryLogicType(category);
       const description = category.description ?? "";
       const matchesSearch =
         query.length === 0 ||
         category.name.toLowerCase().includes(query) ||
         description.toLowerCase().includes(query);
-      return matchesSearch;
+      const matchesLogic = logicFilter === "all" || logicFilter === logicType;
+      const matchesProduct =
+        productFilter === "all" ||
+        (productFilter === "has_products" && category.productCount > 0) ||
+        (productFilter === "empty" && category.productCount === 0);
+
+      return matchesSearch && matchesLogic && matchesProduct;
     });
-  }, [categories, search]);
+  }, [categories, logicFilter, productFilter, search]);
 
   const totalPages = Math.max(1, Math.ceil(filteredCategories.length / pageSize));
   const paginatedCategories = filteredCategories.slice(
     (page - 1) * pageSize,
     page * pageSize
   );
+
+  const resetFilters = () => {
+    setSearch("");
+    setLogicFilter("all");
+    setProductFilter("all");
+    setPage(1);
+  };
 
   const openCreateModal = () => {
     setEditingCategory(null);
@@ -171,20 +214,17 @@ function CategoryPage() {
   };
 
   const openEditModal = (category: ApiCategory) => {
-    const logicType = getCategoryLogicType(category);
-
     setEditingCategory(category);
     setFormState({
       name: category.name,
       description: category.description ?? "",
       imageUrl: category.imageUrl ?? "",
-      displayOrder: "1",
-      logicType,
+      logicType: getCategoryLogicType(category),
     });
     setIsModalOpen(true);
   };
 
-  const handleModalClose = () => {
+  const closeModal = () => {
     setIsModalOpen(false);
     setEditingCategory(null);
     setFormState(defaultFormState);
@@ -193,18 +233,14 @@ function CategoryPage() {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
+    const payload = {
+      name: formState.name.trim(),
+      description: formState.description.trim() || null,
+      imageUrl: formState.imageUrl.trim() || null,
+      isTrackedStock: formState.logicType === "stock_returnable",
+    };
+
     try {
-      setErrorMessage("");
-
-      const isTracked = formState.logicType === "stock_returnable";
-
-      const payload = {
-        name: formState.name.trim(),
-        description: formState.description.trim() || null,
-        imageUrl: formState.imageUrl.trim() || null,
-        isTrackedStock: isTracked,
-      };
-
       if (editingCategory) {
         await updateCategory(editingCategory.id, payload);
       } else {
@@ -212,18 +248,25 @@ function CategoryPage() {
       }
 
       await loadCategories();
-      setIsModalOpen(false);
-      setEditingCategory(null);
-      setShowToast(true);
-      setFormState(defaultFormState);
+      closeModal();
+      setNotice({
+        type: "success",
+        message: editingCategory
+          ? "Đã cập nhật danh mục."
+          : "Đã thêm danh mục mới.",
+      });
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Lưu danh mục thất bại");
+      setNotice({
+        type: "error",
+        message:
+          error instanceof Error ? error.message : "Không lưu được danh mục.",
+      });
     }
   };
 
-  const handleDeleteCategory = async (categoryId: string) => {
+  const handleDeleteCategory = async (category: ApiCategory) => {
     const confirmDelete = window.confirm(
-      "Bạn có chắc muốn xóa danh mục này không?"
+      `Xóa danh mục "${category.name}"? Chỉ xóa được khi danh mục chưa có sản phẩm.`
     );
 
     if (!confirmDelete) {
@@ -231,17 +274,16 @@ function CategoryPage() {
     }
 
     try {
-      setErrorMessage("");
-      await deleteCategory(categoryId);
+      await deleteCategory(category.id);
       await loadCategories();
-      setShowToast(true);
+      setNotice({ type: "success", message: "Đã xóa danh mục." });
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Xóa danh mục thất bại");
+      setNotice({
+        type: "error",
+        message:
+          error instanceof Error ? error.message : "Không xóa được danh mục.",
+      });
     }
-  };
-
-  const handleViewCategoryProducts = (category: ApiCategory) => {
-    navigate(`/products?category=${encodeURIComponent(category.name)}`);
   };
 
   const handleImageFileChange = async (
@@ -255,246 +297,334 @@ function CategoryPage() {
 
     try {
       setIsUploadingImage(true);
-      setErrorMessage("");
       const response = await uploadCategoryImage(file);
-
       setFormState((current) => ({
         ...current,
         imageUrl: response.data.imageUrl,
       }));
+      setNotice({ type: "success", message: "Đã tải ảnh danh mục." });
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Tải ảnh thất bại");
+      setNotice({
+        type: "error",
+        message:
+          error instanceof Error ? error.message : "Không tải được ảnh danh mục.",
+      });
     } finally {
       setIsUploadingImage(false);
     }
   };
 
   return (
-      <AdminLayout
-        title="Quản lý danh mục"
-        subtitle="Tạo và quản lý nhóm sản phẩm trong hệ thống POS."
-      >
-      <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {categoryStats.map((card) => (
-          <CategoryStatCard key={card.label} card={card} />
-        ))}
-      </section>
+    <AdminLayout>
+      <div className="space-y-6">
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {stats.map((card) => (
+            <StatCard key={card.label} {...card} />
+          ))}
+        </section>
 
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col items-stretch justify-between gap-4 border-b border-slate-200 bg-white p-4 md:flex-row md:items-center">
-          <div className="flex w-full flex-1 flex-col gap-4 md:flex-row md:items-center">
-            <div className="relative w-full max-w-md">
-              <Icon
-                name="search"
-                className="absolute top-1/2 left-3 -translate-y-1/2 text-slate-500"
-              />
-              <input
-                type="text"
-                value={search}
-                onChange={(event) => {
-                  setSearch(event.target.value);
-                  setPage(1);
-                }}
-                placeholder="Tìm kiếm danh mục..."
-                className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pr-4 pl-10 text-sm outline-none transition-all focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
-              />
-            </div>
-
-          </div>
-
-          <button
-            type="button"
-            onClick={openCreateModal}
-            className="inline-flex h-10 items-center justify-center gap-2 bg-[#9d4300] px-4 text-sm font-bold text-white transition-colors hover:bg-[#803600]"
+        {notice ? (
+          <div
+            className={[
+              "flex items-start gap-3 border px-4 py-3 text-sm font-semibold",
+              notice.type === "success"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border-rose-200 bg-rose-50 text-rose-700",
+            ].join(" ")}
           >
-            <Icon name="add" />
-            Thêm danh mục
-          </button>
-        </div>
-
-        {isLoading ? (
-          <div className="p-6 text-sm font-medium text-slate-500">
-            Đang tải danh mục...
+            <Icon name={notice.type === "success" ? "check_circle" : "error"} />
+            <span>{notice.message}</span>
           </div>
         ) : null}
-        {errorMessage ? (
-          <div className="p-6 text-sm font-semibold text-red-600">{errorMessage}</div>
-        ) : null}
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-230 text-left text-sm">
-            <thead className="bg-slate-50 font-semibold text-slate-500">
-              <tr>
-                <th className="px-6 py-3">Tên danh mục</th>
-                <th className="px-6 py-3">Mô tả</th>
-                <th className="px-6 py-3 text-center">Số SP</th>
-                <th className="px-6 py-3">Ngày tạo</th>
-                <th className="px-6 py-3 text-right">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
-              {paginatedCategories.map((category) => (
-                  <tr key={category.id} className="transition-colors hover:bg-slate-50">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        {category.imageUrl ? (
-                          <img
-                            src={category.imageUrl}
-                            alt={category.name}
-                            className="h-12 w-12 rounded-lg object-cover ring-1 ring-slate-200"
-                          />
-                        ) : (
-                          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-orange-50 text-[#9d4300]">
-                            <Icon name="restaurant" />
-                          </div>
-                        )}
-                        <div className="flex flex-col">
-                          <span className="font-bold text-[#2a1b14]">
-                            {category.name}
-                          </span>
-                          <span className="text-[11px] font-semibold text-slate-400">
-                            {category.isTrackedStock ? "Có quản lý số lượng" : "Không quản lý số lượng"}
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="max-w-60 truncate px-6 py-4 text-slate-600">
-                      {category.description || "Chưa có mô tả"}
-                    </td>
-                    <td className="px-6 py-4 text-center font-medium text-[#2a1b14]">
-                      {category.productCount}
-                    </td>
-                    <td className="px-6 py-4 text-slate-500">
-                      {new Date(category.createdAt).toLocaleDateString("vi-VN")}
-                    </td>
-                    <td className="space-x-2 px-6 py-4 text-right">
-                    <button
-                      type="button"
-                      onClick={() => handleViewCategoryProducts(category)}
-                      className="rounded-lg p-2 text-blue-600 transition-colors hover:bg-blue-50"
-                      aria-label="Xem sản phẩm trong danh mục"
-                      title="Xem sản phẩm trong danh mục"
-                    >
-                      <Icon name="package_2" className="text-xl" />
-                    </button>
-                      <button
-                        type="button"
-                        onClick={() => openEditModal(category)}
-                        className="rounded-lg p-2 text-[#9d4300] transition-colors hover:bg-orange-50"
-                        aria-label="Sửa danh mục"
-                      >
-                        <Icon name="edit" className="text-xl" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void handleDeleteCategory(category.id);
-                        }}
-                        className="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50"
-                        aria-label="Xóa danh mục"
-                      >
-                        <Icon name="delete" className="text-xl" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="flex flex-col items-start justify-between gap-4 border-t border-slate-200 bg-white p-4 sm:flex-row sm:items-center">
-          <p className="text-sm text-slate-500">
-            Hiển thị{" "}
-            <span className="font-bold text-[#2a1b14]">
-              {paginatedCategories.length}
-            </span>{" "}
-            trên{" "}
-            <span className="font-bold text-[#2a1b14]">
-              {filteredCategories.length}
-            </span>{" "}
-            danh mục
-          </p>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
-              disabled={page === 1}
-              className="rounded-lg border border-slate-200 p-2 transition-colors hover:bg-slate-50 disabled:opacity-30"
-            >
-              <Icon name="chevron_left" />
-            </button>
-            {Array.from({ length: totalPages }, (_, index) => index + 1).map(
-              (pageNumber) => (
-                <button
-                  key={pageNumber}
-                  type="button"
-                  onClick={() => setPage(pageNumber)}
-                    className={[
-                      "flex h-8 w-8 items-center justify-center rounded-lg text-xs font-medium transition-colors",
-                      page === pageNumber
-                        ? "bg-[#9d4300] font-bold text-white"
-                        : "text-[#2a1b14] hover:bg-slate-50",
-                    ].join(" ")}
-                >
-                  {pageNumber}
-                </button>
-              )
-            )}
-            <button
-              type="button"
-              onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-              disabled={page === totalPages}
-              className="rounded-lg border border-slate-200 p-2 transition-colors hover:bg-slate-50 disabled:opacity-30"
-            >
-              <Icon name="chevron_right" />
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {isModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(11,28,48,0.4)] p-4 backdrop-blur-xs">
-          <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-5">
-              <div className="flex items-center gap-3">
-                <span className="rounded-lg bg-orange-50 p-2 text-[#9d4300]">
-                  <Icon name="category" />
-                </span>
-                <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-bold text-[#2a1b14]">
-                  {editingCategory ? "Sửa danh mục" : "Thêm danh mục mới"}
-                </h3>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleModalClose}
-                className="p-1 text-slate-500 transition-colors hover:text-red-600"
-                aria-label="ÄÃ³ng form"
-              >
-                <Icon name="close" className="text-2xl" />
-              </button>
-            </div>
-
-            <form className="space-y-6 p-6" onSubmit={handleSubmit}>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-[#2a1b14]">
-                  Tên danh mục <span className="text-red-600">*</span>
-                </label>
+        <section className="border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 p-4">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+              <div className="relative min-w-0 flex-1">
+                <Icon
+                  name="search"
+                  className="absolute left-3 top-1/2 text-[20px] text-slate-400 -translate-y-1/2"
+                />
                 <input
-                  type="text"
-                  required
-                  value={formState.name}
-                  onChange={(event) =>
-                    setFormState((current) => ({ ...current, name: event.target.value }))
-                  }
-                  placeholder="VD: Món nước"
-                  className="w-full rounded-lg border border-slate-200 px-4 py-3 text-sm outline-none transition-all focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
+                  type="search"
+                  value={search}
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    setPage(1);
+                  }}
+                  placeholder="Tìm tên danh mục hoặc mô tả..."
+                  className="h-11 w-full border border-slate-200 bg-white pl-10 pr-4 text-sm font-medium text-[#0b1c30] outline-none transition focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
                 />
               </div>
 
+              <select
+                value={logicFilter}
+                onChange={(event) => {
+                  setLogicFilter(event.target.value as LogicFilter);
+                  setPage(1);
+                }}
+                className="h-11 border border-slate-200 bg-white px-3 text-sm font-semibold text-[#0b1c30] outline-none transition focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+              >
+                <option value="all">Tất cả cách bán hàng</option>
+                <option value="prepared">Món pha chế / chế biến</option>
+                <option value="stock_returnable">Hàng bán có số lượng</option>
+              </select>
+
+              <select
+                value={productFilter}
+                onChange={(event) => {
+                  setProductFilter(event.target.value as ProductFilter);
+                  setPage(1);
+                }}
+                className="h-11 border border-slate-200 bg-white px-3 text-sm font-semibold text-[#0b1c30] outline-none transition focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+              >
+                <option value="all">Tất cả trạng thái sử dụng</option>
+                <option value="has_products">Đã có sản phẩm</option>
+                <option value="empty">Chưa có sản phẩm</option>
+              </select>
+
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="inline-flex h-11 items-center justify-center gap-2 border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+              >
+                <Icon name="filter_alt_off" className="text-[20px]" />
+                Xóa lọc
+              </button>
+
+              <button
+                type="button"
+                onClick={openCreateModal}
+                className="inline-flex h-11 items-center justify-center gap-2 bg-[#f97316] px-5 text-sm font-bold text-white transition hover:bg-[#ea580c]"
+              >
+                <Icon name="add" className="text-[20px]" />
+                Thêm danh mục
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[980px] text-left text-sm">
+              <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-5 py-3">Danh mục</th>
+                  <th className="px-5 py-3">Cách bán hàng</th>
+                  <th className="px-5 py-3 text-center">Số sản phẩm</th>
+                  <th className="px-5 py-3">Ngày tạo</th>
+                  <th className="px-5 py-3 text-right">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-10 text-center font-semibold text-slate-500">
+                      Đang tải danh mục...
+                    </td>
+                  </tr>
+                ) : null}
+
+                {!isLoading && paginatedCategories.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-10 text-center font-semibold text-slate-500">
+                      Không tìm thấy danh mục phù hợp.
+                    </td>
+                  </tr>
+                ) : null}
+
+                {!isLoading
+                  ? paginatedCategories.map((category) => {
+                      const logicType = getCategoryLogicType(category);
+                      const logicMeta = getLogicMeta(logicType);
+
+                      return (
+                        <tr key={category.id} className="transition hover:bg-slate-50">
+                          <td className="px-5 py-4">
+                            <div className="flex items-center gap-3">
+                              {category.imageUrl ? (
+                                <img
+                                  src={category.imageUrl}
+                                  alt={category.name}
+                                  className="h-12 w-12 object-cover ring-1 ring-slate-200"
+                                />
+                              ) : (
+                                <span className="flex h-12 w-12 items-center justify-center bg-orange-50 text-[#f97316] ring-1 ring-orange-100">
+                                  <Icon name="category" />
+                                </span>
+                              )}
+                              <div className="min-w-0">
+                                <p className="font-extrabold text-[#0b1c30]">
+                                  {category.name}
+                                </p>
+                                <p className="mt-1 max-w-md truncate text-xs font-medium text-slate-500">
+                                  {category.description || "Chưa có mô tả"}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-5 py-4">
+                            <span
+                              className={`inline-flex items-center gap-2 px-3 py-1 text-xs font-bold ring-1 ${logicMeta.className}`}
+                            >
+                              <Icon name={logicMeta.icon} className="text-[16px]" />
+                              {logicMeta.label}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 text-center font-extrabold text-[#0b1c30]">
+                            {category.productCount}
+                          </td>
+                          <td className="px-5 py-4 font-semibold text-slate-600">
+                            {new Date(category.createdAt).toLocaleDateString("vi-VN")}
+                          </td>
+                          <td className="px-5 py-4">
+                            <div className="flex justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  navigate(
+                                    `/products?category=${encodeURIComponent(category.name)}`
+                                  )
+                                }
+                                className="inline-flex h-9 w-9 items-center justify-center border border-slate-200 text-sky-700 transition hover:bg-sky-50"
+                                aria-label="Xem sản phẩm trong danh mục"
+                                title="Xem sản phẩm trong danh mục"
+                              >
+                                <Icon name="visibility" className="text-[20px]" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openEditModal(category)}
+                                className="inline-flex h-9 w-9 items-center justify-center border border-slate-200 text-[#f97316] transition hover:bg-orange-50"
+                                aria-label="Sửa danh mục"
+                                title="Sửa danh mục"
+                              >
+                                <Icon name="edit" className="text-[20px]" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  void handleDeleteCategory(category);
+                                }}
+                                className="inline-flex h-9 w-9 items-center justify-center border border-slate-200 text-rose-600 transition hover:bg-rose-50"
+                                aria-label="Xóa danh mục"
+                                title="Xóa danh mục"
+                              >
+                                <Icon name="delete" className="text-[20px]" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  : null}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm font-semibold text-slate-500">
+              Hiển thị{" "}
+              <span className="text-[#0b1c30]">{paginatedCategories.length}</span>{" "}
+              trên <span className="text-[#0b1c30]">{filteredCategories.length}</span>{" "}
+              danh mục
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                disabled={page === 1}
+                className="inline-flex h-9 w-9 items-center justify-center border border-slate-200 text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Trang trước"
+              >
+                <Icon name="chevron_left" />
+              </button>
+              <span className="px-2 text-sm font-bold text-[#0b1c30]">
+                {page}/{totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+                disabled={page === totalPages}
+                className="inline-flex h-9 w-9 items-center justify-center border border-slate-200 text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Trang sau"
+              >
+                <Icon name="chevron_right" />
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      {isModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b1c30]/45 p-4">
+          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center bg-orange-50 text-[#f97316]">
+                  <Icon name="category" />
+                </span>
+                <div>
+                  <h3 className="text-lg font-extrabold text-[#0b1c30]">
+                    {editingCategory ? "Sửa danh mục" : "Thêm danh mục mới"}
+                  </h3>
+                  <p className="text-xs font-medium text-slate-500">
+                    Danh mục dùng để nhóm món bán và chọn cách quản lý phù hợp.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closeModal}
+                className="p-2 text-slate-500 transition hover:text-rose-600"
+                aria-label="Đóng form"
+              >
+                <Icon name="close" />
+              </button>
+            </div>
+
+            <form className="space-y-5 p-6" onSubmit={handleSubmit}>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                    Tên danh mục <span className="text-rose-600">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formState.name}
+                    onChange={(event) =>
+                      setFormState((current) => ({
+                        ...current,
+                        name: event.target.value,
+                      }))
+                    }
+                    placeholder="Ví dụ: Cà phê"
+                    className="h-11 w-full border border-slate-200 px-3 text-sm font-semibold text-[#0b1c30] outline-none transition focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                    Cách bán hàng <span className="text-rose-600">*</span>
+                  </label>
+                  <select
+                    value={formState.logicType}
+                    onChange={(event) =>
+                      setFormState((current) => ({
+                        ...current,
+                        logicType: event.target.value as CategoryLogicType,
+                      }))
+                    }
+                    className="h-11 w-full border border-slate-200 bg-white px-3 text-sm font-semibold text-[#0b1c30] outline-none transition focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                  >
+                    <option value="prepared">Món pha chế / chế biến</option>
+                    <option value="stock_returnable">Hàng bán có số lượng</option>
+                  </select>
+                </div>
+              </div>
+
               <div className="space-y-2">
-                <label className="block text-sm font-semibold text-[#2a1b14]">
-                  Mô tả chi tiết
+                <label className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                  Mô tả
                 </label>
                 <textarea
                   rows={3}
@@ -505,14 +635,14 @@ function CategoryPage() {
                       description: event.target.value,
                     }))
                   }
-                  placeholder="Nhập mô tả cho danh mục này..."
-                  className="w-full resize-none rounded-lg border border-slate-200 px-4 py-3 text-sm outline-none transition-all focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
+                  placeholder="Ghi chú ngắn về nhóm món này..."
+                  className="w-full resize-none border border-slate-200 px-3 py-3 text-sm font-medium text-[#0b1c30] outline-none transition focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
                 />
               </div>
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_180px]">
                 <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-[#2a1b14]">
+                  <label className="text-xs font-bold uppercase tracking-wide text-slate-500">
                     Ảnh danh mục
                   </label>
                   <input
@@ -521,108 +651,44 @@ function CategoryPage() {
                     onChange={(event) => {
                       void handleImageFileChange(event);
                     }}
-                    className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm outline-none transition-all focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
+                    className="w-full border border-slate-200 px-3 py-2 text-sm font-semibold text-[#0b1c30] file:mr-3 file:border-0 file:bg-orange-50 file:px-3 file:py-2 file:text-sm file:font-bold file:text-[#f97316] focus:border-[#f97316] focus:outline-none focus:ring-2 focus:ring-orange-100"
                   />
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs font-medium text-slate-500">
                     {isUploadingImage
-                      ? "Đang tải ảnh..."
-                      : "Chọn ảnh có sẵn trên máy."}
+                      ? "Đang tải ảnh lên máy chủ..."
+                      : getLogicMeta(formState.logicType).description}
                   </p>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-[#2a1b14]">
-                      Thứ tự hiển thị
-                    </label>
-                    <input
-                      type="number"
-                      value={formState.displayOrder}
-                      onChange={(event) =>
-                        setFormState((current) => ({
-                          ...current,
-                          displayOrder: event.target.value,
-                        }))
-                      }
-                      className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm outline-none transition-all focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
+                <div className="flex h-32 items-center justify-center overflow-hidden border border-slate-200 bg-slate-50">
+                  {formState.imageUrl.trim() ? (
+                    <img
+                      src={formState.imageUrl}
+                      alt="Ảnh xem trước"
+                      className="h-full w-full object-cover"
                     />
+                  ) : (
+                    <Icon name="image" className="text-3xl text-slate-300" />
+                  )}
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-[#2a1b14]">
-                  Loại danh mục <span className="text-red-600">*</span>
-                </label>
-
-                <select
-                  value={formState.logicType}
-                  onChange={(event) => {
-                    const logicType = event.target.value as CategoryLogicType;
-
-                    setFormState((current) => ({
-                      ...current,
-                      logicType,
-                    }));
-                  }}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition-all focus:border-[#9d4300] focus:ring-2 focus:ring-orange-100"
-                >
-                  <option value="prepared">
-                    Món cần chế biến / pha chế (Không quản lý số lượng sản phẩm)
-                  </option>
-                  <option value="stock_returnable">
-                    Hàng có sẵn / đóng chai / hoàn kho được (Có quản lý số lượng sản phẩm)
-                  </option>
-                </select>
-
-                <p className="text-xs text-slate-500">
-                  Món cần chế biến sẽ không quản lý số lượng sản phẩm và không hoàn kho khi hủy hóa đơn. Hàng có sẵn như nước chai, nước lon sẽ quản lý số lượng sản phẩm và được hoàn lại tồn kho khi hủy hóa đơn.
-                </p>
-              </div>
-
-              {formState.imageUrl.trim() ? (
-                <div className="overflow-hidden rounded-xl border border-slate-200">
-                  <img
-                    src={formState.imageUrl}
-                    alt="Ảnh xem trước"
-                    className="h-36 w-full object-cover"
-                  />
-                </div>
-              ) : null}
-
-
-              <div className="flex gap-3 border-t border-slate-200 pt-4">
+              <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end">
                 <button
                   type="button"
-                  onClick={handleModalClose}
-                  className="flex h-10 flex-1 items-center justify-center border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
+                  onClick={closeModal}
+                  className="inline-flex h-11 items-center justify-center border border-slate-300 bg-white px-6 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
-                  className="flex h-10 flex-1 items-center justify-center bg-[#9d4300] px-4 text-sm font-bold text-white transition-colors hover:bg-[#803600]"
+                  className="inline-flex h-11 items-center justify-center bg-[#f97316] px-6 text-sm font-bold text-white transition hover:bg-[#ea580c]"
                 >
-                  {editingCategory ? "Lưu thay đổi" : "Lưu danh mục"}
+                  {editingCategory ? "Lưu thay đổi" : "Thêm danh mục"}
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      ) : null}
-
-      {showToast ? (
-        <div className="pointer-events-none fixed right-8 bottom-8 z-60">
-          <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white/90 p-4 shadow-2xl backdrop-blur-md">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-white">
-              <Icon name="check" className="text-sm" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-[#2a1b14]">
-                Dữ liệu đã đồng bộ
-              </p>
-              <p className="text-[10px] text-slate-500">
-                Danh mục đã được cập nhật
-              </p>
-            </div>
           </div>
         </div>
       ) : null}

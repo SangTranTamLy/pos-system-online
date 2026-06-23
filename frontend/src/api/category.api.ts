@@ -1,4 +1,6 @@
-const API_BASE_URL = "http://localhost:5000/api";
+const API_BASE_URL =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) ||
+  "http://localhost:5000/api";
 
 export type Category = {
   id: string;
@@ -19,12 +21,7 @@ export type CreateCategoryPayload = {
   isTrackedStock?: boolean;
 };
 
-export type UpdateCategoryPayload = {
-  name: string;
-  description?: string | null;
-  imageUrl?: string | null;
-  isTrackedStock?: boolean;
-};
+export type UpdateCategoryPayload = CreateCategoryPayload;
 
 export type UpdateCategoryStatusPayload = {
   isActive: boolean;
@@ -67,11 +64,11 @@ async function handleResponse<T>(response: Response): Promise<ApiResponse<T>> {
 
   if (response.status === 401) {
     logoutAndRedirect();
-    throw new Error(data.message || "Yêu cầu API thất bại");
+    throw new Error(data.message || "Phiên đăng nhập đã hết hạn.");
   }
 
   if (!response.ok) {
-    throw new Error(data.message || "Yêu cầu API thất bại");
+    throw new Error(data.message || "Yêu cầu API thất bại.");
   }
 
   return data;
@@ -138,11 +135,11 @@ function readFileAsDataUrl(file: File) {
         return;
       }
 
-      reject(new Error("Không đọc được file ảnh"));
+      reject(new Error("Không đọc được file ảnh."));
     };
 
     reader.onerror = () => {
-      reject(new Error("Không đọc được file ảnh"));
+      reject(new Error("Không đọc được file ảnh."));
     };
 
     reader.readAsDataURL(file);
@@ -163,4 +160,3 @@ export async function uploadCategoryImage(file: File) {
 
   return handleResponse<UploadCategoryImageResult>(response);
 }
-

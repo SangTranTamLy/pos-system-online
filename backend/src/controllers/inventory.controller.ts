@@ -13,10 +13,17 @@ import {
   findGoodsReceiptMaterialDetail,
   createGoodsReceiptTransaction,
   createStockAdjustmentTransaction,
+  findAllInventoryAudits,
+  findInventoryAuditById,
+  createInventoryAudit,
+  updateInventoryAudit,
+  deleteInventoryAudit,
+  payGoodsReceiptDebt,
 } from "../repositories/inventory.repository";
 import { ApiError } from "../utils/apiError";
 import { createAuditLog } from "../repositories/audit-log.repository";
 import { db } from "../config/database";
+import type { RowDataPacket } from "mysql2/promise";
 
 function validateSupplierPhone(phone: unknown) {
   const normalizedPhone = String(phone || "").trim();
@@ -294,6 +301,47 @@ export async function createGoodsReceiptController(req: Request, res: Response) 
   });
 }
 
+export async function payGoodsReceiptDebtController(req: Request, res: Response) {
+  if (!req.user) {
+    throw new ApiError(401, "Phiên đăng nhập chưa được xác thực.");
+  }
+
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const { amount } = req.body;
+
+  if (!id || id.trim() === "") {
+    throw new ApiError(400, "Thiếu mã phiếu nhập kho.");
+  }
+
+  const payAmount = Number(amount);
+  if (isNaN(payAmount) || payAmount <= 0) {
+    throw new ApiError(400, "Số tiền thanh toán không hợp lệ.");
+  }
+
+  await payGoodsReceiptDebt(id, payAmount);
+
+  const [rows] = await db.execute<RowDataPacket[]>(
+    "SELECT r.note, r.total_amount, s.name AS supplierName FROM goods_receipts r LEFT JOIN suppliers s ON s.id = r.supplier_id WHERE r.id = ? LIMIT 1",
+    [id]
+  );
+  const receipt = rows[0];
+  const supplierName = receipt?.supplierName || "Không rõ";
+
+  void createAuditLog(
+    req.user.id,
+    "SUA_KHO",
+    `Thanh toán nợ: PN-${id.slice(0, 8).toUpperCase()}`,
+    `Thanh toán thêm ${payAmount.toLocaleString("vi-VN")} VND nợ cho nhà cung cấp ${supplierName}.`,
+    { receiptId: id, payAmount },
+    null
+  );
+
+  return res.json({
+    success: true,
+    message: "Thanh toán công nợ thành công.",
+  });
+}
+
 export async function createStockAdjustmentController(req: Request, res: Response) {
   if (!req.user) {
     throw new ApiError(401, "Phiên đăng nhập chưa được xác thực.");
@@ -322,3 +370,94 @@ export async function createStockAdjustmentController(req: Request, res: Respons
     data: result,
   });
 }
+
+export async function getInventoryAuditsController(req: Request, res: Response) {
+  const data = await findAllInventoryAudits();
+  return res.json({
+    success: true,
+    data,
+  });
+}
+
+export async function getInventoryAuditByIdController(req: Request, res: Response) {
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  if (!id || !id.trim()) {
+    throw new ApiError(400, "Thiếu mã phiếu kiểm kê.");
+  }
+  const audit = await findInventoryAuditById(id);
+  if (!audit) {
+    throw new ApiError(404, "Không tìm thấy phiếu kiểm kê.");
+  }
+  return res.json({
+    success: true,
+    data: audit,
+  });
+}
+
+export async function createInventoryAuditController(req: Request, res: Response) {
+  if (!req.user) {
+    throw new ApiError(401, "Phiên đăng nhập chưa được xác thực.");
+  }
+
+  const { status, note, items } = req.body;
+
+  if (status !== "draft" && status !== "completed") {
+    throw new ApiError(400, "Trạng thái phiếu kiểm kê không hợp lệ.");
+  }
+
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new ApiError(400, "Vui lòng chọn ít nhất một nguyên liệu để kiểm kê.");
+  }
+
+  const audit = await createInventoryAudit(req.body, req.user.id);
+
+  return res.status(201).json({
+    success: true,
+    message: status === "completed" ? "Đã hoàn thành và cân bằng kho." : "Đã lưu phiếu kiểm kê nháp.",
+    data: audit,
+  });
+}
+
+export async function updateInventoryAuditController(req: Request, res: Response) {
+  if (!req.user) {
+    throw new ApiError(401, "Phiên đăng nhập chưa được xác thực.");
+  }
+
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  if (!id || !id.trim()) {
+    throw new ApiError(400, "Thiếu mã phiếu kiểm kê.");
+  }
+
+  const { status, note, items } = req.body;
+
+  if (status !== "draft" && status !== "completed") {
+    throw new ApiError(400, "Trạng thái phiếu kiểm kê không hợp lệ.");
+  }
+
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new ApiError(400, "Vui lòng chọn ít nhất một nguyên liệu để kiểm kê.");
+  }
+
+  const audit = await updateInventoryAudit(id, req.body, req.user.id);
+
+  return res.json({
+    success: true,
+    message: status === "completed" ? "Đã hoàn thành và cân bằng kho." : "Đã cập nhật phiếu kiểm kê nháp.",
+    data: audit,
+  });
+}
+
+export async function deleteInventoryAuditController(req: Request, res: Response) {
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  if (!id || !id.trim()) {
+    throw new ApiError(400, "Thiếu mã phiếu kiểm kê.");
+  }
+
+  await deleteInventoryAudit(id);
+
+  return res.json({
+    success: true,
+    message: "Đã xóa phiếu kiểm kê nháp.",
+  });
+}
+

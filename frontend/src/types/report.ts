@@ -11,6 +11,8 @@ export interface FinancialReportData {
   totalCOGS: number;
   grossProfit: number;
   grossProfitMargin: number;
+  totalOrders: number;
+  averageOrderValue: number;
 }
 
 export interface FinancialTrendPoint {
@@ -20,9 +22,16 @@ export interface FinancialTrendPoint {
   profit: number;
 }
 
+export interface TopProductReportData {
+  name: string;
+  soldQuantity: number;
+  revenue: number;
+}
+
 export interface FinancialReport {
   summary: FinancialReportData;
   trend: FinancialTrendPoint[];
+  topProducts: TopProductReportData[];
 }
 
 export interface ProductValuation {
