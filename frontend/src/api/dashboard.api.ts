@@ -1,7 +1,7 @@
 const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string) || "http://localhost:5000/api";
 
-export type DashboardRevenuePeriod = "month" | "year";
+export type DashboardRevenuePeriod = "week" | "year";
 
 export type DashboardSummary = {
   stats: {
@@ -48,6 +48,7 @@ export type DashboardSummary = {
   }>;
   categorySales: Array<{
     name: string;
+    imageUrl?: string;
     quantity: number;
     revenue: number;
   }>;
@@ -81,7 +82,7 @@ function getAuthHeaders() {
 }
 
 export async function getDashboardSummary(
-  period: DashboardRevenuePeriod = "month",
+  period: DashboardRevenuePeriod = "week",
   startDate?: string,
   endDate?: string
 ) {

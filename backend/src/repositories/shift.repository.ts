@@ -1,6 +1,6 @@
 import { db } from "../config/database";
 import { ResultSetHeader, RowDataPacket } from "mysql2";
-import { Shift } from "../types/shift.types";
+import { Shift, ShiftBucketKey } from "../types/shift.types";
 
 type ShiftRow = RowDataPacket & {
   id: string;
@@ -28,6 +28,25 @@ type ShiftRow = RowDataPacket & {
   opened_by_name?: string;
   closed_by_name?: string;
 };
+
+type ShiftRevenueRow = RowDataPacket & {
+  work_date: string | Date;
+  shift_bucket: ShiftBucketKey;
+  revenue: string | number | null;
+};
+
+type StaffByShiftRow = RowDataPacket & {
+  shift_bucket: ShiftBucketKey;
+  assigned: number;
+};
+
+function formatDateKey(value: string | Date): string {
+  if (typeof value === "string") return value;
+  const yyyy = value.getFullYear();
+  const mm = String(value.getMonth() + 1).padStart(2, "0");
+  const dd = String(value.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
 
 function mapRowToShift(row: ShiftRow): Shift {
   return {
@@ -108,6 +127,24 @@ export const createShift = async (
   );
 };
 
+export const createOpenShiftForEmployee = async (
+  id: string,
+  userId: string,
+  expectedStartTime: Date,
+  expectedEndTime: Date,
+  managerId: string,
+  openingCash: number
+): Promise<void> => {
+  await db.execute<ResultSetHeader>(
+    `INSERT INTO shifts (
+       id, user_id, expected_start_time, expected_end_time, status,
+       opened_by, actual_start_time, opening_cash
+     )
+     VALUES (?, ?, ?, ?, 'OPEN', ?, NOW(), ?)`,
+    [id, userId, expectedStartTime, expectedEndTime, managerId, openingCash]
+  );
+};
+
 export const checkOpenShiftExists = async (userId: string): Promise<boolean> => {
   const [rows] = await db.execute<RowDataPacket[]>(
     `SELECT id FROM shifts WHERE user_id = ? AND status = 'OPEN'`,
@@ -172,4 +209,82 @@ export const calculateShiftSales = async (
   }
   
   return { totalCash, totalQr };
+};
+
+export const findShiftRevenueByBucket = async (
+  startDate: string,
+  endDate: string
+): Promise<Array<{ date: string; bucket: ShiftBucketKey; revenue: number }>> => {
+  const [rows] = await db.execute<ShiftRevenueRow[]>(
+    `SELECT
+       DATE(COALESCE(s.actual_start_time, s.expected_start_time)) AS work_date,
+       CASE
+         WHEN HOUR(COALESCE(s.actual_start_time, s.expected_start_time)) >= 6
+          AND HOUR(COALESCE(s.actual_start_time, s.expected_start_time)) < 14 THEN 'morning'
+         WHEN HOUR(COALESCE(s.actual_start_time, s.expected_start_time)) >= 14
+          AND HOUR(COALESCE(s.actual_start_time, s.expected_start_time)) < 22 THEN 'afternoon'
+         ELSE 'night'
+       END AS shift_bucket,
+       SUM(
+         CASE
+           WHEN s.status = 'CLOSED' THEN s.total_sales
+           ELSE COALESCE(pay.total_paid, 0)
+         END
+       ) AS revenue
+     FROM shifts s
+     LEFT JOIN (
+       SELECT o.shift_id, SUM(p.amount) AS total_paid
+       FROM orders o
+       JOIN payments p ON p.order_id = o.id
+       WHERE p.payment_status = 'paid'
+       GROUP BY o.shift_id
+     ) pay ON pay.shift_id = s.id
+     WHERE DATE(COALESCE(s.actual_start_time, s.expected_start_time)) BETWEEN ? AND ?
+       AND s.status <> 'CANCELLED'
+     GROUP BY work_date, shift_bucket
+     ORDER BY work_date ASC`,
+    [startDate, endDate]
+  );
+
+  return rows.map((row) => ({
+    date: formatDateKey(row.work_date),
+    bucket: row.shift_bucket,
+    revenue: Number(row.revenue || 0),
+  }));
+};
+
+export const countStaffByShiftBucket = async (
+  date: string
+): Promise<Array<{ bucket: ShiftBucketKey; assigned: number }>> => {
+  const [rows] = await db.execute<StaffByShiftRow[]>(
+    `SELECT
+       CASE
+         WHEN HOUR(expected_start_time) >= 6 AND HOUR(expected_start_time) < 14 THEN 'morning'
+         WHEN HOUR(expected_start_time) >= 14 AND HOUR(expected_start_time) < 22 THEN 'afternoon'
+         ELSE 'night'
+       END AS shift_bucket,
+       COUNT(DISTINCT user_id) AS assigned
+     FROM shifts
+     WHERE DATE(expected_start_time) = ?
+       AND status <> 'CANCELLED'
+     GROUP BY shift_bucket`,
+    [date]
+  );
+
+  return rows.map((row) => ({
+    bucket: row.shift_bucket,
+    assigned: Number(row.assigned || 0),
+  }));
+};
+
+export const countActiveShiftStaff = async (): Promise<number> => {
+  const [rows] = await db.execute<RowDataPacket[]>(
+    `SELECT COUNT(*) AS total
+     FROM users u
+     JOIN roles r ON r.id = u.role_id
+     WHERE u.is_active = TRUE
+       AND UPPER(r.name) IN ('STAFF', 'CASHIER', 'NHAN_VIEN', 'NHAN VIEN')`
+  );
+
+  return Number(rows[0]?.total || 0);
 };

@@ -43,11 +43,10 @@ function AppRoutes() {
       <Route path="/" element={<RootRedirect />} />
 
       {/* Routes for everyone (Admin, Manager, Staff) */}
-      <Route element={<ProtectedRoute allowedRoles={["admin", "manager", "staff"]} />}>
+      <Route element={<ProtectedRoute allowedRoles={["admin", "manager", "staff", "cashier"]} />}>
         <Route path="/pos" element={<PosPage />} />
         <Route path="/invoices" element={<InvoicePage />} />
         <Route path="/customers" element={<CustomerPage />} />
-        <Route path="/shifts" element={<ShiftsPage />} />
       </Route>
 
       {/* Routes for Staff only */}
@@ -64,6 +63,7 @@ function AppRoutes() {
         <Route path="/promotions" element={<PromotionsPage />} />
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/employees" element={<EmployeePage />} />
+        <Route path="/shifts" element={<ShiftsPage />} />
       </Route>
 
       {/* Routes for Admin only */}

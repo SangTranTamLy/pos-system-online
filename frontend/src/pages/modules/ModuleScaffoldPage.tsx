@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 import { createAuditLog } from "../../api/audit-log.api";
+import { useAppNotifications } from "../../components/common/AppNotificationsContext";
 import {
   getSettings,
   updateSettings,
@@ -259,6 +260,7 @@ function ModuleStatCard({ stat }: { stat: StatCard }) {
 }
 
 function ModuleScaffoldPage({ moduleKey }: { moduleKey: ModuleKey }) {
+  const { notify } = useAppNotifications();
   const config = moduleConfigs[moduleKey];
   const [search, setSearch] = useState("");
 
@@ -285,10 +287,10 @@ function ModuleScaffoldPage({ moduleKey }: { moduleKey: ModuleKey }) {
           targetObject: "Cấu hình hệ thống",
           description: "Thay đổi cấu hình hệ thống",
         });
-        alert("Đã lưu cấu hình hệ thống và ghi nhận vào nhật ký hoạt động!");
+        notify("Đã lưu cấu hình hệ thống và ghi nhận vào nhật ký hoạt động!", "success");
       } catch (err) {
         console.error("Lỗi lưu cấu hình:", err);
-        alert(err instanceof Error ? err.message : "Không thể lưu cấu hình");
+        notify(err instanceof Error ? err.message : "Không thể lưu cấu hình", "error");
       }
     }
   };
@@ -300,7 +302,7 @@ function ModuleScaffoldPage({ moduleKey }: { moduleKey: ModuleKey }) {
           <p className="mb-2 text-xs font-bold uppercase tracking-widest text-[#f97316]">
             {config.eyebrow}
           </p>
-          <h1 className="font-['Plus_Jakarta_Sans',sans-serif] text-3xl font-extrabold text-[#0b1c30]">
+          <h1 className="font-['Outfit',sans-serif] text-3xl font-extrabold text-[#0b1c30]">
             {config.heroTitle}
           </h1>
           <p className="mt-2 max-w-3xl text-sm text-slate-500">{config.heroDescription}</p>
@@ -381,7 +383,7 @@ function ModuleScaffoldPage({ moduleKey }: { moduleKey: ModuleKey }) {
             </div>
             <div>
               <p className="text-xs font-bold uppercase tracking-widest text-[#f97316]">Bước tiếp theo</p>
-              <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-lg font-extrabold text-[#0b1c30]">
+              <h3 className="font-['Outfit',sans-serif] text-lg font-extrabold text-[#0b1c30]">
                 Backend & Database
               </h3>
             </div>
@@ -448,6 +450,7 @@ function SaveButton({ compact = false, disabled = false }: { compact?: boolean; 
 }
 
 function SettingsOfficialPage() {
+  const { notify, confirm: confirmAction } = useAppNotifications();
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -474,9 +477,9 @@ function SettingsOfficialPage() {
     try {
       const res = await updateSettings(formData);
       setFormData(res.data);
-      alert("Đã lưu cài đặt và ghi nhận nhật ký hoạt động!");
+      notify("Đã lưu cài đặt và ghi nhận nhật ký hoạt động!", "success");
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Không thể lưu cài đặt.");
+      notify(err instanceof Error ? err.message : "Không thể lưu cài đặt.", "error");
     } finally {
       setSaving(false);
     }
@@ -491,9 +494,9 @@ function SettingsOfficialPage() {
       const updated = { ...formData, store_logo: res.data.logoUrl };
       const saveRes = await updateSettings(updated);
       setFormData(saveRes.data);
-      alert("Đã cập nhật logo cửa hàng và lưu thiết lập!");
+      notify("Đã cập nhật logo cửa hàng và lưu thiết lập!", "success");
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Không thể tải lên logo.");
+      notify(err instanceof Error ? err.message : "Không thể tải lên logo.", "error");
     }
   };
 
@@ -512,7 +515,7 @@ function SettingsOfficialPage() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Lỗi sao lưu dữ liệu.");
+      notify(err instanceof Error ? err.message : "Lỗi sao lưu dữ liệu.", "error");
     }
   };
 
@@ -520,9 +523,13 @@ function SettingsOfficialPage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const confirmRestore = window.confirm(
-      "CẢNH BÁO: Hành động này sẽ thay thế toàn bộ dữ liệu hiện tại trong cơ sở dữ liệu bằng dữ liệu khôi phục. Bạn có chắc chắn muốn tiếp tục?"
-    );
+    const confirmRestore = await confirmAction({
+      title: "Khôi phục dữ liệu",
+      message:
+        "CẢNH BÁO: Hành động này sẽ thay thế toàn bộ dữ liệu hiện tại trong cơ sở dữ liệu bằng dữ liệu khôi phục. Bạn có chắc chắn muốn tiếp tục?",
+      confirmText: "Khôi phục",
+      type: "warning",
+    });
     if (!confirmRestore) {
       event.target.value = "";
       return;
@@ -533,10 +540,10 @@ function SettingsOfficialPage() {
       try {
         const json = JSON.parse(e.target?.result as string);
         const res = await restoreDatabase(json);
-        alert(res.message || "Khôi phục dữ liệu thành công! Trang web sẽ được tải lại.");
+        notify(res.message || "Khôi phục dữ liệu thành công! Trang web sẽ được tải lại.", "success");
         window.location.reload();
       } catch (err) {
-        alert("Khôi phục thất bại: " + (err instanceof Error ? err.message : "Định dạng file không hợp lệ."));
+        notify("Khôi phục thất bại: " + (err instanceof Error ? err.message : "Định dạng file không hợp lệ."), "error");
       } finally {
         event.target.value = "";
       }
@@ -559,7 +566,7 @@ function SettingsOfficialPage() {
 
   return (
     <AdminLayout title="Cài đặt" subtitle="Quản lý các thiết lập cơ bản của hệ thống">
-      <div className="-m-6 min-h-screen space-y-8 bg-[#f8fafc] p-6 font-['Plus_Jakarta_Sans',Inter,sans-serif] lg:p-8">
+      <div className="min-h-full w-full space-y-8 overflow-x-hidden bg-[#f8fafc] font-['Inter',sans-serif]">
         <form
           onSubmit={handleSave}
           className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm lg:p-8"
@@ -597,7 +604,7 @@ function SettingsOfficialPage() {
                       <div className="mb-2 flex h-14 w-14 items-center justify-center rounded-lg bg-[#f97316] text-white">
                         <Icon name="bolt" filled className="text-[32px]" />
                       </div>
-                      <p className="text-center font-['Plus_Jakarta_Sans',sans-serif] text-xl font-extrabold leading-tight text-[#f97316]">
+                      <p className="text-center font-['Outfit',sans-serif] text-xl font-extrabold leading-tight text-[#f97316]">
                         QuickServe
                         <br />
                         <span className="text-sm">POS</span>
@@ -699,7 +706,7 @@ function SettingsOfficialPage() {
         <section className="grid gap-5 xl:grid-cols-3">
           <form
             onSubmit={handleSave}
-            className="flex min-h-[285px] flex-col rounded-xl border border-slate-100 bg-white p-5 shadow-sm"
+            className="flex min-h-71.25 flex-col rounded-xl border border-slate-100 bg-white p-5 shadow-sm"
           >
             <h2 className="mb-6 flex items-center gap-3 text-base font-extrabold text-slate-800">
               <Icon name="receipt_long" filled className="text-[20px] text-[#f97316]" />
@@ -760,7 +767,7 @@ function SettingsOfficialPage() {
 
           <form
             onSubmit={handleSave}
-            className="flex min-h-[285px] flex-col rounded-xl border border-slate-100 bg-white p-5 shadow-sm"
+            className="flex min-h-71.25 flex-col rounded-xl border border-slate-100 bg-white p-5 shadow-sm"
           >
             <h2 className="mb-6 flex items-center gap-3 text-base font-extrabold text-slate-800">
               <Icon name="inventory_2" filled className="text-[20px] text-[#f97316]" />
@@ -815,7 +822,7 @@ function SettingsOfficialPage() {
 
           <form
             onSubmit={handleSave}
-            className="flex min-h-[285px] flex-col rounded-xl border border-slate-100 bg-white p-5 shadow-sm"
+            className="flex min-h-71.25 flex-col rounded-xl border border-slate-100 bg-white p-5 shadow-sm"
           >
             <h2 className="mb-6 flex items-center gap-3 text-base font-extrabold text-slate-800">
               <Icon name="schedule" filled className="text-[20px] text-[#f97316]" />

@@ -338,7 +338,7 @@ function ReceiptPreview({ order, employeeName }: { order: PosOrderResult; employ
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#f97316] text-white">
           <Icon name="bolt" filled className="text-3xl" />
         </div>
-        <p className="font-['Plus_Jakarta_Sans',sans-serif] text-lg font-extrabold tracking-wide text-[#0b1c30]">
+        <p className="font-['Outfit',sans-serif] text-lg font-extrabold tracking-wide text-[#0b1c30]">
           QuickServe POS  
         </p>
         <p className="mt-1 text-sm text-slate-500">Hotline: 1900 8888</p>
@@ -412,7 +412,7 @@ function ReceiptPreview({ order, employeeName }: { order: PosOrderResult; employ
       </div>
 
       <div className="mt-6 text-center">
-        <p className="font-['Plus_Jakarta_Sans',sans-serif] font-extrabold text-[#0b1c30]">
+        <p className="font-['Outfit',sans-serif] font-extrabold text-[#0b1c30]">
           Cảm ơn Quý khách!
         </p>
         <p className="mt-2 text-sm text-slate-500">Hẹn gặp lại quý khách lần sau</p>
@@ -438,7 +438,7 @@ function ReceiptModal({ order, onClose }: ReceiptModalProps) {
             >
               <Icon name="arrow_back" className="text-xl" />
             </button>
-            <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-2xl font-extrabold text-[#0b1c30]">
+            <h3 className="font-['Outfit',sans-serif] text-2xl font-extrabold text-[#0b1c30]">
               Thanh toán thành công
             </h3>
           </div>

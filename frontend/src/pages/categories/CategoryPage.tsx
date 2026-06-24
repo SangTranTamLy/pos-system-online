@@ -9,6 +9,7 @@ import {
   type Category as ApiCategory,
 } from "../../api/category.api";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
+import { useAppNotifications } from "../../components/common/AppNotificationsContext";
 
 type CategoryLogicType = "prepared" | "stock_returnable";
 type LogicFilter = "all" | CategoryLogicType;
@@ -83,6 +84,7 @@ function StatCard({
 }
 
 function CategoryPage() {
+  const { confirm: confirmAction } = useAppNotifications();
   const navigate = useNavigate();
   const [categories, setCategories] = useState<ApiCategory[]>([]);
   const [search, setSearch] = useState("");
@@ -265,9 +267,12 @@ function CategoryPage() {
   };
 
   const handleDeleteCategory = async (category: ApiCategory) => {
-    const confirmDelete = window.confirm(
-      `Xóa danh mục "${category.name}"? Chỉ xóa được khi danh mục chưa có sản phẩm.`
-    );
+    const confirmDelete = await confirmAction({
+      title: "Xóa danh mục",
+      message: `Xóa danh mục "${category.name}"? Chỉ xóa được khi danh mục chưa có sản phẩm.`,
+      confirmText: "Xóa",
+      type: "warning",
+    });
 
     if (!confirmDelete) {
       return;
@@ -315,7 +320,10 @@ function CategoryPage() {
   };
 
   return (
-    <AdminLayout>
+    <AdminLayout
+      title="Quản lý danh mục"
+      subtitle="Phân loại sản phẩm theo nhóm để dễ dàng tìm kiếm và quản lý."
+    >
       <div className="space-y-6">
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {stats.map((card) => (

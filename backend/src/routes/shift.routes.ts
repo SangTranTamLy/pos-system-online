@@ -8,10 +8,18 @@ const shiftRouter = Router();
 // Everyone logged in needs access to some shift endpoints
 shiftRouter.use(authMiddleware);
 
+shiftRouter.get("/revenue-by-shift", asyncHandler(shiftController.getShiftRevenueSummaryController));
+shiftRouter.get("/staff-by-shift", asyncHandler(shiftController.getStaffByShiftSummaryController));
 shiftRouter.get("/", asyncHandler(shiftController.getShiftsController));
-shiftRouter.post("/", asyncHandler(shiftController.registerShiftController));
+shiftRouter.post(
+  "/open-for-employee",
+  requireRoles(["ADMIN", "MANAGER"]),
+  asyncHandler(shiftController.openShiftForEmployeeController)
+);
+shiftRouter.post("/", requireRoles(["ADMIN", "MANAGER"]), asyncHandler(shiftController.registerShiftController));
 shiftRouter.patch("/:id/request-close", asyncHandler(shiftController.requestCloseShiftController));
 shiftRouter.patch("/:id/request-open", asyncHandler(shiftController.requestOpenShiftController));
+shiftRouter.patch("/:id/opening-cash", asyncHandler(shiftController.setOpeningCashController));
 // Manager and Admin only
 shiftRouter.patch(
   "/:id/approve",

@@ -17,6 +17,7 @@ import {
   type Product,
 } from "../../api/product.api";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
+import { useAppNotifications } from "../../components/common/AppNotificationsContext";
 
 type ProductFormState = {
   categoryId: string;
@@ -177,6 +178,7 @@ function StatCard({
 }
 
 function ProductPage() {
+  const { confirm: confirmAction } = useAppNotifications();
   const [searchParams, setSearchParams] = useSearchParams();
   const categoryQuery = searchParams.get("category") ?? "";
   const [products, setProducts] = useState<Product[]>([]);
@@ -232,7 +234,7 @@ function ProductPage() {
   }, [categoryQuery, showNotice]);
 
   useEffect(() => {
-    void loadData();
+    void Promise.resolve().then(() => void loadData());
   }, [loadData]);
 
   useEffect(() => {
@@ -433,9 +435,12 @@ function ProductPage() {
   }
 
   async function handleDeleteProduct(product: Product) {
-    const confirmed = window.confirm(
-      `Bạn có chắc chắn muốn xóa sản phẩm "${product.name}" không?`
-    );
+    const confirmed = await confirmAction({
+      title: "Xóa sản phẩm",
+      message: `Bạn có chắc chắn muốn xóa sản phẩm "${product.name}" không?`,
+      confirmText: "Xóa",
+      type: "warning",
+    });
 
     if (!confirmed) return;
 
@@ -570,7 +575,10 @@ function ProductPage() {
   const isTrackedStock = selectedCategory?.isTrackedStock ?? false;
 
   return (
-    <AdminLayout>
+    <AdminLayout
+      title="Sản phẩm"
+      subtitle="Quản lý danh sách sản phẩm, giá bán, danh mục và trạng thái kinh doanh."
+    >
       {notice ? (
         <div
           className={`mb-4 flex items-start justify-between border p-4 text-sm font-bold ${
@@ -695,7 +703,7 @@ function ProductPage() {
         ) : null}
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1040px] text-left text-sm">
+          <table className="w-full min-w-260 text-left text-sm">
             <thead className="bg-slate-50 text-xs font-black uppercase tracking-wide text-slate-400">
               <tr>
                 <th className="px-5 py-4">Sản phẩm</th>
@@ -732,7 +740,7 @@ function ProductPage() {
                           <p className="mt-1 text-xs font-bold text-slate-400">
                             SKU: {product.sku}
                           </p>
-                          <p className="mt-1 max-w-[260px] truncate text-xs text-slate-400">
+                          <p className="mt-1 max-w-65 truncate text-xs text-slate-400">
                             {product.description || "Chưa có mô tả"}
                           </p>
                         </div>

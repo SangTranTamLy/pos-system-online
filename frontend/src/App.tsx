@@ -1,7 +1,12 @@
 import AppRoutes from "./routes/AppRoutes";
+import { AppNotificationsProvider } from "./components/common/AppNotifications";
 
 function App() {
-  return <AppRoutes />;
+  return (
+    <AppNotificationsProvider>
+      <AppRoutes />
+    </AppNotificationsProvider>
+  );
 }
 
 export default App;

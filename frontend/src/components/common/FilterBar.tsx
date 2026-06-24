@@ -1,20 +1,13 @@
-import React from "react";
+import type { ReactNode, FormEvent } from "react";
 import { Icon } from "../../layouts/AdminLayout";
 
 interface FilterBarProps {
-  /** Search input value. If omitted, search input is not rendered. */
   search?: string;
-  /** Search input change handler */
-  onSearchChange?: (val: string) => void;
-  /** Search input placeholder */
+  onSearchChange?: (value: string) => void;
   searchPlaceholder?: string;
-  /** Additional filter controls (selects, datepickers, etc.) */
-  children?: React.ReactNode;
-  /** Callback to clear all filters. If omitted, the "Xóa lọc" button is not rendered. */
+  children?: ReactNode;
   onClear?: () => void;
-  /** Callback for form submission (e.g. on Audit Logs search submit). If provided, wraps in a <form> */
-  onSubmit?: (e: React.FormEvent) => void;
-  /** Custom wrapper class names. If omitted, standard designs are applied. */
+  onSubmit?: (event: FormEvent) => void;
   className?: string;
 }
 
@@ -27,7 +20,6 @@ export function FilterBar({
   onSubmit,
   className,
 }: FilterBarProps) {
-  // Determine standard layout grids based on the presence of onSubmit
   const defaultClass = onSubmit
     ? "flex flex-col gap-3 sm:flex-row sm:items-center"
     : "grid gap-3 border-b border-slate-200 p-4 lg:grid-cols-[1fr_repeat(auto-fit,minmax(180px,1fr))_auto] lg:items-center";
@@ -36,33 +28,33 @@ export function FilterBar({
 
   const content = (
     <>
-      {onSearchChange !== undefined && (
-        <div className="relative flex-1 min-w-50">
+      {onSearchChange !== undefined ? (
+        <div className="relative min-w-50 flex-1">
           <Icon
             name="search"
-            className="absolute top-1/2 left-3 -translate-y-1/2 text-slate-400 text-[18px]"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-slate-400"
           />
           <input
             value={search || ""}
-            onChange={(e) => onSearchChange(e.target.value)}
+            onChange={(event) => onSearchChange(event.target.value)}
             placeholder={searchPlaceholder}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pr-4 pl-10 text-sm outline-none transition-all focus:border-[#f97316] focus:bg-white focus:ring-2 focus:ring-orange-100"
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm outline-none transition-all focus:border-[#f97316] focus:bg-white focus:ring-2 focus:ring-orange-100"
           />
         </div>
-      )}
+      ) : null}
 
       {children}
 
-      {onClear && (
+      {onClear ? (
         <button
           type="button"
           onClick={onClear}
-          className="inline-flex h-11.5 items-center justify-center gap-1.5 rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50 shrink-0"
+          className="inline-flex h-11.5 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50"
         >
           <Icon name="filter_alt_off" className="text-base" />
           Xóa lọc
         </button>
-      )}
+      ) : null}
     </>
   );
 
@@ -74,11 +66,7 @@ export function FilterBar({
     );
   }
 
-  return (
-    <div className={appliedClass}>
-      {content}
-    </div>
-  );
+  return <div className={appliedClass}>{content}</div>;
 }
 
 export default FilterBar;

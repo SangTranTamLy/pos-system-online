@@ -22,6 +22,28 @@ type CartItem = {
   quantity: number;
 };
 
+const API_BASE_URL =
+  (import.meta.env.VITE_API_BASE_URL as string) || "http://localhost:5000/api";
+
+function getAuthHeaders() {
+  const token = localStorage.getItem("auth_token");
+  return {
+    "Content-Type": "application/json",
+    Authorization: token ? `Bearer ${token}` : "",
+  };
+}
+
+async function setShiftOpeningCash(id: string, openingCash: number): Promise<Shift> {
+  const response = await fetch(`${API_BASE_URL}/shifts/${id}/opening-cash`, {
+    method: "PATCH",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ openingCash }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message || "Khong the nhap tien dau ca");
+  return data.data;
+}
+
 function toPromotionPreviewItems(cartItems: CartItem[]) {
   return cartItems.map((item) => ({
     productId: item.product.id,
@@ -46,6 +68,24 @@ function formatCurrency(value: number) {
     currency: "VND",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function getStoredPosUser() {
+  const storedUser = localStorage.getItem("auth_user");
+  let currentUserId = "";
+  let roleName = "";
+
+  if (storedUser) {
+    try {
+      const user = JSON.parse(storedUser);
+      currentUserId = user.id || "";
+      roleName = user.roleName?.toLowerCase() || "";
+    } catch {
+      // Ignore invalid local storage payload.
+    }
+  }
+
+  return { currentUserId, roleName };
 }
 
 function normalizeText(value: string) {
@@ -80,6 +120,8 @@ function PosPage() {
   const [showPaymentConfirmModal, setShowPaymentConfirmModal] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
   const [activeShift, setActiveShift] = useState<Shift | null>(null);
+  const [openingCashInput, setOpeningCashInput] = useState("");
+  const [isSavingOpeningCash, setIsSavingOpeningCash] = useState(false);
   const [lowStockAlerts, setLowStockAlerts] = useState<
     Array<{ name: string; stockQuantity: number; minStock: number }>
   >([]);
@@ -174,16 +216,7 @@ function PosPage() {
         setPromotions(promotionData);
         setPromotionFilterTime(Date.now());
         
-        const storedUserStr = localStorage.getItem("auth_user");
-        let currentUserId = "";
-        let roleName = "";
-        if (storedUserStr) {
-          try {
-             const user = JSON.parse(storedUserStr);
-             currentUserId = user.id;
-             roleName = user.roleName?.toLowerCase() || "";
-          } catch { /* ignore */ }
-        }
+        const { currentUserId, roleName } = getStoredPosUser();
         
         const openShift = shiftData.find(
           (s) => s.status === "OPEN" && s.userId === currentUserId
@@ -494,6 +527,27 @@ function PosPage() {
     await submitOrder();
   };
 
+  const handleSaveOpeningCash = async () => {
+    if (!activeShift || activeShift.id === "admin_bypass") return;
+    const openingCash = Number(openingCashInput);
+    if (!Number.isFinite(openingCash) || openingCash <= 0) {
+      setErrorMessage("Vui lòng nhập tiền đầu ca lớn hơn 0.");
+      return;
+    }
+
+    try {
+      setIsSavingOpeningCash(true);
+      setErrorMessage("");
+      const updatedShift = await setShiftOpeningCash(activeShift.id, openingCash);
+      setActiveShift(updatedShift);
+      setOpeningCashInput("");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Không thể nhập tiền đầu ca.");
+    } finally {
+      setIsSavingOpeningCash(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <AdminLayout title="Bán hàng" subtitle="Tải dữ liệu...">
@@ -518,12 +572,66 @@ function PosPage() {
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-orange-100 text-[#f97316]">
               <Icon name="lock" className="text-3xl" />
             </div>
-            <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-extrabold text-[#0b1c30]">
+            <h2 className="font-['Outfit',sans-serif] text-xl font-extrabold text-[#0b1c30]">
               POS Đã Khóa
             </h2>
             <p className="text-sm font-medium text-slate-600 leading-relaxed">
-              Bạn chưa có ca làm việc nào đang mở. Vui lòng vào mục <span className="font-bold text-[#0b1c30]">Ca làm</span> để đăng ký ca hoặc yêu cầu Quản lý mở ca.
+              Bạn chưa có ca làm việc nào đang mở. Vui lòng liên hệ Quản lý hoặc Admin để mở ca trước khi bán hàng.
             </p>
+          </div>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  if (activeShift.id !== "admin_bypass" && Number(activeShift.openingCash || 0) <= 0) {
+    return (
+      <AdminLayout title="Bán hàng">
+        <div className="flex h-[calc(100vh-8rem)] items-center justify-center">
+          <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+            <div className="mb-6 flex items-start gap-4">
+              <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-[#f97316]">
+                <Icon name="payments" className="text-3xl" />
+              </span>
+              <div>
+                <h2 className="font-['Outfit',sans-serif] text-xl font-extrabold text-[#0b1c30]">
+                  Nhập tiền đầu ca
+                </h2>
+                <p className="mt-1 text-sm font-medium leading-relaxed text-slate-500">
+                  Ca đã được mở. Vui lòng nhập tiền đầu ca để bắt đầu bán hàng trên POS.
+                </p>
+              </div>
+            </div>
+
+            {errorMessage ? (
+              <div className="mb-4 rounded-2xl border border-red-100 bg-red-50 p-3 text-sm font-semibold text-red-600">
+                {errorMessage}
+              </div>
+            ) : null}
+
+            <label className="block">
+              <span className="mb-2 block text-xs font-extrabold uppercase text-slate-500">
+                Tiền đầu ca
+              </span>
+              <input
+                type="number"
+                min={1}
+                value={openingCashInput}
+                onChange={(event) => setOpeningCashInput(event.target.value)}
+                className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-700 outline-none focus:border-[#f97316] focus:bg-white"
+                placeholder="Ví dụ: 500000"
+              />
+            </label>
+
+            <button
+              type="button"
+              onClick={handleSaveOpeningCash}
+              disabled={isSavingOpeningCash}
+              className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#f97316] px-5 text-sm font-extrabold text-white transition hover:bg-[#ea580c] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Icon name="storefront" className="text-[19px]" />
+              {isSavingOpeningCash ? "Đang lưu..." : "Bắt đầu bán hàng"}
+            </button>
           </div>
         </div>
       </AdminLayout>
@@ -535,7 +643,7 @@ function PosPage() {
       title="Bán hàng tại quầy"
       subtitle="Chọn món, thanh toán, theo dõi doanh thu và quản lý tồn kho."
     >
-      <div className="flex h-[calc(100vh-132px)] min-h-[720px] gap-4">
+      <div className="flex h-full min-h-0 gap-4 overflow-hidden">
         <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <div className="mb-4 flex flex-col gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm lg:flex-row lg:items-center">
             <div className="relative w-full lg:max-w-md">
@@ -591,7 +699,7 @@ function PosPage() {
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-extrabold text-[#0b1c30]">
+                <h2 className="font-['Outfit',sans-serif] text-xl font-extrabold text-[#0b1c30]">
                   Thực đơn
                 </h2>
                 <p className="text-sm text-slate-500">
@@ -619,11 +727,11 @@ function PosPage() {
           </div>
         </section>
 
-        <aside className="hidden w-[400px] shrink-0 xl:block">
+        <aside className="hidden w-100 shrink-0 xl:block">
           <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
               <div>
-                <h2 className="flex items-center gap-2 font-['Plus_Jakarta_Sans',sans-serif] text-lg font-extrabold text-[#0b1c30]">
+                <h2 className="flex items-center gap-2 font-['Outfit',sans-serif] text-lg font-extrabold text-[#0b1c30]">
                   <Icon name="shopping_cart" className="text-xl" />
                   Giỏ hàng
                 </h2>
@@ -971,7 +1079,7 @@ function PosPage() {
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
               </span>
               <Icon name="warning" className="text-xl" />
-              <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-sm font-extrabold uppercase tracking-wide">
+              <h3 className="font-['Outfit',sans-serif] text-sm font-extrabold uppercase tracking-wide">
                 Cảnh báo hết nguyên liệu!
               </h3>
             </div>

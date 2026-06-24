@@ -1,5 +1,5 @@
-import { createPosOrderTransaction } from "../repositories/pos.repository";
 import { findCustomerByPhone } from "../repositories/customers.repository";
+import { createPosOrderTransaction } from "../repositories/pos.repository";
 import type {
   CreatePosOrderBody,
   NormalizedPosOrderItem,
@@ -58,21 +58,20 @@ export async function createPosOrderService(
     customerId = customer?.id ?? null;
   }
 
-  console.log("POS Order Input:", {
-    customerId,
-    customerPhone,
-    paymentMethod,
-    promotionCode: body.promotionCode,
-    changeAmount: body.changeAmount,
-    itemsCount: items.length,
-  });
-
   const { db } = await import("../config/database");
   const [shifts] = await db.execute<any[]>(
-    "SELECT id FROM shifts WHERE user_id = ? AND status = 'OPEN' LIMIT 1",
+    "SELECT id, opening_cash FROM shifts WHERE user_id = ? AND status = 'OPEN' LIMIT 1",
     [createdBy]
   );
   const shiftId = shifts[0]?.id || null;
+
+  if (!shiftId) {
+    throw new ApiError(409, "Bạn cần mở ca làm trước khi bán hàng.");
+  }
+
+  if (Number(shifts[0]?.opening_cash || 0) <= 0) {
+    throw new ApiError(409, "Bạn cần nhập tiền đầu ca trước khi bán hàng.");
+  }
 
   return createPosOrderTransaction({
     customerId,

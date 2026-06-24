@@ -37,6 +37,13 @@ export interface CreateShiftPayload {
   expectedEndTime: string;
 }
 
+export interface OpenShiftForEmployeePayload {
+  userId: string;
+  expectedStartTime: string;
+  expectedEndTime: string;
+  openingCash?: number;
+}
+
 export interface ApproveShiftPayload {
   // Empty or could have notes
 }
@@ -52,4 +59,23 @@ export interface OpenShiftPayload {
 export interface CloseShiftPayload {
   actualClosingCash: number;
   closingNote?: string;
+}
+
+export type ShiftBucketKey = "morning" | "afternoon" | "night";
+
+export interface ShiftRevenueSummaryItem {
+  date: string;
+  label: string;
+  morning: number;
+  afternoon: number;
+  night: number;
+  total: number;
+}
+
+export interface StaffByShiftSummaryItem {
+  key: ShiftBucketKey;
+  label: string;
+  assigned: number;
+  total: number;
+  percentage: number;
 }

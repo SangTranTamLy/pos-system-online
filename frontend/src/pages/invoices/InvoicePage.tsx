@@ -317,7 +317,7 @@ function CancelOrderModal({
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-widest text-red-600">Thao tác nguy hiểm</p>
-            <h3 className="mt-1 font-['Plus_Jakarta_Sans',sans-serif] text-2xl font-extrabold text-[#0b1c30]">
+            <h3 className="mt-1 font-['Outfit',sans-serif] text-2xl font-extrabold text-[#0b1c30]">
               Hủy hóa đơn
             </h3>
             <p className="mt-2 text-sm text-slate-500">
@@ -397,7 +397,7 @@ function InvoiceDetailPanel({
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-[#f97316]">
           <Icon name="receipt_long" />
         </div>
-        <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-lg font-extrabold text-[#0b1c30]">
+        <h3 className="font-['Outfit',sans-serif] text-lg font-extrabold text-[#0b1c30]">
           Chọn một hóa đơn
         </h3>
         <p className="mt-2 text-sm text-slate-500">Chi tiết món bán và thanh toán sẽ hiển thị tại đây.</p>
@@ -411,7 +411,7 @@ function InvoiceDetailPanel({
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-widest text-[#f97316]">Chi tiết hóa đơn</p>
-            <h3 className="mt-1 font-['Plus_Jakarta_Sans',sans-serif] text-xl font-extrabold text-[#0b1c30]">
+            <h3 className="mt-1 font-['Outfit',sans-serif] text-xl font-extrabold text-[#0b1c30]">
               {shortOrderId(order.id)}
             </h3>
             <p className="mt-1 text-xs text-slate-400">{formatDateTime(order.createdAt)}</p>
@@ -691,7 +691,7 @@ function InvoicePage() {
       <section className="mb-8 flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="mb-2 text-xs font-bold uppercase tracking-widest text-[#f97316]">Quản lý hóa đơn</p>
-          <h1 className="font-['Plus_Jakarta_Sans',sans-serif] text-3xl font-extrabold text-[#0b1c30]">
+          <h1 className="font-['Outfit',sans-serif] text-3xl font-extrabold text-[#0b1c30]">
             Danh sách hóa đơn
           </h1>
           <p className="mt-2 max-w-3xl text-sm text-slate-500">

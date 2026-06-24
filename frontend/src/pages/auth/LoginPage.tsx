@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { login, loginPinApi } from "../../api/auth.api";
 import heroImage from "../../assets/brg_login1.png";
+import logoImage from "../../assets/logo-2.png";
+import { useAppNotifications } from "../../components/common/AppNotificationsContext";
 
 type LoginTab = "staff" | "quick";
 
@@ -53,6 +55,7 @@ function TabButton({
 }
 
 function LoginPage() {
+  const { notify } = useAppNotifications();
   const [activeTab, setActiveTab] = useState<LoginTab>("quick");
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
@@ -120,7 +123,7 @@ function LoginPage() {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Đăng nhập thất bại";
-      alert(message);
+      notify(message, "error");
       setPin("");
     } finally {
       setIsSubmitting(false);
@@ -156,27 +159,42 @@ function LoginPage() {
           <header className="flex shrink-0 justify-center px-6 py-4 lg:hidden bg-[#fdfcfb]">
             <div className="flex items-center gap-2">
               <Icon name="terminal" filled className="text-2xl text-[#f97316]" />
-              <span className="font-['Plus_Jakarta_Sans',sans-serif] text-2xl font-bold text-[#f97316] tracking-tight">
+              <span className="font-['Outfit',sans-serif] text-2xl font-bold text-[#f97316] tracking-tight">
                 QuickServe POS
               </span>
             </div>
           </header>
 
-          <div className="flex min-h-0 flex-1 items-center justify-center px-8 py-6 md:px-16 overflow-y-auto">
-            <div className="w-full max-w-md">
-              {/* Header */}
-              <div className="mb-8">
-                <span className="text-xs uppercase font-bold tracking-widest text-[#f97316]">Hệ thống POS</span>
-                <h2 className="mt-1 mb-2 font-['Plus_Jakarta_Sans',sans-serif] text-3xl font-bold text-[#0b1c30]">
+          <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto overflow-x-hidden px-5 py-4 md:px-10 xl:px-14">
+            <div className="w-full max-w-md rounded-2xl border border-orange-100/80 bg-white/90 p-7 shadow-[0_24px_70px_rgba(15,23,42,0.10)] backdrop-blur xl:p-8">
+              <div className="mb-5 xl:mb-6 text-center">
+                {/* Logo */}
+                <div className="mb-3 mx-auto flex h-21.25 w-21.25 items-center justify-center rounded-2xl bg-white shadow-md ring-1 ring-slate-200">
+                  <img
+                    src={logoImage}
+                    alt="QuickServe POS"
+                    className="h-25 w-25 object-contain"
+                  />
+                </div>
+
+                {/* Label */}
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#f97316]">
+                  Hệ thống POS
+                </p>
+
+                {/* Title */}
+                <h2 className="mt-1 mb-2 font-['Outfit',sans-serif] text-[2rem] font-extrabold leading-tight text-[#0b1c30]">
                   Chào Mừng Trở Lại
                 </h2>
-                <p className="text-sm text-[#735b4f]">
+
+                {/* Subtitle */}
+                <p className="text-sm leading-relaxed text-[#735b4f]">
                   Đăng nhập để bắt đầu phiên làm việc và quản lý giao dịch.
                 </p>
               </div>
 
               {/* Tab Selector */}
-              <div className="mb-6 flex border border-[#e2d8d2] bg-[#fdfbf7] p-1" role="tablist">
+              <div className="mb-4 flex border border-[#e2d8d2] bg-[#fdfbf7] p-1" role="tablist">
                 <TabButton
                   active={activeTab === "staff"}
                   label="Tài khoản nhân sự"
@@ -190,14 +208,14 @@ function LoginPage() {
               </div>
 
               {/* Forms Container */}
-              <div className="min-h-112">
+              <div className="min-h-0">
                 {activeTab === "staff" ? (
                   <form className="space-y-4" onSubmit={handleStaffLogin}>
                     <div className="space-y-1.5">
                       <label htmlFor="email" className="text-xs font-bold uppercase tracking-wider text-[#735b4f]">
                         Tài khoản / Email
                       </label>
-                      <div className="group relative border border-[#d4beab] bg-[#fcfaf7] transition-colors duration-150 focus-within:border-[#f97316]">
+                      <div className="group relative rounded-xl border border-[#d4beab] bg-[#fcfaf7] transition-colors duration-150 focus-within:border-[#f97316]">
                         <Icon
                           name="mail"
                           className="absolute top-1/2 left-3 -translate-y-1/2 text-[#8b6e60]"
@@ -222,7 +240,7 @@ function LoginPage() {
                           Quên mật khẩu?
                         </a>
                       </div>
-                      <div className="group relative border border-[#d4beab] bg-[#fcfaf7] transition-colors duration-150 focus-within:border-[#f97316]">
+                      <div className="group relative rounded-xl border border-[#d4beab] bg-[#fcfaf7] transition-colors duration-150 focus-within:border-[#f97316]">
                         <Icon
                           name="lock"
                           className="absolute top-1/2 left-3 -translate-y-1/2 text-[#8b6e60]"
@@ -265,7 +283,7 @@ function LoginPage() {
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="w-full bg-[#f97316] py-3.5 font-['Plus_Jakarta_Sans',sans-serif] text-sm font-bold uppercase tracking-widest text-white transition-colors duration-150 hover:bg-[#ea580c] disabled:cursor-not-allowed disabled:opacity-60"
+                      className="w-full bg-[#f97316] py-3.5 font-['Outfit',sans-serif] text-sm font-bold uppercase tracking-widest text-white transition-colors duration-150 hover:bg-[#ea580c] disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {isSubmitting ? "Đang đăng nhập..." : "Đăng nhập hệ thống"}
                     </button>
@@ -282,7 +300,7 @@ function LoginPage() {
                       <label htmlFor="employee-id" className="text-xs font-bold uppercase tracking-wider text-[#735b4f]">
                         Mã PIN Nhân Viên
                       </label>
-                      <div className="group relative border border-[#d4beab] bg-[#fcfaf7] transition-colors duration-150 focus-within:border-[#f97316]">
+                      <div className="group relative rounded-xl border border-[#d4beab] bg-[#fcfaf7] transition-colors duration-150 focus-within:border-[#f97316]">
                         <Icon
                           name="badge"
                           className="absolute top-1/2 left-3.5 -translate-y-1/2 text-[#8b6e60]"
@@ -309,7 +327,7 @@ function LoginPage() {
                           key={digit}
                           type="button"
                           onClick={() => handleQuickDigit(digit)}
-                          className="h-12 border border-[#eadacf] bg-[#fcfaf8] font-['Plus_Jakarta_Sans',sans-serif] text-xl font-bold text-[#4a3728] transition-colors duration-150 hover:bg-[#f3eae1] active:bg-[#eadacf]"
+                          className="h-12 border border-[#eadacf] bg-[#fcfaf8] font-['Outfit',sans-serif] text-xl font-bold text-[#4a3728] transition-colors duration-150 hover:bg-[#f3eae1] active:bg-[#eadacf]"
                         >
                           {digit}
                         </button>
@@ -327,7 +345,7 @@ function LoginPage() {
                       <button
                         type="button"
                         onClick={() => handleQuickDigit("0")}
-                        className="h-12 border border-[#eadacf] bg-[#fcfaf8] font-['Plus_Jakarta_Sans',sans-serif] text-xl font-bold text-[#4a3728] transition-colors duration-150 hover:bg-[#f3eae1] active:bg-[#eadacf]"
+                        className="h-12 border border-[#eadacf] bg-[#fcfaf8] font-['Outfit',sans-serif] text-xl font-bold text-[#4a3728] transition-colors duration-150 hover:bg-[#f3eae1] active:bg-[#eadacf]"
                       >
                         0
                       </button>
@@ -344,7 +362,7 @@ function LoginPage() {
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="w-full bg-[#f97316] py-3.5 font-['Plus_Jakarta_Sans',sans-serif] text-sm font-bold uppercase tracking-widest text-white transition-colors duration-150 hover:bg-[#ea580c] disabled:cursor-not-allowed disabled:opacity-60"
+                      className="w-full bg-[#f97316] py-3.5 font-['Outfit',sans-serif] text-sm font-bold uppercase tracking-widest text-white transition-colors duration-150 hover:bg-[#ea580c] disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       Xác nhận đăng nhập
                     </button>
@@ -365,7 +383,7 @@ function LoginPage() {
             </div>
           </div>
 
-          <footer className="flex flex-col items-center justify-between gap-4 shrink-0 border-t border-[#e2d8d2]/30 px-6 py-4 md:flex-row bg-[#f8f9ff]">
+          <footer className="flex shrink-0 flex-col items-center justify-between gap-3 border-t border-[#e2d8d2]/30 bg-[#f8f9ff] px-5 py-3 md:flex-row">
             <p className="text-xs font-medium tracking-[0.02em] text-[#8c7467]">
               Bản quyền © 2024 QuickServe Systems. Bảo lưu mọi quyền.
             </p>

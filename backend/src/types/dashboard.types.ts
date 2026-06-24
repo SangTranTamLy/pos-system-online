@@ -8,7 +8,7 @@ export type DashboardStats = {
     totalStockValue: number;
 };
 
-export type DashboardRevenuePeriod = "month" | "year";
+export type DashboardRevenuePeriod = "week" | "year";
 
 export type DashboardRevenuePoint = {
     sort: number;
@@ -50,6 +50,7 @@ export type DashboardLowStockItem = {
 
 export type DashboardCategorySale = {
     name: string;
+    imageUrl?: string;
     quantity: number;
     revenue: number;
 };

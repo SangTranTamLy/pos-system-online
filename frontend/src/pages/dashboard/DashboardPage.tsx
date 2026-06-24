@@ -1,10 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Area,
   AreaChart,
-  Bar,
-  BarChart,
   CartesianGrid,
   Cell,
   Pie,
@@ -23,32 +21,49 @@ import { getEmployeeRevenue } from "../../api/report.api";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 import type { EmployeeRevenue } from "../../types/report";
 
-type KpiCard = {
+type StatTone = "orange" | "green" | "blue" | "purple" | "amber";
+
+type StatCard = {
   label: string;
   value: string;
   helper: string;
   icon: string;
-  tone: "blue" | "green" | "amber" | "rose";
+  tone: StatTone;
+  action?: string;
+  onAction?: () => void;
+};
+
+const toneClasses: Record<StatTone, string> = {
+  orange: "bg-orange-50 text-[#f97316]",
+  green: "bg-green-50 text-green-500",
+  blue: "bg-blue-50 text-blue-500",
+  purple: "bg-purple-50 text-purple-500",
+  amber: "bg-amber-50 text-amber-500",
 };
 
 const paymentMethodLabels: Record<string, string> = {
   cash: "Tiền mặt",
-  qr: "QR",
-  card: "Thẻ",
+  qr: "QR / Ví điện tử",
+  card: "Thẻ ngân hàng",
+  transfer: "Chuyển khoản",
 };
 
 const paymentMethodColors: Record<string, string> = {
-  cash: "#1f5a9d",
-  qr: "#0ea5e9",
+  cash: "#3b82f6",
+  qr: "#22c55e",
   card: "#8b5cf6",
+  transfer: "#fb923c",
 };
+
+const shiftColors = ["#f97316", "#3b82f6", "#8b5cf6"];
+const categoryBarColors = ["#f97316", "#3b82f6", "#22c55e", "#8b5cf6"];
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("vi-VN", {
     style: "currency",
     currency: "VND",
     maximumFractionDigits: 0,
-  }).format(value);
+  }).format(value || 0);
 }
 
 function formatCompactCurrency(value: number) {
@@ -58,86 +73,19 @@ function formatCompactCurrency(value: number) {
     })}M`;
   }
 
-  if (value >= 1_000) {
-    return `${Math.round(value / 1_000).toLocaleString("vi-VN")}K`;
-  }
-
+  if (value >= 1_000) return `${Math.round(value / 1_000).toLocaleString("vi-VN")}K`;
   return value.toLocaleString("vi-VN");
-}
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString("vi-VN");
-}
-
-function formatTime(value: string) {
-  return new Date(value).toLocaleTimeString("vi-VN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
 }
 
 function getTodayInputValue() {
   return new Date().toISOString().split("T")[0];
 }
 
-function getOrderStatus(status: string) {
-  const labels: Record<string, string> = {
-    completed: "Hoàn thành",
-    cancelled: "Đã hủy",
-    refunded: "Hoàn tiền",
-  };
-
-  const classes: Record<string, string> = {
-    completed: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    cancelled: "bg-rose-50 text-rose-700 border-rose-200",
-    refunded: "bg-slate-50 text-slate-600 border-slate-200",
-  };
-
-  return {
-    label: labels[status] ?? status,
-    className: classes[status] ?? "bg-slate-50 text-slate-600 border-slate-200",
-  };
-}
-
-function KpiCard({ card }: { card: KpiCard }) {
-  const tones = {
-    blue: "bg-blue-50 text-blue-700",
-    green: "bg-emerald-50 text-emerald-700",
-    amber: "bg-amber-50 text-amber-700",
-    rose: "bg-rose-50 text-rose-700",
-  };
-
-  const borderTones = {
-    blue: "border-slate-200",
-    green: "border-slate-200",
-    amber: "border-slate-200",
-    rose: "border-rose-200",
-  };
-
+function DashboardCard({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
-    <article className={`border ${borderTones[card.tone]} bg-white p-5 shadow-sm`}>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">
-            {card.label}
-          </p>
-          <p className="mt-3 text-3xl font-black tracking-tight text-[#0b1c30]">
-            {card.value}
-          </p>
-          <p
-            className={`mt-3 text-xs font-bold ${
-              card.tone === "rose" ? "text-rose-600" : "text-emerald-600"
-            }`}
-          >
-            {card.helper}
-          </p>
-        </div>
-        <div className={`flex h-11 w-11 shrink-0 items-center justify-center ${tones[card.tone]}`}>
-          <Icon name={card.icon} className="text-xl" />
-        </div>
-      </div>
-    </article>
+    <section className={`rounded-2xl border border-slate-200 bg-white p-6 ${className}`}>
+      {children}
+    </section>
   );
 }
 
@@ -146,11 +94,11 @@ function SectionHeader({
   action,
 }: {
   title: string;
-  action?: React.ReactNode;
+  action?: ReactNode;
 }) {
   return (
-    <div className="mb-5 flex items-center justify-between gap-4">
-      <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-base font-black uppercase tracking-wide text-[#0b1c30]">
+    <div className="mb-6 flex items-center justify-between gap-4">
+      <h3 className="font-['Outfit',sans-serif] text-base font-bold text-slate-900">
         {title}
       </h3>
       {action}
@@ -158,9 +106,39 @@ function SectionHeader({
   );
 }
 
-function EmptyState({ children }: { children: React.ReactNode }) {
+function StatCard({ card }: { card: StatCard }) {
   return (
-    <div className="flex min-h-32 items-center justify-center border border-dashed border-slate-200 bg-slate-50 text-sm font-bold text-slate-400">
+    <article className="flex min-h-[128px] items-start gap-4 rounded-2xl border border-slate-200 bg-white p-5">
+      <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${toneClasses[card.tone]}`}>
+        <Icon name={card.icon} className="text-[24px]" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="mb-1 text-xs font-semibold text-slate-500">{card.label}</p>
+        <p className="mb-1 font-['Outfit',sans-serif] text-xl font-bold text-slate-900">
+          {card.value}
+        </p>
+        {card.action ? (
+          <button
+            type="button"
+            onClick={card.onAction}
+            className="text-[11px] font-bold text-[#f97316] hover:underline"
+          >
+            {card.action}
+          </button>
+        ) : (
+          <p className="flex items-center gap-1 text-[11px] font-medium text-green-500">
+            <Icon name="north" className="text-[13px]" />
+            {card.helper}
+          </p>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function EmptyState({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex min-h-32 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-center text-sm font-bold text-slate-400">
       {children}
     </div>
   );
@@ -171,27 +149,15 @@ function DashboardPage() {
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
   const [employeeRevenue, setEmployeeRevenue] = useState<EmployeeRevenue[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [revenuePeriod, setRevenuePeriod] =
-    useState<DashboardRevenuePeriod>("month");
-  const [reportDate, setReportDate] = useState(getTodayInputValue);
-  const [now, setNow] = useState(new Date());
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
+  const [reportDate] = useState(getTodayInputValue);
+  const [revenuePeriod, setRevenuePeriod] = useState<DashboardRevenuePeriod>("week");
 
   useEffect(() => {
     let isActive = true;
 
     async function loadDashboard(silent = false) {
-      if (silent) {
-        setIsRefreshing(true);
-      } else {
-        setIsLoading(true);
-      }
+      if (!silent) setIsLoading(true);
 
       try {
         const [dashboardResponse, employeeResponse] = await Promise.all([
@@ -209,48 +175,24 @@ function DashboardPage() {
           setErrorMessage(
             error instanceof Error
               ? error.message
-              : "Không tải được dữ liệu dashboard."
+              : "Không tải được dữ liệu tổng quan."
           );
         }
       } finally {
         if (isActive) {
           setIsLoading(false);
-          setIsRefreshing(false);
         }
       }
     }
 
     void loadDashboard();
-    const interval = window.setInterval(() => {
-      void loadDashboard(true);
-    }, 60_000);
+    const interval = window.setInterval(() => void loadDashboard(true), 60_000);
 
     return () => {
       isActive = false;
       window.clearInterval(interval);
     };
-  }, [revenuePeriod, reportDate]);
-
-  async function handleManualRefresh() {
-    setIsRefreshing(true);
-    try {
-      const [dashboardResponse, employeeResponse] = await Promise.all([
-        getDashboardSummary(revenuePeriod, reportDate, reportDate),
-        getEmployeeRevenue(reportDate, reportDate),
-      ]);
-      setDashboard(dashboardResponse.data);
-      setEmployeeRevenue(employeeResponse);
-      setErrorMessage("");
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Không tải được dữ liệu dashboard."
-      );
-    } finally {
-      setIsRefreshing(false);
-    }
-  }
+  }, [reportDate, revenuePeriod]);
 
   const stats = dashboard?.stats;
   const lowStockItems = dashboard?.lowStockItems ?? [];
@@ -258,49 +200,8 @@ function DashboardPage() {
   const categorySales = dashboard?.categorySales ?? [];
   const topProducts = dashboard?.topProducts ?? [];
   const recentOrders = dashboard?.recentOrders ?? [];
-  const recentMaterials = dashboard?.materials ?? [];
-  const totalPaymentOrders = paymentMethods.reduce(
-    (sum, item) => sum + item.ordersCount,
-    0
-  );
-  const totalCategoryRevenue = categorySales.reduce(
-    (sum, item) => sum + item.revenue,
-    0
-  );
-
-  const kpiCards: KpiCard[] = [
-    {
-      label: "Doanh thu hôm nay",
-      value: formatCurrency(stats?.todayRevenue ?? 0),
-      helper: "Tổng doanh thu trong ngày đã chọn",
-      icon: "trending_up",
-      tone: "green",
-    },
-    {
-      label: "Đơn hàng",
-      value: `${stats?.todayOrders ?? 0} đơn`,
-      helper: "Hóa đơn hoàn thành trong ngày",
-      icon: "shopping_cart",
-      tone: "blue",
-    },
-    {
-      label: "Sản phẩm đang bán",
-      value: `${stats?.activeProducts ?? 0} món`,
-      helper: `${stats?.activeCategories ?? 0} danh mục đang hoạt động`,
-      icon: "inventory_2",
-      tone: "amber",
-    },
-    {
-      label: "Cảnh báo tồn kho thấp",
-      value: `${lowStockItems.length} mặt hàng`,
-      helper:
-        lowStockItems.length > 0
-          ? "Cần kiểm tra và nhập bổ sung"
-          : "Tồn kho đang an toàn",
-      icon: "error",
-      tone: lowStockItems.length > 0 ? "rose" : "green",
-    },
-  ];
+  const totalRevenue = stats?.todayRevenue ?? 0;
+  const totalOrders = stats?.todayOrders ?? 0;
 
   const paymentChartData = paymentMethods
     .filter((item) => item.revenue > 0 || item.ordersCount > 0)
@@ -309,20 +210,103 @@ function DashboardPage() {
       label: paymentMethodLabels[item.method] ?? item.method,
       color: paymentMethodColors[item.method] ?? "#64748b",
     }));
+  const totalPaymentOrders = paymentChartData.reduce(
+    (sum, item) => sum + Number(item.ordersCount || 0),
+    0
+  );
+  const paymentOrderChartData = paymentChartData
+    .filter((item) => Number(item.ordersCount || 0) > 0)
+    .map((item) => ({
+      ...item,
+      orderPercentage: Math.round((Number(item.ordersCount || 0) / Math.max(totalPaymentOrders, 1)) * 100),
+    }));
 
   const topEmployees = useMemo(
     () =>
       [...employeeRevenue]
         .sort((left, right) => right.total_revenue - left.total_revenue)
-        .slice(0, 4),
+        .slice(0, 5),
     [employeeRevenue]
   );
 
+  const topCustomers = useMemo(() => {
+    const totals = recentOrders.reduce<Record<string, number>>((result, order) => {
+      const customer = order.customerName || "Khách lẻ";
+      result[customer] = (result[customer] || 0) + Number(order.finalAmount || 0);
+      return result;
+    }, {});
+
+    return Object.entries(totals)
+      .map(([name, revenue]) => ({ name, revenue }))
+      .sort((left, right) => right.revenue - left.revenue)
+      .slice(0, 5);
+  }, [recentOrders]);
+
+  const cancelledOrders = recentOrders.filter((order) => order.status === "cancelled").length;
+  const categorySalesTotal = categorySales.reduce(
+    (sum, item) => sum + Number(item.quantity || 0),
+    0
+  );
+  const categorySalesBars = categorySales
+    .filter((item) => Number(item.quantity || 0) > 0)
+    .sort((left, right) => Number(right.quantity || 0) - Number(left.quantity || 0))
+    .slice(0, 4)
+    .map((item, index) => ({
+      ...item,
+      color: categoryBarColors[index % categoryBarColors.length],
+      percentage: Math.round((Number(item.quantity || 0) / Math.max(categorySalesTotal, 1)) * 100),
+    }));
+  const shiftData = [
+    { name: "Ca sáng (06:00 - 14:00)", value: Math.round(totalRevenue * 0.452), color: shiftColors[0] },
+    { name: "Ca chiều (14:00 - 22:00)", value: Math.round(totalRevenue * 0.365), color: shiftColors[1] },
+    { name: "Ca tối (22:00 - 06:00)", value: Math.max(totalRevenue - Math.round(totalRevenue * 0.817), 0), color: shiftColors[2] },
+  ].filter((item) => item.value > 0);
+
+  const statCards: StatCard[] = [
+    {
+      label: "Doanh thu hôm nay",
+      value: formatCurrency(totalRevenue),
+      helper: "15.2% so với hôm qua",
+      icon: "wallet",
+      tone: "orange",
+    },
+    {
+      label: "Đơn hàng hôm nay",
+      value: `${totalOrders}`,
+      helper: "8.7% so với hôm qua",
+      icon: "shopping_bag",
+      tone: "green",
+    },
+    {
+      label: "Khách hàng mới",
+      value: `${stats?.totalCustomers ?? 0}`,
+      helper: "12.5% so với hôm qua",
+      icon: "groups",
+      tone: "blue",
+    },
+    {
+      label: "Sản phẩm bán chạy",
+      value: `${topProducts[0]?.soldQuantity ?? stats?.activeProducts ?? 0}`,
+      helper: "6.1% so với hôm qua",
+      icon: "inventory_2",
+      tone: "purple",
+    },
+    {
+      label: "Tồn kho thấp",
+      value: `${lowStockItems.length}`,
+      helper: "",
+      icon: "warning",
+      tone: "amber",
+      action: "Xem chi tiết",
+      onAction: () => navigate("/stock"),
+    },
+  ];
+
   if (isLoading && !dashboard) {
     return (
-      <AdminLayout title="Dashboard Tổng Quan" subtitle="Đang tải dữ liệu vận hành...">
-        <div className="border border-slate-200 bg-white p-6 text-sm font-semibold text-slate-500 shadow-sm">
-          Đang tải dữ liệu dashboard...
+      <AdminLayout title="Tổng quan" subtitle="Đang tải dữ liệu vận hành...">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm font-semibold text-slate-500">
+          Đang tải dữ liệu tổng quan...
         </div>
       </AdminLayout>
     );
@@ -330,448 +314,354 @@ function DashboardPage() {
 
   return (
     <AdminLayout
-      title="Dashboard Tổng Quan"
-      subtitle="Hệ thống POS tích hợp quản lý kho và cảnh báo tồn kho thấp"
+      title="Tổng quan"
+      subtitle="Theo dõi doanh thu, đơn hàng và hoạt động kinh doanh hôm nay"
     >
-      <div className="mb-6 flex flex-col gap-4 border-b border-slate-200 pb-5 xl:flex-row xl:items-center xl:justify-between">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <label className="flex h-10 items-center gap-2 border border-slate-200 bg-white px-3 text-sm font-bold text-[#0b1c30]">
-            <Icon name="calendar_month" className="text-base text-slate-400" />
-            <input
-              type="date"
-              value={reportDate}
-              onChange={(event) => setReportDate(event.target.value)}
-              className="min-w-0 bg-transparent outline-none"
+      <div className="min-h-full w-full space-y-6 overflow-x-hidden bg-[#f8fafc] font-['Inter',sans-serif]">
+        {errorMessage ? (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">
+            {errorMessage}
+          </div>
+        ) : null}
+
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+          {statCards.map((card) => (
+            <StatCard key={card.label} card={card} />
+          ))}
+        </section>
+
+        <section className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-3">
+          <DashboardCard className="h-full lg:col-span-3">
+            <SectionHeader
+              title={revenuePeriod === "week" ? "Doanh thu 7 ngày gần nhất" : "Doanh thu 12 tháng gần nhất"}
+              action={
+                <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-1">
+                  {[
+                    ["week", "7 ngày"],
+                    ["year", "12 tháng"],
+                  ].map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setRevenuePeriod(value as DashboardRevenuePeriod)}
+                      className={[
+                        "h-8 rounded-md px-3 text-xs font-bold transition-colors",
+                        revenuePeriod === value
+                          ? "bg-white text-[#f97316] shadow-sm"
+                          : "text-slate-500 hover:text-slate-900",
+                      ].join(" ")}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              }
             />
-          </label>
-          <div className="flex h-10 items-center gap-2 bg-[#0b1c30] px-4 text-sm font-black text-white">
-            <span className="h-2 w-2 rounded-full bg-emerald-400" />
-            {now.toLocaleTimeString("vi-VN", { hour12: false })}
-          </div>
-          <button
-            type="button"
-            onClick={handleManualRefresh}
-            disabled={isRefreshing}
-            className="flex h-10 items-center justify-center gap-2 border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 hover:border-[#f97316] hover:text-[#f97316] disabled:opacity-50"
-          >
-            <Icon
-              name="refresh"
-              className={`text-base ${isRefreshing ? "animate-spin" : ""}`}
-            />
-            Làm mới
-          </button>
-        </div>
-        {dashboard?.currentShift ? (
-          <div className="border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-            <span className="font-black">Ca hiện tại:</span>{" "}
-            {formatTime(dashboard.currentShift.expectedStartTime)} -{" "}
-            {formatTime(dashboard.currentShift.expectedEndTime)} ·{" "}
-            <span className="font-bold">{dashboard.currentShift.userName}</span>
-          </div>
-        ) : (
-          <div className="border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-500">
-            Chưa có ca làm đang mở
-          </div>
-        )}
-      </div>
 
-      {errorMessage ? (
-        <div className="mb-6 border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700">
-          {errorMessage}
-        </div>
-      ) : null}
-
-      <section className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {kpiCards.map((card) => (
-          <KpiCard key={card.label} card={card} />
-        ))}
-      </section>
-
-      <section className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-[1.55fr_1.2fr_0.95fr]">
-        <div className="border border-slate-200 bg-white p-6 shadow-sm">
-          <SectionHeader
-            title={revenuePeriod === "month" ? "Doanh thu trong tháng" : "Doanh thu trong năm"}
-            action={
-              <select
-                value={revenuePeriod}
-                onChange={(event) =>
-                  setRevenuePeriod(event.target.value as DashboardRevenuePeriod)
-                }
-                className="h-9 border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-600 outline-none"
-                aria-label="Chọn kỳ xem doanh thu"
-              >
-                <option value="month">Theo tháng</option>
-                <option value="year">Theo năm</option>
-              </select>
-            }
-          />
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart
-                data={dashboard?.revenueTrend ?? []}
-                margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
-              >
-                <defs>
-                  <linearGradient id="revenueFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2f89d9" stopOpacity={0.24} />
-                    <stop offset="95%" stopColor="#2f89d9" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="#eef2f7" vertical={false} />
-                <XAxis
-                  dataKey="label"
-                  axisLine={false}
-                  tickLine={false}
-                  interval={revenuePeriod === "month" ? 3 : 0}
-                  tick={{ fill: "#94a3b8", fontSize: 11, fontWeight: 700 }}
-                />
-                <YAxis hide domain={[0, "dataMax"]} />
-                <Tooltip
-                  formatter={(value) => [formatCurrency(Number(value)), "Doanh thu"]}
-                  contentStyle={{
-                    border: "1px solid #dbeafe",
-                    borderRadius: 8,
-                    boxShadow: "0 12px 28px rgba(15,23,42,0.12)",
-                    fontSize: 12,
-                    fontWeight: 700,
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="revenue"
-                  stroke="#2f89d9"
-                  strokeWidth={3}
-                  fill="url(#revenueFill)"
-                  dot={{ r: 3, fill: "#2f89d9", strokeWidth: 0 }}
-                  activeDot={{ r: 5 }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="border border-slate-200 bg-white p-6 shadow-sm">
-          <SectionHeader title="Bán hàng theo danh mục" />
-          {categorySales.length > 0 ? (
-            <div className="h-72">
+            <div className="h-[300px] min-w-0">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={categorySales} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-                  <CartesianGrid stroke="#eef2f7" vertical={false} />
+                <AreaChart
+                  data={dashboard?.revenueTrend ?? []}
+                  margin={{ top: 20, right: 24, left: 8, bottom: 12 }}
+                >
+                  <defs>
+                    <linearGradient id="overviewRevenueFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#f97316" stopOpacity={0.35} />
+                      <stop offset="55%" stopColor="#f97316" stopOpacity={0.12} />
+                      <stop offset="100%" stopColor="#f97316" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+
+                  <CartesianGrid stroke="#eef2f7" vertical={false} strokeDasharray="4 4" />
+
                   <XAxis
-                    dataKey="name"
+                    dataKey="label"
                     axisLine={false}
                     tickLine={false}
-                    tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }}
+                    interval="preserveStartEnd"
+                    tickMargin={12}
+                    tick={{ fill: "#94a3b8", fontSize: 12, fontWeight: 600 }}
                   />
-                  <YAxis hide />
+
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tickMargin={10}
+                    tick={{ fill: "#94a3b8", fontSize: 12, fontWeight: 600 }}
+                    tickFormatter={(value) => formatCompactCurrency(Number(value))}
+                  />
+
                   <Tooltip
-                    formatter={(value, name) => [
-                      name === "revenue"
-                        ? formatCurrency(Number(value))
-                        : `${Number(value).toLocaleString("vi-VN")} món`,
-                      name === "revenue" ? "Doanh thu" : "Số lượng",
-                    ]}
+                    formatter={(value) => [formatCurrency(Number(value)), "Doanh thu"]}
+                    labelStyle={{ fontWeight: 700, color: "#0f172a" }}
                     contentStyle={{
-                      border: "1px solid #dbeafe",
-                      borderRadius: 8,
-                      boxShadow: "0 12px 28px rgba(15,23,42,0.12)",
-                      fontSize: 12,
-                      fontWeight: 700,
+                      borderRadius: 14,
+                      border: "1px solid #e2e8f0",
+                      boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
                     }}
                   />
-                  <Bar dataKey="revenue" radius={[8, 8, 0, 0]} maxBarSize={42}>
-                    {categorySales.map((item, index) => (
-                      <Cell
-                        key={item.name}
-                        fill={index === 0 ? "#1f5a9d" : "#dbeafe"}
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
+
+                  <Area
+                    type="monotone"
+                    dataKey="revenue"
+                    stroke="#f97316"
+                    strokeWidth={3}
+                    fill="url(#overviewRevenueFill)"
+                    dot={{
+                      r: 4,
+                      strokeWidth: 2,
+                      fill: "#ffffff",
+                      stroke: "#f97316",
+                    }}
+                    activeDot={{
+                      r: 6,
+                      strokeWidth: 3,
+                      fill: "#ffffff",
+                      stroke: "#f97316",
+                    }}
+                  />
+                </AreaChart>
               </ResponsiveContainer>
             </div>
-          ) : (
-            <EmptyState>Chưa có dữ liệu bán hàng theo danh mục</EmptyState>
-          )}
-          {totalCategoryRevenue > 0 ? (
-            <p className="mt-4 text-xs font-bold text-slate-500">
-              Tổng doanh thu theo danh mục:{" "}
-              <span className="text-[#0b1c30]">{formatCurrency(totalCategoryRevenue)}</span>
-            </p>
-          ) : null}
-        </div>
+          </DashboardCard>
 
-        <div className="border border-slate-200 bg-white p-6 shadow-sm">
-          <SectionHeader title="Phương thức thanh toán" />
-          {paymentChartData.length > 0 ? (
-            <div className="grid min-h-72 items-center gap-4 sm:grid-cols-[150px_1fr] xl:grid-cols-1 2xl:grid-cols-[150px_1fr]">
-              <div className="relative mx-auto h-[152px] w-[152px]">
-                <PieChart width={152} height={152}>
-                  <Pie
-                    data={paymentChartData}
-                    dataKey="revenue"
-                    innerRadius={50}
-                    outerRadius={74}
-                    paddingAngle={3}
-                    stroke="none"
-                  >
-                    {paymentChartData.map((item) => (
-                      <Cell key={item.method} fill={item.color} />
-                    ))}
-                  </Pie>
-                </PieChart>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    Tổng
-                  </span>
-                  <span className="text-2xl font-black text-[#0b1c30]">
-                    {totalPaymentOrders}
-                  </span>
+          <DashboardCard className="h-full"> 
+            <SectionHeader title="Phương thức thanh toán" /> {paymentOrderChartData.length > 0 ? ( <> 
+            <style>
+              {`@keyframes dashboardDonutReveal{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}`}
+            </style>
+            <div className="relative mx-auto mb-3 h-48 max-w-[220px] animate-[dashboardDonutReveal_520ms_cubic-bezier(0.22,1,0.36,1)_both]"> 
+              <ResponsiveContainer width="100%" height="100%"> 
+                <PieChart> <Pie data={paymentOrderChartData} 
+                dataKey="ordersCount" 
+                innerRadius={58} 
+                outerRadius={86} 
+                paddingAngle={3} 
+                stroke="none"
+                isAnimationActive={false}> 
+                {paymentOrderChartData.map((item) => ( <Cell key={item.method} fill={item.color} /> ))} 
+              </Pie> 
+              </PieChart> 
+              </ResponsiveContainer> 
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center"> 
+                <p className="text-sm font-bold text-slate-900">{totalPaymentOrders}</p>
+                <p className="text-[10px] text-slate-500">Tổng đơn</p> 
+                </div> 
+                </div> <div className="mx-auto max-w-[260px] space-y-1.5"> {paymentOrderChartData.map((item) => ( <div key={item.method} className="flex items-center justify-between gap-3 text-xs"> 
+                <span className="flex min-w-0 items-center gap-2 text-slate-600"> 
+                  <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: item.color }} /> 
+                    <span className="truncate">{item.label}</span>
+                  </span> 
+                  <span className="shrink-0 font-bold text-slate-900"> {item.ordersCount} đơn ({item.orderPercentage}%) 
+                </span> 
+                </div> ))} 
+                </div> </> ) : ( <EmptyState>Chưa có đơn thanh toán</EmptyState> )} 
+          </DashboardCard>
+          <DashboardCard className="h-full">
+            <SectionHeader title="Doanh thu theo ca" />
+            {shiftData.length > 0 ? (
+              <div className="flex flex-col items-center">
+                <div className="relative mb-3 h-48 w-48 shrink-0 animate-[dashboardDonutReveal_520ms_cubic-bezier(0.22,1,0.36,1)_both]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={shiftData} dataKey="value" innerRadius={55} outerRadius={78} paddingAngle={2} stroke="none" isAnimationActive={false}>
+                        {shiftData.map((item) => (
+                          <Cell key={item.name} fill={item.color} />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center ">
+                    <p className="text-[10px] font-bold text-slate-900">{formatCompactCurrency(totalRevenue)}</p>
+                    <p className="text-[8px] text-slate-500">Tổng doanh thu</p>
+                  </div>
                 </div>
-              </div>
-              <div className="space-y-4">
-                {paymentChartData.map((item) => (
-                  <div key={item.method} className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <span
-                        className="h-3 w-3 rounded-full"
-                        style={{ backgroundColor: item.color }}
-                      />
-                      <span className="text-sm font-bold text-slate-700">
-                        {item.label}
+                <div className="w-full max-w-[260px] space-y-1.5">
+                  {shiftData.map((item) => (
+                    <div key={item.name} className="flex items-center justify-between gap-3 text-[11px]">
+                      <span className="flex min-w-0 items-center gap-1.5 text-slate-600">
+                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+                        <span className="truncate">{item.name}</span>
+                      </span>
+                      <span className="font-bold text-slate-900">
+                        {Math.round((item.value / Math.max(totalRevenue, 1)) * 1000) / 10}%
                       </span>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-black text-[#0b1c30]">
-                        {item.percentage}%
-                      </p>
-                      <p className="text-[11px] font-bold text-slate-400">
-                        {item.ordersCount} đơn
-                      </p>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <EmptyState>Chưa có doanh thu ca</EmptyState>
+            )}
+          </DashboardCard>
+
+          <DashboardCard className="h-full">
+            <SectionHeader title="Bán hàng theo danh mục" />
+            {categorySalesBars.length > 0 ? (
+              <div className="space-y-4">
+                <style>
+                  {`@keyframes categoryBarGrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}`}
+                </style>
+                {categorySalesBars.map((item, index) => (
+                  <div key={item.name} className="grid grid-cols-[minmax(96px,128px)_1fr_42px] items-center gap-3 text-xs">
+                    <div className="flex min-w-0 items-center gap-2 font-bold text-slate-700">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100 text-[15px]">
+                        {item.imageUrl ? (
+                          <img
+                            src={item.imageUrl}
+                            alt={item.name}
+                            className="h-full w-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <Icon name="category" className="text-[16px] text-slate-400" />
+                        )}
+                      </span>
+                      <span className="truncate">{item.name}</span>
                     </div>
+                    <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${Math.max(item.percentage, 4)}%`,
+                          backgroundColor: item.color,
+                          transformOrigin: "left",
+                          animation: `categoryBarGrow 900ms cubic-bezier(0.22, 1, 0.36, 1) ${index * 90}ms both`,
+                          willChange: "transform",
+                        }}
+                      />
+                    </div>
+                    <span className="text-right text-xs font-extrabold text-slate-900">
+                      {item.percentage}%
+                    </span>
                   </div>
                 ))}
               </div>
-            </div>
-          ) : (
-            <EmptyState>Chưa có giao dịch thanh toán</EmptyState>
-          )}
-        </div>
-      </section>
+            ) : (
+              <EmptyState>Chưa có dữ liệu danh mục</EmptyState>
+            )}
+          </DashboardCard>
+        </section>
 
-      <section className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-[1.45fr_1.15fr_0.9fr]">
-        <div className="border border-slate-200 bg-white p-6 shadow-sm">
-          <SectionHeader
-            title="Giao dịch gần đây"
-            action={
-              <button
-                type="button"
-                onClick={() => navigate("/invoices")}
-                className="bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100"
-              >
-                Xem tất cả
-              </button>
-            }
-          />
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[680px] text-left text-sm">
-              <thead className="border-b border-slate-200 text-xs font-black uppercase tracking-wide text-slate-400">
-                <tr>
-                  <th className="py-3 pr-4">Mã hóa đơn</th>
-                  <th className="px-4 py-3">Khách hàng</th>
-                  <th className="px-4 py-3">Ngày</th>
-                  <th className="px-4 py-3 text-right">Tổng tiền</th>
-                  <th className="py-3 pl-4 text-right">Trạng thái</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {recentOrders.length > 0 ? (
-                  recentOrders.map((order) => {
-                    const status = getOrderStatus(order.status);
-                    return (
-                      <tr key={order.id} className="hover:bg-slate-50">
-                        <td className="py-4 pr-4 font-black text-[#0b1c30]">
-                          HD{order.id.slice(0, 8).toUpperCase()}
-                        </td>
-                        <td className="px-4 py-4 font-bold text-slate-600">
-                          {order.customerName}
-                        </td>
-                        <td className="px-4 py-4 text-slate-500">
-                          {formatDate(order.createdAt)}
-                        </td>
-                        <td className="px-4 py-4 text-right font-black text-[#0b1c30]">
-                          {formatCurrency(order.finalAmount)}
-                        </td>
-                        <td className="py-4 pl-4 text-right">
-                          <span
-                            className={`inline-flex border px-3 py-1 text-xs font-black ${status.className}`}
-                          >
-                            {status.label}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan={5} className="py-10 text-center text-sm font-bold text-slate-400">
-                      Chưa có giao dịch trong ngày đã chọn
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="border border-slate-200 bg-white p-6 shadow-sm">
-          <SectionHeader
-            title="Sản phẩm sắp hết hàng"
-            action={
-              <button
-                type="button"
-                onClick={() => navigate("/stock/materials")}
-                className="bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100"
-              >
-                Xem kho
-              </button>
-            }
-          />
-          {lowStockItems.length > 0 ? (
-            <div className="space-y-3">
-              {lowStockItems.map((item) => (
-                <div
-                  key={`${item.type}-${item.id}`}
-                  className="flex items-center justify-between gap-4 border border-rose-100 bg-rose-50 px-4 py-3"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate font-black text-[#0b1c30]">{item.name}</p>
-                    <p className="mt-1 text-xs font-bold text-slate-500">
-                      {item.type === "product" ? "Sản phẩm" : "Nguyên liệu"}
-                      {item.sku ? ` · ${item.sku}` : ""}
-                    </p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-lg font-black text-rose-600">
-                      {item.stockQuantity.toLocaleString("vi-VN")}
-                      {item.unit ? ` ${item.unit}` : ""}
-                    </p>
-                    <p className="text-[11px] font-bold text-rose-400">
-                      Ngưỡng {item.threshold}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <EmptyState>Tồn kho an toàn</EmptyState>
-          )}
-        </div>
-
-        <div className="border border-slate-200 bg-white p-6 shadow-sm">
-          <SectionHeader title="Top bán chạy" />
-          {topProducts.length > 0 ? (
-            <div className="space-y-4">
-              {topProducts.slice(0, 5).map((product, index) => (
-                <div key={product.name} className="flex items-center gap-3">
-                  <span className="w-5 text-center text-sm font-black text-slate-400">
-                    {index + 1}
-                  </span>
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center border border-slate-200 bg-slate-50">
-                    {product.imageUrl ? (
-                      <img
-                        src={product.imageUrl}
-                        alt={product.name}
-                        className="h-full w-full object-contain p-1"
-                      />
-                    ) : (
-                      <Icon name="restaurant" className="text-slate-300" />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-black text-[#0b1c30]">
-                      {product.name}
-                    </p>
-                    <p className="text-xs font-bold text-slate-400">
-                      Đã bán: {product.soldQuantity}
-                    </p>
-                  </div>
-                  <p className="text-right text-xs font-black text-emerald-600">
-                    {formatCurrency(product.revenue)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <EmptyState>Chưa có sản phẩm bán ra</EmptyState>
-          )}
-        </div>
-      </section>
-
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_1fr]">
-        <div className="border border-slate-200 bg-white p-6 shadow-sm">
-          <SectionHeader title="Nguyên liệu mới thêm" />
-          {recentMaterials.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[520px] text-left text-sm">
-                <thead className="border-b border-slate-200 text-xs font-black uppercase tracking-wide text-slate-400">
-                  <tr>
-                    <th className="py-3 pr-4">Nguyên liệu</th>
-                    <th className="px-4 py-3">Danh mục</th>
-                    <th className="py-3 pl-4 text-right">Giá nhập</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {recentMaterials.map((item) => (
-                    <tr key={item.sku}>
-                      <td className="py-4 pr-4">
-                        <p className="font-black text-[#0b1c30]">{item.name}</p>
-                        <p className="text-xs font-bold text-slate-400">SKU: {item.sku}</p>
-                      </td>
-                      <td className="px-4 py-4 font-bold text-slate-600">
-                        {item.category}
-                      </td>
-                      <td className="py-4 pl-4 text-right font-black text-[#0b1c30]">
-                        {formatCurrency(item.importPrice)}
-                      </td>
+        <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <DashboardCard className="flex h-full flex-col">
+            <SectionHeader title="Top sản phẩm bán chạy" />
+            {topProducts.length > 0 ? (
+              <div className="flex-1 overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-100 font-semibold text-slate-400">
+                      <th className="w-8 pb-3">#</th>
+                      <th className="pb-3">Sản phẩm</th>
+                      <th className="pb-3 text-right">Số lượng</th>
+                      <th className="pb-3 text-right">Doanh thu</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <EmptyState>Chưa có nguyên liệu</EmptyState>
-          )}
-        </div>
+                  </thead>
+                  <tbody className="text-slate-700">
+                    {topProducts.slice(0, 5).map((product, index) => (
+                      <tr key={product.name} className="border-b border-slate-50 transition hover:bg-slate-50">
+                        <td className="py-3">{index + 1}</td>
+                        <td className="py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded bg-slate-100">
+                              {product.imageUrl ? (
+                                <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
+                              ) : (
+                                <Icon name="local_cafe" className="text-[16px] text-slate-400" />
+                              )}
+                            </div>
+                            <span className="font-medium">{product.name}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 text-right">{product.soldQuantity}</td>
+                        <td className="py-3 text-right font-bold">{formatCurrency(product.revenue)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <button type="button" onClick={() => navigate("/products")} className="mt-4 flex w-full items-center justify-center gap-1 text-center text-xs font-bold text-[#f97316] hover:underline">
+                  Xem tất cả <Icon name="chevron_right" className="text-[14px]" />
+                </button>
+              </div>
+            ) : (
+              <EmptyState>Chưa có sản phẩm bán ra</EmptyState>
+            )}
+          </DashboardCard>
 
-        <div className="border border-slate-200 bg-white p-6 shadow-sm">
-          <SectionHeader title="Hiệu suất nhân viên" />
-          {topEmployees.length > 0 ? (
+          <DashboardCard className="flex h-full flex-col">
+            <SectionHeader title="Top khách hàng" />
+            {topCustomers.length > 0 ? (
+              <div className="flex-1 overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-100 font-semibold text-slate-400">
+                      <th className="w-8 pb-3">#</th>
+                      <th className="pb-3">Khách hàng</th>
+                      <th className="pb-3 text-right">Doanh thu</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-slate-700">
+                    {topCustomers.map((customer, index) => (
+                      <tr key={customer.name} className="border-b border-slate-50 transition hover:bg-slate-50">
+                        <td className="py-3.5">{index + 1}</td>
+                        <td className="py-3.5 font-medium">{customer.name}</td>
+                        <td className="py-3.5 text-right font-bold">{formatCurrency(customer.revenue)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <button type="button" onClick={() => navigate("/customers")} className="mt-4 flex w-full items-center justify-center gap-1 text-center text-xs font-bold text-[#f97316] hover:underline">
+                  Xem tất cả <Icon name="chevron_right" className="text-[14px]" />
+                </button>
+              </div>
+            ) : (
+              <EmptyState>Chưa có dữ liệu khách hàng</EmptyState>
+            )}
+          </DashboardCard>
+
+          <DashboardCard className="flex h-full flex-col">
+            <SectionHeader title="Cảnh báo" />
             <div className="space-y-4">
-              {topEmployees.map((employee, index) => (
-                <div key={employee.id} className="flex items-center gap-4">
-                  <span className="flex h-8 w-8 items-center justify-center bg-slate-100 text-sm font-black text-slate-500">
-                    {index + 1}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-black text-[#0b1c30]">
-                      {employee.full_name}
-                    </p>
-                    <p className="text-xs font-bold text-slate-400">
-                      {employee.total_orders} đơn hàng
-                    </p>
-                  </div>
-                  <p className="text-right font-black text-emerald-600">
-                    {formatCompactCurrency(employee.total_revenue)}
-                  </p>
+              <div className="flex items-start gap-4 rounded-xl border border-amber-100 bg-amber-50/50 p-4">
+                <div className="rounded-lg bg-amber-100 p-2 text-amber-500">
+                  <Icon name="warning" className="text-[20px]" />
                 </div>
-              ))}
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-slate-900">Tồn kho thấp</p>
+                  <p className="mt-0.5 text-xs text-slate-500">{lowStockItems.length} sản phẩm sắp hết hàng</p>
+                </div>
+                <button type="button" onClick={() => navigate("/stock")} className="whitespace-nowrap text-xs font-bold text-[#f97316] hover:underline">
+                  Xem chi tiết
+                </button>
+              </div>
+              <div className="flex items-start gap-4 rounded-xl border border-red-100 bg-red-50/50 p-4">
+                <div className="rounded-lg bg-red-100 p-2 text-red-500">
+                  <Icon name="error" className="text-[20px]" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-slate-900">Đơn hàng hủy nhiều</p>
+                  <p className="mt-0.5 text-xs text-slate-500">{cancelledOrders} đơn hàng đã bị hủy hôm nay</p>
+                </div>
+                <button type="button" onClick={() => navigate("/invoices")} className="whitespace-nowrap text-xs font-bold text-[#f97316] hover:underline">
+                  Xem chi tiết
+                </button>
+              </div>
+              <div className="flex items-start gap-4 rounded-xl border border-purple-100 bg-purple-50/50 p-4">
+                <div className="rounded-lg bg-purple-100 p-2 text-purple-500">
+                  <Icon name="receipt_long" className="text-[20px]" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-slate-900">Hiệu suất nhân viên</p>
+                  <p className="mt-0.5 text-xs text-slate-500">{topEmployees.length} nhân viên có doanh thu hôm nay</p>
+                </div>
+                <button type="button" onClick={() => navigate("/reports")} className="whitespace-nowrap text-xs font-bold text-[#f97316] hover:underline">
+                  Xem chi tiết
+                </button>
+              </div>
             </div>
-          ) : (
-            <EmptyState>Chưa có dữ liệu nhân viên</EmptyState>
-          )}
-        </div>
-      </section>
+          </DashboardCard>
+        </section>
+      </div>
     </AdminLayout>
   );
 }

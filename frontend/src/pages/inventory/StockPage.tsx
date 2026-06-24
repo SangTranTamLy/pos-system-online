@@ -16,13 +16,13 @@ import {
   createInventoryAudit,
   updateInventoryAudit,
   deleteInventoryAudit,
-  payGoodsReceiptDebt,
   type GoodsReceipt,
   type Material,
   type Supplier,
   type InventoryAudit,
 } from "../../api/inventory.api";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
+import { useAppNotifications } from "../../components/common/AppNotificationsContext";
 
 type MaterialStatusFilter = "all" | "active" | "inactive" | "low_stock" | "out";
 type ReceiptItemDraft = {
@@ -44,14 +44,6 @@ function normalizeText(value: string) {
   return value.trim().toLowerCase();
 }
 
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("vi-VN", {
-    style: "currency",
-    currency: "VND",
-    maximumFractionDigits: 0,
-  }).format(value || 0);
-}
-
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString("vi-VN", {
     hour: "2-digit",
@@ -65,12 +57,6 @@ function formatDateTime(value: string) {
 
 function getReceiptCode(receipt: GoodsReceipt) {
   return `PN-${receipt.id.slice(0, 8).toUpperCase()}`;
-}
-
-function getPaidAmount(receipt: GoodsReceipt) {
-  const match = receipt.note?.match(/\[paid_amount:(\d+)\]/);
-  if (!match) return Number(receipt.totalAmount || 0);
-  return Number(match[1] || 0);
 }
 
 function getDisplayNote(note: string | null) {
@@ -87,46 +73,6 @@ function getReceiptDetails(receipt: GoodsReceipt) {
       .join(", ");
   }
   return getDisplayNote(receipt.note) || "Chưa có chi tiết";
-}
-
-function SummaryCard({
-  icon,
-  title,
-  value,
-  description,
-  tone,
-  trend,
-}: {
-  icon: string;
-  title: string;
-  value: string;
-  description: string;
-  tone: string;
-  trend?: "up" | "down" | "neutral";
-}) {
-  const trendColor =
-    trend === "down" ? "text-red-500" : trend === "up" ? "text-emerald-600" : "text-[#f97316]";
-  const trendIcon = trend === "down" ? "south" : trend === "up" ? "north" : "visibility";
-
-  return (
-    <article className="min-h-[154px] rounded-xl border border-slate-100 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
-      <div className="flex items-start gap-4">
-        <span className={`flex h-12 w-12 items-center justify-center rounded-xl ${tone}`}>
-          <Icon name={icon} filled className="text-[25px]" />
-        </span>
-        <div className="min-w-0">
-          <p className="text-sm font-medium leading-5 text-slate-500">{title}</p>
-          <p className="mt-2 font-['Plus_Jakarta_Sans',sans-serif] text-2xl font-extrabold leading-8 text-[#0b1c30]">
-            {value}
-          </p>
-          <p className={`mt-3 flex items-center gap-1 text-xs font-semibold ${trendColor}`}>
-            <Icon name={trendIcon} className="text-[15px]" />
-            {description}
-          </p>
-        </div>
-      </div>
-    </article>
-  );
 }
 
 function StatusBadge({ material }: { material: Material }) {
@@ -214,6 +160,7 @@ function StockActionHeader({
 }
 
 export function StockPage() {
+  const { confirm: confirmAction } = useAppNotifications();
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname.split("/")[2] || "overview";
@@ -236,13 +183,10 @@ export function StockPage() {
   const [selectedAudit, setSelectedAudit] = useState<InventoryAudit | null>(null);
   const [receiptItems, setReceiptItems] = useState<ReceiptItemDraft[]>([]);
   const [activeHistoryTab, setActiveHistoryTab] = useState<"receipts" | "suppliers">("receipts");
-  const [payingReceipt, setPayingReceipt] = useState<GoodsReceipt | null>(null);
-  const [paymentAmount, setPaymentAmount] = useState<string>("");
   const [supplierFilter, setSupplierFilter] = useState<string>("all");
   const [receiptSearchQuery, setReceiptSearchQuery] = useState<string>("");
   const [formSupplierId, setFormSupplierId] = useState("");
   const [formNote, setFormNote] = useState("");
-  const [formPaidAmount, setFormPaidAmount] = useState("0");
   const [materialSearch, setMaterialSearch] = useState("");
 
   // Audits state
@@ -292,35 +236,6 @@ export function StockPage() {
     [materials]
   );
 
-  const stockValue = useMemo(
-    () =>
-      materials.reduce(
-        (sum, material) =>
-          sum + Number(material.stockQuantity || 0) * Number(material.importPrice || 0),
-        0
-      ),
-    [materials]
-  );
-
-  const monthlyPurchaseAmount = useMemo(() => {
-    const now = new Date();
-    return receipts.reduce((sum, receipt) => {
-      const createdAt = new Date(receipt.createdAt);
-      if (
-        createdAt.getFullYear() === now.getFullYear() &&
-        createdAt.getMonth() === now.getMonth()
-      ) {
-        return sum + Number(receipt.totalAmount || 0);
-      }
-      return sum;
-    }, 0);
-  }, [receipts]);
-
-  const lowStockCount = useMemo(
-    () => materials.filter((material) => material.isActive && material.stockQuantity <= 5).length,
-    [materials]
-  );
-
   const lowStockMaterials = useMemo(
     () =>
       materials
@@ -363,42 +278,13 @@ export function StockPage() {
   }, [materialSearch, materials]);
 
   const supplierDebts = useMemo(() => {
-    const map: Record<string, {
-      supplierId: string;
-      supplierName: string;
-      phone: string;
-      address: string;
-      totalImport: number;
-      totalPaid: number;
-      totalDebt: number;
-    }> = {};
-
-    suppliers.forEach((s) => {
-      map[s.id] = {
-        supplierId: s.id,
-        supplierName: s.name,
-        phone: s.phone,
-        address: s.address || "---",
-        totalImport: 0,
-        totalPaid: 0,
-        totalDebt: 0,
-      };
-    });
-
-    receipts.forEach((r) => {
-      if (r.supplierId && map[r.supplierId]) {
-        const total = Number(r.totalAmount || 0);
-        const paid = getPaidAmount(r);
-        const debt = Math.max(total - paid, 0);
-
-        map[r.supplierId].totalImport += total;
-        map[r.supplierId].totalPaid += paid;
-        map[r.supplierId].totalDebt += debt;
-      }
-    });
-
-    return Object.values(map);
-  }, [suppliers, receipts]);
+    return suppliers.map((s) => ({
+      supplierId: s.id,
+      supplierName: s.name,
+      phone: s.phone,
+      address: s.address || "---",
+    }));
+  }, [suppliers]);
 
   const filteredReceipts = useMemo(() => {
     const search = normalizeText(receiptSearchQuery);
@@ -421,13 +307,6 @@ export function StockPage() {
       return matchesSearch && matchesSupplier;
     });
   }, [receipts, receiptSearchQuery, supplierFilter]);
-
-  const totalAmount = receiptItems.reduce(
-    (sum, item) => sum + item.quantity * item.unitPrice,
-    0
-  );
-  const paidAmount = Math.min(Number(formPaidAmount || 0), totalAmount);
-  const debtAmount = Math.max(totalAmount - paidAmount, 0);
 
   function showNotice(message: string, type: NoticeState["type"] = "error") {
     setNotice({ type, message });
@@ -465,7 +344,6 @@ export function StockPage() {
 
   function resetReceiptForm() {
     setFormNote("");
-    setFormPaidAmount("0");
     setReceiptItems([]);
     setMaterialSearch("");
   }
@@ -492,7 +370,7 @@ export function StockPage() {
       setIsSubmitting(true);
       await createGoodsReceipt({
         supplierId: formSupplierId,
-        note: [`[paid_amount:${paidAmount}]`, formNote.trim()].filter(Boolean).join("\n"),
+        note: formNote.trim(),
         materialItems: receiptItems.map((item) => ({
           materialId: item.material.id,
           quantity: item.quantity,
@@ -527,16 +405,27 @@ export function StockPage() {
     setMaterialSearch("");
   }
 
-  function updateAuditItem(materialId: string, field: "actualQuantity" | "note", value: any) {
+  function updateAuditItem(
+    materialId: string,
+    field: "actualQuantity" | "note",
+    value: number | string
+  ) {
     setAuditItems((current) =>
-      current.map((item) =>
-        item.material.id === materialId
-          ? {
-              ...item,
-              [field]: field === "actualQuantity" ? Math.max(Number(value || 0), 0) : value,
-            }
-          : item
-      )
+      current.map((item) => {
+        if (item.material.id !== materialId) return item;
+
+        if (field === "actualQuantity") {
+          return {
+            ...item,
+            actualQuantity: Math.max(Number(value || 0), 0),
+          };
+        }
+
+        return {
+          ...item,
+          note: String(value),
+        };
+      })
     );
   }
 
@@ -588,7 +477,13 @@ export function StockPage() {
   }
 
   async function handleDeleteAudit(id: string) {
-    if (!window.confirm("Bạn có chắc chắn muốn xóa bản nháp kiểm kê này?")) return;
+    const confirmed = await confirmAction({
+      title: "Xóa bản nháp kiểm kê",
+      message: "Bạn có chắc chắn muốn xóa bản nháp kiểm kê này?",
+      confirmText: "Xóa",
+      type: "warning",
+    });
+    if (!confirmed) return;
     try {
       setNotice(null);
       await deleteInventoryAudit(id);
@@ -599,38 +494,6 @@ export function StockPage() {
       await loadAllData();
     } catch (error) {
       showNotice(error instanceof Error ? error.message : "Không xóa được phiếu kiểm kê.");
-    }
-  }
-
-  async function handlePaymentSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!payingReceipt) return;
-
-    const amount = Number(paymentAmount);
-    const maxAmount = payingReceipt.totalAmount - getPaidAmount(payingReceipt);
-
-    if (isNaN(amount) || amount <= 0 || amount > maxAmount) {
-      showNotice(`Số tiền thanh toán phải lớn hơn 0 và không vượt quá ${formatCurrency(maxAmount)}.`);
-      return;
-    }
-
-    try {
-      setIsSubmitting(true);
-      setNotice(null);
-      await payGoodsReceiptDebt(payingReceipt.id, amount);
-      
-      setNotice({
-        type: "success",
-        message: `Đã thanh toán thành công ${formatCurrency(amount)} cho phiếu nhập ${getReceiptCode(payingReceipt)}.`,
-      });
-
-      setPayingReceipt(null);
-      setPaymentAmount("");
-      await loadAllData();
-    } catch (error) {
-      showNotice(error instanceof Error ? error.message : "Có lỗi xảy ra khi thực hiện thanh toán.");
-    } finally {
-      setIsSubmitting(false);
     }
   }
 
@@ -742,7 +605,13 @@ export function StockPage() {
   }
 
   async function handleDeleteMaterial(material: Material) {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa "${material.name}" không?`)) return;
+    const confirmed = await confirmAction({
+      title: "Xóa hàng hóa",
+      message: `Bạn có chắc chắn muốn xóa "${material.name}" không?`,
+      confirmText: "Xóa",
+      type: "warning",
+    });
+    if (!confirmed) return;
     try {
       await deleteMaterial(material.id);
       await loadAllData();
@@ -787,7 +656,13 @@ export function StockPage() {
   }
 
   async function handleDeleteSupplier(supplier: Supplier) {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa nhà cung cấp "${supplier.name}" không?`)) return;
+    const confirmed = await confirmAction({
+      title: "Xóa nhà cung cấp",
+      message: `Bạn có chắc chắn muốn xóa nhà cung cấp "${supplier.name}" không?`,
+      confirmText: "Xóa",
+      type: "warning",
+    });
+    if (!confirmed) return;
     try {
       await deleteSupplier(supplier.id);
       await loadAllData();
@@ -804,8 +679,11 @@ export function StockPage() {
   const isAuditCreateMode = isAuditMode && subPath === "create";
 
   return (
-    <AdminLayout>
-      <div className="-m-6 min-h-screen space-y-5 bg-[#f8f9ff] p-6 font-['Be_Vietnam_Pro',Inter,sans-serif]">
+    <AdminLayout
+      title="Quản lý kho hàng"
+      subtitle="Theo dõi nhập xuất tồn, kiểm soát số lượng và cảnh báo tồn kho."
+    >
+      <div className="min-h-full w-full space-y-5 overflow-x-hidden bg-[#f8f9ff] font-['Inter',sans-serif]">
         {notice ? (
           <div
             className={[
@@ -823,7 +701,6 @@ export function StockPage() {
           <form onSubmit={handleCreateReceiptSubmit} className="grid gap-6 xl:grid-cols-[1fr_360px]">
             <section className="rounded-lg border border-slate-200 bg-white p-5">
               <StockActionHeader
-                eyebrow="Goods Receipt"
                 title="Lập phiếu nhập kho"
                 onBack={() => navigate("/stock")}
               />
@@ -852,7 +729,7 @@ export function StockPage() {
                     <div>
                       <p className="font-extrabold text-[#0b1c30]">{material.name}</p>
                       <p className="text-xs font-semibold text-slate-500">
-                        SKU: {material.sku} - Tồn: {material.stockQuantity} - Giá nhập: {formatCurrency(material.importPrice)}
+                        SKU: {material.sku} - Tồn: {material.stockQuantity}
                       </p>
                     </div>
                     <Icon name="add" className="text-[#f97316]" />
@@ -866,9 +743,7 @@ export function StockPage() {
                     <tr>
                       <th className="px-4 py-3">Hàng hóa</th>
                       <th className="px-4 py-3">Số lượng</th>
-                      <th className="px-4 py-3">Giá nhập</th>
-                      <th className="px-4 py-3 text-right">Thành tiền</th>
-                      <th className="px-4 py-3" />
+                        <th className="px-4 py-3" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -887,20 +762,6 @@ export function StockPage() {
                             }
                             className={inputClass}
                           />
-                        </td>
-                        <td className="px-4 py-3">
-                          <input
-                            type="number"
-                            min={0}
-                            value={item.unitPrice}
-                            onChange={(event) =>
-                              updateReceiptItem(item.material.id, "unitPrice", Number(event.target.value))
-                            }
-                            className={inputClass}
-                          />
-                        </td>
-                        <td className="px-4 py-3 text-right font-extrabold">
-                          {formatCurrency(item.quantity * item.unitPrice)}
                         </td>
                         <td className="px-4 py-3 text-right">
                           <button
@@ -960,33 +821,6 @@ export function StockPage() {
                       className="w-full rounded-lg border border-slate-200 p-3 text-sm font-semibold outline-none focus:border-[#f97316]"
                     />
                   </div>
-                  <div>
-                    <label className={labelClass}>Đã trả trước</label>
-                    <input
-                      type="number"
-                      min={0}
-                      max={totalAmount}
-                      value={formPaidAmount}
-                      onChange={(event) => setFormPaidAmount(event.target.value)}
-                      className={inputClass}
-                    />
-                  </div>
-                </div>
-              </section>
-              <section className="rounded-lg border border-slate-200 bg-white p-5 text-sm font-extrabold">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Tổng tiền hàng</span>
-                  <span>{formatCurrency(totalAmount)}</span>
-                </div>
-                <div className="mt-3 flex justify-between">
-                  <span className="text-slate-500">Đã thanh toán</span>
-                  <span className="text-emerald-600">{formatCurrency(paidAmount)}</span>
-                </div>
-                <div className="mt-3 flex justify-between border-t border-dashed border-slate-200 pt-3">
-                  <span className="text-slate-500">Còn nợ</span>
-                  <span className={debtAmount > 0 ? "text-rose-600" : "text-emerald-600"}>
-                    {formatCurrency(debtAmount)}
-                  </span>
                 </div>
               </section>
               <button
@@ -1204,7 +1038,7 @@ export function StockPage() {
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[980px] text-left text-sm">
+                <table className="w-full min-w-245 text-left text-sm">
                   <thead className="bg-slate-50 text-[11px] font-extrabold uppercase tracking-wide text-slate-400">
                     <tr>
                       <th className="px-4 py-4">Mã phiếu</th>
@@ -1292,10 +1126,10 @@ export function StockPage() {
             <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-4">
               <div>
                 <h1 className="text-2xl font-extrabold text-[#0b1c30]">
-                  Lịch sử nhập kho & Quản lý công nợ
+                  Lịch sử nhập kho & Quản lý NCC
                 </h1>
                 <p className="text-sm font-semibold text-slate-500">
-                  Quản lý danh sách phiếu nhập hàng và theo dõi công nợ với các nhà cung cấp
+                  Quản lý danh sách phiếu nhập hàng và danh sách các nhà cung cấp
                 </p>
               </div>
               <div className="flex gap-2">
@@ -1329,7 +1163,7 @@ export function StockPage() {
                     : "border-transparent text-slate-500 hover:text-slate-800"
                 }`}
               >
-                Công nợ nhà cung cấp
+                Nhà cung cấp
               </button>
             </div>
 
@@ -1373,24 +1207,18 @@ export function StockPage() {
                 </div>
 
                 <div className="overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-sm">
-                  <table className="w-full min-w-[980px] text-left text-sm">
+                  <table className="w-full min-w-190 text-left text-sm">
                     <thead className="bg-slate-50 text-[11px] font-extrabold uppercase tracking-wide text-slate-400">
                       <tr>
                         <th className="px-5 py-4">Mã phiếu</th>
                         <th className="px-5 py-4">Ngày nhập</th>
                         <th className="px-5 py-4">Nhà cung cấp</th>
                         <th className="px-5 py-4">Nguyên liệu</th>
-                        <th className="px-5 py-4 text-right">Tổng tiền hàng</th>
-                        <th className="px-5 py-4 text-right">Đã thanh toán</th>
-                        <th className="px-5 py-4 text-right">Còn nợ</th>
                         <th className="px-5 py-4 text-right">Thao tác</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {filteredReceipts.map((r) => {
-                        const paid = getPaidAmount(r);
-                        const debt = Math.max(r.totalAmount - paid, 0);
-                        return (
+                      {filteredReceipts.map((r) => (
                           <tr key={r.id} className="transition hover:bg-slate-50">
                             <td className="px-5 py-4 font-bold text-slate-700">
                               {getReceiptCode(r)}
@@ -1404,15 +1232,6 @@ export function StockPage() {
                             <td className="px-5 py-4 font-semibold text-slate-500 max-w-xs truncate" title={getReceiptDetails(r)}>
                               {getReceiptDetails(r)}
                             </td>
-                            <td className="px-5 py-4 text-right font-extrabold text-slate-700">
-                              {formatCurrency(r.totalAmount)}
-                            </td>
-                            <td className="px-5 py-4 text-right font-semibold text-emerald-600">
-                              {formatCurrency(paid)}
-                            </td>
-                            <td className={`px-5 py-4 text-right font-extrabold ${debt > 0 ? "text-rose-600 bg-rose-50/50" : "text-slate-400"}`}>
-                              {formatCurrency(debt)}
-                            </td>
                             <td className="px-5 py-4">
                               <div className="flex justify-end gap-2">
                                 <button
@@ -1423,28 +1242,13 @@ export function StockPage() {
                                 >
                                   <Icon name="visibility" className="text-[18px]" />
                                 </button>
-                                {debt > 0 && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setPayingReceipt(r);
-                                      setPaymentAmount(debt.toString());
-                                    }}
-                                    className="flex h-8 px-2.5 items-center justify-center gap-1 rounded-lg bg-[#f97316] text-[11px] font-extrabold text-white hover:bg-[#ea580c] shadow-sm"
-                                    title="Thanh toán nợ"
-                                  >
-                                    <Icon name="payments" className="text-[14px]" />
-                                    Thanh toán
-                                  </button>
-                                )}
                               </div>
                             </td>
                           </tr>
-                        );
-                      })}
+                      ))}
                       {filteredReceipts.length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="px-5 py-12 text-center text-sm font-bold text-slate-400">
+                          <td colSpan={5} className="px-5 py-12 text-center text-sm font-bold text-slate-400">
                             Không tìm thấy phiếu nhập nào.
                           </td>
                         </tr>
@@ -1456,15 +1260,12 @@ export function StockPage() {
             ) : (
               <div className="space-y-4">
                 <div className="overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-sm">
-                  <table className="w-full min-w-[800px] text-left text-sm">
+                  <table className="w-full min-w-160 text-left text-sm">
                     <thead className="bg-slate-50 text-[11px] font-extrabold uppercase tracking-wide text-slate-400">
                       <tr>
                         <th className="px-5 py-4">Tên nhà cung cấp</th>
                         <th className="px-5 py-4">Số điện thoại</th>
                         <th className="px-5 py-4">Địa chỉ</th>
-                        <th className="px-5 py-4 text-right">Tổng tiền nhập</th>
-                        <th className="px-5 py-4 text-right">Đã trả</th>
-                        <th className="px-5 py-4 text-right">Còn nợ</th>
                         <th className="px-5 py-4 text-right">Thao tác</th>
                       </tr>
                     </thead>
@@ -1479,15 +1280,6 @@ export function StockPage() {
                           </td>
                           <td className="px-5 py-4 font-medium text-slate-500 max-w-xs truncate">
                             {s.address}
-                          </td>
-                          <td className="px-5 py-4 text-right font-semibold text-slate-600">
-                            {formatCurrency(s.totalImport)}
-                          </td>
-                          <td className="px-5 py-4 text-right font-semibold text-emerald-600">
-                            {formatCurrency(s.totalPaid)}
-                          </td>
-                          <td className={`px-5 py-4 text-right font-extrabold ${s.totalDebt > 0 ? "text-rose-600 bg-rose-50/50" : "text-slate-400"}`}>
-                            {formatCurrency(s.totalDebt)}
                           </td>
                           <td className="px-5 py-4 text-right">
                             <button
@@ -1506,7 +1298,7 @@ export function StockPage() {
                       ))}
                       {supplierDebts.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="px-5 py-12 text-center text-sm font-bold text-slate-400">
+                          <td colSpan={4} className="px-5 py-12 text-center text-sm font-bold text-slate-400">
                             Chưa có nhà cung cấp nào.
                           </td>
                         </tr>
@@ -1519,47 +1311,12 @@ export function StockPage() {
           </div>
         ) : (
           <div className="space-y-6">
-            <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-4">
-              <SummaryCard
-                icon="wallet"
-                title="Giá trị tồn kho"
-                value={formatCurrency(stockValue)}
-                description="12.5% so với tháng trước"
-                tone="bg-orange-50 text-[#f97316]"
-                trend="up"
-              />
-              <SummaryCard
-                icon="error"
-                title="Mặt hàng tồn thấp"
-                value={String(lowStockCount)}
-                description="Xem chi tiết"
-                tone="bg-amber-50 text-amber-500"
-                trend="neutral"
-              />
-              <SummaryCard
-                icon="shopping_cart"
-                title="Tổng tiền nhập (tháng này)"
-                value={formatCurrency(monthlyPurchaseAmount)}
-                description="15.3% so với tháng trước"
-                tone="bg-blue-50 text-blue-500"
-                trend="up"
-              />
-              <SummaryCard
-                icon="u_turn_left"
-                title="Tổng tiền xuất (tháng này)"
-                value={formatCurrency(Math.round(monthlyPurchaseAmount * 0.78))}
-                description="8.7% so với tháng trước"
-                tone="bg-purple-50 text-purple-500"
-                trend="down"
-              />
-            </div>
-
             <div className="space-y-6">
               <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
               <section>
                 <div className="rounded-xl border border-slate-100 bg-white shadow-[0_14px_34px_rgba(15,23,42,0.06)]">
                 <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-                  <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-extrabold text-[#0b1c30]">
+                  <h2 className="font-['Outfit',sans-serif] text-xl font-extrabold text-[#0b1c30]">
                     Cảnh báo tồn thấp
                   </h2>
                   <button
@@ -1616,7 +1373,7 @@ export function StockPage() {
 
               <aside>
                 <section className="h-full rounded-xl border border-slate-100 bg-white p-5 shadow-[0_14px_34px_rgba(15,23,42,0.06)]">
-                  <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-extrabold text-[#0b1c30]">
+                  <h2 className="font-['Outfit',sans-serif] text-xl font-extrabold text-[#0b1c30]">
                     Thao tác kho
                   </h2>
                   <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-2">
@@ -1630,7 +1387,7 @@ export function StockPage() {
                         key={label as string}
                         type="button"
                         onClick={onClick as () => void}
-                        className="flex min-h-[88px] flex-col items-center justify-center gap-2 rounded-xl bg-slate-50 p-3 text-center transition hover:bg-orange-50"
+                        className="flex min-h-22 flex-col items-center justify-center gap-2 rounded-xl bg-slate-50 p-3 text-center transition hover:bg-orange-50"
                       >
                         <span
                           className={`flex h-10 w-10 items-center justify-center rounded-lg bg-white shadow-sm ${tone as string}`}
@@ -1647,7 +1404,7 @@ export function StockPage() {
 
               <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-[0_14px_34px_rgba(15,23,42,0.06)]">
                   <div className="mb-4 flex items-center justify-between">
-                    <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-extrabold text-[#0b1c30]">
+                    <h2 className="font-['Outfit',sans-serif] text-xl font-extrabold text-[#0b1c30]">
                       Danh mục hàng hóa
                     </h2>
                   </div>
@@ -1707,7 +1464,7 @@ export function StockPage() {
                   </button>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[980px] text-left text-sm">
+                  <table className="w-full min-w-245 text-left text-sm">
                     <thead className="bg-slate-50 text-[11px] font-extrabold uppercase tracking-wide text-slate-400">
                       <tr>
                         <th className="px-4 py-4">Mã hàng</th>
@@ -1716,7 +1473,6 @@ export function StockPage() {
                         <th className="px-5 py-4">Đơn vị</th>
                         <th className="px-5 py-4 text-right">Tồn kho</th>
                         <th className="px-5 py-4 text-right">Tồn tối thiểu</th>
-                        <th className="px-5 py-4 text-right">Giá nhập</th>
                         <th className="px-5 py-4">Nhà cung cấp</th>
                         <th className="px-5 py-4">Trạng thái</th>
                         <th className="px-5 py-4 text-right">Thao tác</th>
@@ -1737,9 +1493,6 @@ export function StockPage() {
                             {material.stockQuantity}
                           </td>
                           <td className="px-5 py-4 text-right font-semibold text-slate-500">5</td>
-                          <td className="px-5 py-4 text-right font-extrabold text-[#0b1c30]">
-                            {formatCurrency(material.importPrice)}
-                          </td>
                           <td className="px-5 py-4 text-slate-500">
                             {material.supplierName || "Chưa liên kết"}
                           </td>
@@ -1852,17 +1605,6 @@ export function StockPage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className={labelClass}>Giá nhập *</label>
-                    <input
-                      required
-                      name="importPrice"
-                      type="number"
-                      min={0}
-                      defaultValue={editingMaterial?.importPrice ?? 0}
-                      className={inputClass}
-                    />
-                  </div>
                   <div>
                     <label className={labelClass}>Trạng thái</label>
                     <select
@@ -2058,111 +1800,10 @@ export function StockPage() {
               <p className="mt-4 text-sm font-semibold text-slate-600">
                 {getReceiptDetails(selectedReceipt)}
               </p>
-              <div className="mt-5 space-y-2 text-sm font-extrabold">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Tổng tiền hàng</span>
-                  <span>{formatCurrency(selectedReceipt.totalAmount)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Đã thanh toán</span>
-                  <span className="text-emerald-600">{formatCurrency(getPaidAmount(selectedReceipt))}</span>
-                </div>
-                <div className="flex justify-between border-t border-dashed border-slate-200 pt-3">
-                  <span className="text-slate-500">Còn nợ</span>
-                  <span className="text-rose-600">
-                    {formatCurrency(Math.max(selectedReceipt.totalAmount - getPaidAmount(selectedReceipt), 0))}
-                  </span>
-                </div>
-              </div>
             </div>
           </div>
         ) : null}
 
-        {payingReceipt ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-            <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-6 shadow-2xl">
-              <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
-                <h2 className="text-lg font-extrabold text-[#0b1c30]">
-                  Thanh toán công nợ phiếu nhập
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPayingReceipt(null);
-                    setPaymentAmount("");
-                  }}
-                  className="p-1 text-slate-400 hover:bg-slate-100"
-                >
-                  <Icon name="close" />
-                </button>
-              </div>
-
-              <form onSubmit={handlePaymentSubmit} className="space-y-4">
-                <div className="rounded-lg bg-slate-50 p-4 text-xs space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Mã phiếu:</span>
-                    <span className="font-bold text-slate-700">{getReceiptCode(payingReceipt)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Nhà cung cấp:</span>
-                    <span className="font-bold text-slate-700">{payingReceipt.supplierName || "Không rõ"}</span>
-                  </div>
-                  <div className="flex justify-between border-t border-dashed border-slate-200 pt-2 font-semibold">
-                    <span className="text-slate-500">Tổng tiền hàng:</span>
-                    <span className="text-slate-700">{formatCurrency(payingReceipt.totalAmount)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Đã thanh toán trước:</span>
-                    <span className="text-emerald-600">{formatCurrency(getPaidAmount(payingReceipt))}</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-sm">
-                    <span className="text-slate-500">Còn nợ:</span>
-                    <span className="text-rose-600">
-                      {formatCurrency(payingReceipt.totalAmount - getPaidAmount(payingReceipt))}
-                    </span>
-                  </div>
-                </div>
-
-                <div>
-                  <label className={labelClass}>Số tiền chi trả (VND) *</label>
-                  <input
-                    required
-                    type="number"
-                    min={1}
-                    max={payingReceipt.totalAmount - getPaidAmount(payingReceipt)}
-                    value={paymentAmount}
-                    onChange={(e) => setPaymentAmount(e.target.value)}
-                    className={inputClass}
-                    placeholder="Nhập số tiền..."
-                  />
-                  <p className="mt-1.5 text-[11px] text-slate-400">
-                    Số tiền thanh toán phải lớn hơn 0 và không vượt quá khoản nợ còn lại.
-                  </p>
-                </div>
-
-                <div className="flex gap-3 border-t border-slate-100 pt-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPayingReceipt(null);
-                      setPaymentAmount("");
-                    }}
-                    className="h-10 flex-1 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50"
-                  >
-                    Hủy bỏ
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="h-10 flex-1 rounded-lg bg-[#f97316] text-xs font-bold text-white hover:bg-[#ea580c] disabled:bg-slate-300 shadow-sm"
-                  >
-                    {isSubmitting ? "Đang xử lý..." : "Xác nhận thanh toán"}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        ) : null}
 
         {selectedAudit ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">

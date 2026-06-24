@@ -13,7 +13,7 @@ export default function EmployeeRevenueTable({ data }: { data: EmployeeRevenue[]
   return (
     <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 bg-slate-50 p-4">
-        <h3 className="font-['Plus_Jakarta_Sans',sans-serif] font-bold text-[#0b1c30]">
+        <h3 className="font-['Outfit',sans-serif] font-bold text-[#0b1c30]">
           Doanh thu theo nhân viên
         </h3>
       </div>

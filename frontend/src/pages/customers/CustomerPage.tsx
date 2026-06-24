@@ -9,6 +9,7 @@ import {
   type CustomerOrderSummary,
 } from "../../api/customers.api";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
+import { useAppNotifications } from "../../components/common/AppNotificationsContext";
 
 type CustomerFormState = {
   fullName: string;
@@ -134,7 +135,6 @@ function DonutChart({
 }) {
   const radius = 54;
   const circumference = 2 * Math.PI * radius;
-  let accumulatedOffset = 0;
 
   return (
     <div className="relative mx-auto h-44 w-44">
@@ -150,8 +150,9 @@ function DonutChart({
         {segments.map((seg, i) => {
           const dashLength = (seg.percent / 100) * circumference;
           const gap = circumference - dashLength;
-          const offset = accumulatedOffset;
-          accumulatedOffset += dashLength;
+          const offset = segments
+            .slice(0, i)
+            .reduce((sum, item) => sum + (item.percent / 100) * circumference, 0);
           return (
             <circle
               key={i}
@@ -181,6 +182,7 @@ function DonutChart({
 
 /* ─── Main Page ─────────────────────────────────────────────── */
 function CustomerPage() {
+  const { confirm: confirmAction } = useAppNotifications();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState("");
   const [segmentFilter, setSegmentFilter] = useState<CustomerSegment>("all");
@@ -277,7 +279,7 @@ function CustomerPage() {
   }, [filteredCustomers, safePage, pageSize]);
 
   useEffect(() => {
-    setCurrentPage(1);
+    void Promise.resolve().then(() => setCurrentPage(1));
   }, [segmentFilter, statusFilter, search, pageSize]);
 
   /* ── Segment stats for donut ───────────────────────────────── */
@@ -379,9 +381,12 @@ function CustomerPage() {
   };
 
   const handleDelete = async (customer: Customer) => {
-    const confirmed = window.confirm(
-      `Bạn có chắc chắn muốn xóa khách hàng "${customer.fullName}" không?`
-    );
+    const confirmed = await confirmAction({
+      title: "Xóa khách hàng",
+      message: `Bạn có chắc chắn muốn xóa khách hàng "${customer.fullName}" không?`,
+      confirmText: "Xóa",
+      type: "warning",
+    });
 
     if (!confirmed) return;
 
@@ -489,12 +494,11 @@ function CustomerPage() {
 
   /* ── Render ─────────────────────────────────────────────────── */
   return (
-    <AdminLayout>
+    <AdminLayout
+      title="Quản lý khách hàng"
+      subtitle="Lưu trữ thông tin, lịch sử mua hàng và chương trình thành viên."
+    >
       <div className="space-y-6 font-['Inter',sans-serif]">
-        {/* ─ Page Title ─ */}
-        <h1 className="font-['Plus_Jakarta_Sans',sans-serif] text-2xl font-extrabold text-[#0b1c30]">
-          Khách hàng
-        </h1>
 
         {/* ─ Stat Cards ─ */}
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -550,7 +554,7 @@ function CustomerPage() {
           <div className="border border-slate-200 bg-white p-5 shadow-sm">
             {/* toolbar */}
             <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-lg font-extrabold text-[#0b1c30]">
+              <h2 className="font-['Outfit',sans-serif] text-lg font-extrabold text-[#0b1c30]">
                 Danh sách khách hàng
               </h2>
               <div className="flex flex-wrap items-center gap-3">
@@ -614,7 +618,7 @@ function CustomerPage() {
 
             {/* table */}
             <div className="overflow-x-auto border border-slate-200">
-              <table className="w-full min-w-[980px] text-left text-sm">
+              <table className="w-full min-w-245 text-left text-sm">
                 <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
                   <tr>
                     <th className="px-4 py-4">Mã KH</th>
@@ -770,7 +774,7 @@ function CustomerPage() {
           <aside className="space-y-5">
             {/* Nhóm khách hàng (donut) */}
             <section className="border border-slate-200 bg-white p-5 shadow-sm">
-              <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-lg font-extrabold text-[#0b1c30]">
+              <h2 className="font-['Outfit',sans-serif] text-lg font-extrabold text-[#0b1c30]">
                 Nhóm khách hàng
               </h2>
 
@@ -817,7 +821,7 @@ function CustomerPage() {
             {/* Top khách hàng (doanh số) */}
             <section className="border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-4 flex items-center justify-between">
-                <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-lg font-extrabold text-[#0b1c30]">
+                <h2 className="font-['Outfit',sans-serif] text-lg font-extrabold text-[#0b1c30]">
                   Top khách hàng (doanh số)
                 </h2>
                 <select className="h-9 border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 outline-none">
@@ -872,7 +876,7 @@ function CustomerPage() {
             <div className="w-full max-w-4xl overflow-hidden border border-slate-200 bg-white shadow-2xl">
               <div className="flex items-start justify-between border-b border-slate-200 bg-white px-6 py-5">
                 <div>
-                  <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-extrabold text-[#0b1c30]">
+                  <h3 className="font-['Outfit',sans-serif] text-xl font-extrabold text-[#0b1c30]">
                     {selectedCustomer.fullName}
                   </h3>
                   <p className="mt-1 text-sm font-medium text-slate-500">
@@ -955,7 +959,7 @@ function CustomerPage() {
                   <span className="bg-orange-50 p-2 text-[#f97316]">
                     <Icon name="person" />
                   </span>
-                  <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-extrabold text-[#0b1c30]">
+                  <h3 className="font-['Outfit',sans-serif] text-xl font-extrabold text-[#0b1c30]">
                     {editingCustomer ? "Sửa khách hàng" : "Thêm khách hàng"}
                   </h3>
                 </div>

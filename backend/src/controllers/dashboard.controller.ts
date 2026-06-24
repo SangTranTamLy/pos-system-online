@@ -2,14 +2,14 @@ import type { Request, Response } from "express";
 import { getDashboardSummaryService } from "../services/dashboard.service";
 import type { DashboardRevenuePeriod } from "../types/dashboard.types";
 
-const allowedPeriods: DashboardRevenuePeriod[] = ["month", "year"];
+const allowedPeriods: DashboardRevenuePeriod[] = ["week", "year"];
 
 function getRevenuePeriod(value: unknown): DashboardRevenuePeriod {
     if (typeof value === "string" && allowedPeriods.includes(value as DashboardRevenuePeriod)) {
         return value as DashboardRevenuePeriod;
     }
 
-    return "month";
+    return "week";
 }
 
 export async function getDashboardSummaryController(req: Request, res: Response) {

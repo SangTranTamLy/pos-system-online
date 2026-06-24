@@ -11,8 +11,16 @@ import {
 } from "../repositories/dashboard.repository";
 import type { DashboardRevenuePeriod } from "../types/dashboard.types";
 
+function formatDateInput(date: Date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function formatMonthInput(date: Date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
 export async function getDashboardSummaryService(
-    period: DashboardRevenuePeriod = "month",
+    period: DashboardRevenuePeriod = "week",
     startDate?: string,
     endDate?: string
 ) {
@@ -26,6 +34,7 @@ export async function getDashboardSummaryService(
 
     const targetYear = targetDate.getFullYear();
     const targetMonth = targetDate.getMonth() + 1;
+    const targetDay = targetDate.getDate();
 
     const [
         stats,
@@ -39,7 +48,7 @@ export async function getDashboardSummaryService(
         currentShiftRow,
     ] = await Promise.all([
         getDashboardStats(startDate, endDate),
-        getRevenueTrend(period, targetYear, targetMonth),
+        getRevenueTrend(period, targetYear, targetMonth, targetDay),
         getTopProducts(startDate, endDate),
         getRecentOrders(startDate, endDate),
         getRecentMaterials(),
@@ -77,33 +86,39 @@ export async function getDashboardSummaryService(
         : null;
 
     let revenueTrend: Array<{ sort: number; label: string; revenue: number }> = [];
-    if (period === "month") {
-        const daysInMonth = new Date(targetYear, targetMonth, 0).getDate();
-        const trendMap = new Map<number, number>();
-        for (let day = 1; day <= daysInMonth; day += 1) {
-            trendMap.set(day, 0);
-        }
+    if (period === "week") {
+        const trendMap = new Map<string, number>();
         for (const row of revenueRows) {
-            trendMap.set(Number(row.sort), Number(row.revenue ?? 0));
+            trendMap.set(String(row.label), Number(row.revenue ?? 0));
         }
-        revenueTrend = Array.from(trendMap.entries()).map(([day, revenue]) => ({
-            sort: day,
-            label: `${String(day).padStart(2, "0")}/${String(targetMonth).padStart(2, "0")}`,
-            revenue,
-        }));
+        revenueTrend = Array.from({ length: 7 }, (_, index) => {
+            const date = new Date(targetDate);
+            date.setDate(targetDate.getDate() - (6 - index));
+            const dateKey = formatDateInput(date);
+
+            return {
+                sort: index + 1,
+                label: `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}`,
+                revenue: trendMap.get(dateKey) ?? 0,
+            };
+        });
     } else {
-        const trendMap = new Map<number, number>();
-        for (let month = 1; month <= 12; month += 1) {
-            trendMap.set(month, 0);
-        }
+        const trendMap = new Map<string, number>();
         for (const row of revenueRows) {
-            trendMap.set(Number(row.sort), Number(row.revenue ?? 0));
+            trendMap.set(String(row.label), Number(row.revenue ?? 0));
         }
-        revenueTrend = Array.from(trendMap.entries()).map(([month, revenue]) => ({
-            sort: month,
-            label: `Tháng ${month}`,
-            revenue,
-        }));
+        const last12MonthsTrend = Array.from({ length: 12 }, (_, index) => {
+            const date = new Date(targetYear, targetMonth - 12 + index, 1);
+            const monthKey = formatMonthInput(date);
+
+            return {
+                sort: index + 1,
+                label: `${String(date.getMonth() + 1).padStart(2, "0")}/${date.getFullYear()}`,
+                revenue: trendMap.get(monthKey) ?? 0,
+            };
+        });
+
+        revenueTrend = last12MonthsTrend;
     }
 
     return {
@@ -147,6 +162,7 @@ export async function getDashboardSummaryService(
         })),
         categorySales: categorySales.map((item) => ({
             name: String(item.name),
+            imageUrl: item.imageUrl ? String(item.imageUrl) : undefined,
             quantity: Number(item.quantity ?? 0),
             revenue: Number(item.revenue ?? 0),
         })),

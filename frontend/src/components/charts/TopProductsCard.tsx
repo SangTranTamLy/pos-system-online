@@ -13,7 +13,7 @@ export default function TopProductsCard({ products }: TopProductsCardProps) {
   return (
     <div className="rounded-3xl border border-slate-200/60 bg-white p-6 shadow-lg shadow-slate-200/40">
       <div className="mb-6 flex items-center justify-between">
-        <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-black text-[14px] uppercase tracking-wider text-[#0b1c30]">
+        <h4 className="font-['Outfit',sans-serif] font-black text-[14px] uppercase tracking-wider text-[#0b1c30]">
           TOP BÁN CHẠY
         </h4>
       </div>

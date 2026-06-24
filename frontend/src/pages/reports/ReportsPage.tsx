@@ -243,7 +243,7 @@ export default function ReportsPage() {
       )}
 
       {loading && !financialData ? (
-        <div className="flex h-[450px] items-center justify-center rounded-3xl border border-slate-200 bg-white">
+        <div className="flex h-112.5 items-center justify-center rounded-3xl border border-slate-200 bg-white">
           <div className="flex flex-col items-center gap-3">
             <Icon name="autorenew" className="animate-spin text-4xl text-[#f97316]" />
             <p className="text-sm font-bold text-slate-500">Đang tải báo cáo hệ thống...</p>
@@ -319,7 +319,7 @@ export default function ReportsPage() {
                 {/* FINANCIAL TREND CHART (Left Column - 8 Cols) */}
                 <div className="rounded-3xl border border-slate-200/50 bg-white p-6 shadow-sm lg:col-span-8 flex flex-col justify-between">
                   <div>
-                    <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-black text-sm text-[#0b1c30] uppercase tracking-wider">XU HƯỚNG TÀI CHÍNH DOANH NGHIỆP</h4>
+                    <h4 className="font-['Outfit',sans-serif] font-black text-sm text-[#0b1c30] uppercase tracking-wider">XU HƯỚNG TÀI CHÍNH DOANH NGHIỆP</h4>
                     <p className="text-[11px] text-slate-400 mt-1 mb-4">Biểu đồ so sánh trực quan giữa Doanh thu, Chi phí vốn (COGS) và Lợi nhuận ròng hàng ngày</p>
                   </div>
                   
@@ -342,28 +342,62 @@ export default function ReportsPage() {
                   <div className="h-80 w-full">
                     {financialData.trend.length > 0 ? (
                       <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={financialData.trend} margin={{ left: -10, right: 10 }}>
+                        <AreaChart data={financialData.trend} margin={{ top: 16, left: -10, right: 16, bottom: 0 }}>
                           <defs>
                             <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.25}/>
-                              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                              <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                              <stop offset="70%" stopColor="#3b82f6" stopOpacity={0.08}/>
+                              <stop offset="100%" stopColor="#3b82f6" stopOpacity={0}/>
                             </linearGradient>
                             <linearGradient id="colorCogs" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#ef4444" stopOpacity={0.15}/>
-                              <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                              <stop offset="0%" stopColor="#ef4444" stopOpacity={0.18}/>
+                              <stop offset="70%" stopColor="#ef4444" stopOpacity={0.06}/>
+                              <stop offset="100%" stopColor="#ef4444" stopOpacity={0}/>
                             </linearGradient>
                             <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#10b981" stopOpacity={0.25}/>
-                              <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                              <stop offset="0%" stopColor="#10b981" stopOpacity={0.28}/>
+                              <stop offset="70%" stopColor="#10b981" stopOpacity={0.08}/>
+                              <stop offset="100%" stopColor="#10b981" stopOpacity={0}/>
                             </linearGradient>
                           </defs>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <CartesianGrid strokeDasharray="4 8" vertical={false} stroke="#e8eef6" />
                           <XAxis dataKey="label" stroke="#94a3b8" fontSize={10} fontWeight="bold" />
                           <YAxis stroke="#94a3b8" fontSize={10} fontWeight="bold" tickFormatter={value => formatCurrency(value as number).replace(" ₫", "").replace(" đ", "")} />
                           <Tooltip content={<CustomTooltip />} />
-                          <Area type="monotone" dataKey="revenue" name="Doanh thu" stroke="#3b82f6" strokeWidth={2.5} fillOpacity={1} fill="url(#colorRevenue)" />
-                          <Area type="monotone" dataKey="cogs" name="Giá vốn (COGS)" stroke="#ef4444" strokeWidth={2} strokeDasharray="4 4" fillOpacity={1} fill="url(#colorCogs)" />
-                          <Area type="monotone" dataKey="profit" name="Lợi nhuận gộp" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorProfit)" />
+                          <Area
+                            type="natural"
+                            dataKey="revenue"
+                            name="Doanh thu"
+                            stroke="#3b82f6"
+                            strokeWidth={3.5}
+                            fillOpacity={1}
+                            fill="url(#colorRevenue)"
+                            dot={false}
+                            activeDot={{ r: 5, strokeWidth: 3, stroke: "#ffffff" }}
+                          />
+                          <Area
+                            type="natural"
+                            dataKey="cogs"
+                            name="Giá vốn (COGS)"
+                            stroke="#ef4444"
+                            strokeWidth={3}
+                            strokeDasharray="8 6"
+                            fillOpacity={1}
+                            fill="url(#colorCogs)"
+                            dot={false}
+                            activeDot={{ r: 5, strokeWidth: 3, stroke: "#ffffff" }}
+                          />
+                          <Area
+                            type="natural"
+                            dataKey="profit"
+                            name="Lợi nhuận gộp"
+                            stroke="#10b981"
+                            strokeWidth={3.5}
+                            fillOpacity={1}
+                            fill="url(#colorProfit)"
+                            dot={false}
+                            activeDot={{ r: 5, strokeWidth: 3, stroke: "#ffffff" }}
+                          />
                         </AreaChart>
                       </ResponsiveContainer>
                     ) : (
@@ -377,11 +411,11 @@ export default function ReportsPage() {
                 {/* TOP PRODUCTS PANEL (Right Column - 4 Cols) */}
                 <div className="rounded-3xl border border-slate-200/50 bg-white p-6 shadow-sm lg:col-span-4 flex flex-col justify-between">
                   <div>
-                    <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-black text-sm text-[#0b1c30] uppercase tracking-wider">TOP SẢN PHẨM BÁN CHẠY</h4>
+                    <h4 className="font-['Outfit',sans-serif] font-black text-sm text-[#0b1c30] uppercase tracking-wider">TOP SẢN PHẨM BÁN CHẠY</h4>
                     <p className="text-[11px] text-slate-400 mt-1 mb-5">Các sản phẩm đem lại sản lượng cao trong {preset === "week" ? "7 ngày" : preset === "quarter" ? "90 ngày" : "30 ngày"}</p>
                   </div>
 
-                  <div className="flex-1 space-y-4 overflow-y-auto max-h-[320px] pr-1">
+                  <div className="flex-1 space-y-4 overflow-y-auto max-h-80 pr-1">
                     {financialData.topProducts.length > 0 ? (
                       financialData.topProducts.map((item, index) => {
                         const maxQty = Math.max(...financialData.topProducts.map(p => p.soldQuantity), 1);
@@ -406,7 +440,7 @@ export default function ReportsPage() {
                         );
                       })
                     ) : (
-                      <div className="flex h-full min-h-[220px] items-center justify-center text-center text-slate-400">
+                      <div className="flex h-full min-h-55 items-center justify-center text-center text-slate-400">
                         <div className="space-y-2">
                           <Icon name="sentiment_dissatisfied" className="text-4xl" />
                           <p className="text-xs font-bold">Không có dữ liệu bán hàng kỳ này</p>

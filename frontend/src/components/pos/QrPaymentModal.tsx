@@ -69,7 +69,7 @@ function QrPaymentModal({
       <div className="w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
           <div>
-            <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-extrabold text-[#0b1c30]">
+            <h3 className="font-['Outfit',sans-serif] text-xl font-extrabold text-[#0b1c30]">
               Thanh toán QR
             </h3>
           </div>

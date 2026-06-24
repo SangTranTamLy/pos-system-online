@@ -56,34 +56,43 @@ export async function getDashboardStats(startDate?: string, endDate?: string) {
 }
 
 export async function getRevenueTrend(
-    period: "month" | "year",
+    period: DashboardRevenuePeriod,
     year: number,
-    month?: number
+    month?: number,
+    day?: number
 ) {
-    if (period === "month") {
+    if (period === "week") {
+        const endDate = `${year}-${String(month ?? 1).padStart(2, "0")}-${String(day ?? 1).padStart(2, "0")}`;
         const [rows] = await db.execute<RowDataPacket[]>(`
             SELECT
-            DAY(created_at) AS sort,
+            TO_DAYS(DATE(created_at)) AS sort,
+            DATE_FORMAT(created_at, '%Y-%m-%d') AS label,
             COALESCE(SUM(final_amount), 0) AS revenue
             FROM orders
             WHERE status = 'completed'
-              AND YEAR(created_at) = ?
-              AND MONTH(created_at) = ?
-            GROUP BY DAY(created_at)
-            ORDER BY DAY(created_at) ASC
-        `, [year, month ?? null]);
+              AND DATE(created_at) BETWEEN DATE_SUB(?, INTERVAL 6 DAY) AND ?
+            GROUP BY DATE(created_at), TO_DAYS(DATE(created_at)), DATE_FORMAT(created_at, '%Y-%m-%d')
+            ORDER BY DATE(created_at) ASC
+        `, [endDate, endDate]);
         return rows;
     } else {
+        const endMonth = month ?? 12;
+        const endDate = new Date(year, endMonth, 0);
+        const startDate = new Date(year, endMonth - 12, 1);
+        const startDateInput = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, "0")}-01`;
+        const endDateInput = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}-${String(endDate.getDate()).padStart(2, "0")}`;
+
         const [rows] = await db.execute<RowDataPacket[]>(`
             SELECT
-            MONTH(created_at) AS sort,
+            YEAR(created_at) * 100 + MONTH(created_at) AS sort,
+            DATE_FORMAT(created_at, '%Y-%m') AS label,
             COALESCE(SUM(final_amount), 0) AS revenue
             FROM orders
             WHERE status = 'completed'
-              AND YEAR(created_at) = ?
-            GROUP BY MONTH(created_at)
-            ORDER BY MONTH(created_at) ASC
-        `, [year]);
+              AND DATE(created_at) BETWEEN ? AND ?
+            GROUP BY YEAR(created_at) * 100 + MONTH(created_at), DATE_FORMAT(created_at, '%Y-%m')
+            ORDER BY sort ASC
+        `, [startDateInput, endDateInput]);
         return rows;
     }
 }
@@ -201,6 +210,7 @@ export async function getCategorySales(startDate?: string, endDate?: string) {
     const [rows] = await db.execute<RowDataPacket[]>(`
         SELECT
           c.name,
+          c.image_url AS imageUrl,
           COALESCE(SUM(od.quantity), 0) AS quantity,
           COALESCE(SUM(od.line_total), 0) AS revenue
         FROM order_details od
@@ -209,7 +219,7 @@ export async function getCategorySales(startDate?: string, endDate?: string) {
         JOIN categories c ON c.id = p.category_id
         WHERE o.status = 'completed'
           AND ${dateCondition}
-        GROUP BY c.id, c.name
+        GROUP BY c.id, c.name, c.image_url
         ORDER BY revenue DESC
         LIMIT 6
     `, params);

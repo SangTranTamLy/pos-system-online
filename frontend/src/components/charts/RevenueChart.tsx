@@ -98,7 +98,7 @@ export default function RevenueChart({
     <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h4 className="font-['Plus_Jakarta_Sans',sans-serif] font-bold text-[#0b1c30]">
+          <h4 className="font-['Outfit',sans-serif] font-bold text-[#0b1c30]">
             {getRevenueChartTitle(period)}
           </h4>
           <p className="text-xs text-slate-400">{getRevenueChartSubtitle(period)}</p>
