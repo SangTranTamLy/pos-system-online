@@ -77,6 +77,7 @@ function LoginPage() {
       password,
     });
 
+    localStorage.setItem("accessToken", response.data.token);
     localStorage.setItem("auth_token", response.data.token);
     localStorage.setItem("auth_user", JSON.stringify(response.data.user));
 
@@ -110,6 +111,7 @@ function LoginPage() {
       setIsSubmitting(true);
       const response = await loginPinApi(pin);
       
+      localStorage.setItem("accessToken", response.data.token);
       localStorage.setItem("auth_token", response.data.token);
       localStorage.setItem("auth_user", JSON.stringify(response.data.user));
 
