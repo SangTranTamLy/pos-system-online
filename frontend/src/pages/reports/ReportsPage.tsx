@@ -15,12 +15,11 @@ import {
 } from "recharts";
 import { getDashboardSummary, type DashboardSummary } from "../../api/dashboard.api";
 import { getOrders, type OrderListItem } from "../../api/order.api";
+import { apiData } from "../../api/api-client";
 import { getEmployeeRevenue, getFinancialReport } from "../../api/report.api";
 import {
-  fetchShiftRevenueByShift,
   fetchShifts,
   type Shift,
-  type ShiftRevenueSummaryItem,
 } from "../../api/shifts.api";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 import type { EmployeeRevenue, FinancialReport, TopProductReportData } from "../../types/report";
@@ -31,6 +30,21 @@ type RevenueTrendPoint = {
   revenue: number;
 };
 
+type ShiftRevenueSummaryItem = {
+  date: string;
+  label: string;
+  morning: number;
+  afternoon: number;
+  night: number;
+  total: number;
+};
+
+function fetchShiftRevenueByShift(days = 7): Promise<ShiftRevenueSummaryItem[]> {
+  return apiData<ShiftRevenueSummaryItem[]>({
+    method: "GET",
+    url: `/shifts/revenue-by-shift?days=${days}`,
+  });
+}
 
 const paymentLabels: Record<string, string> = {
   cash: "Tiền mặt",
