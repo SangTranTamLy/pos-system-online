@@ -15,6 +15,6 @@ export const db = mysql.createPool({
   timezone: "+07:00",
 
   ssl: {
-    rejectUnauthorized: true,
+    rejectUnauthorized: false,
   },
 });
