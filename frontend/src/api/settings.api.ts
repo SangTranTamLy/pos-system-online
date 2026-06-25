@@ -1,65 +1,4 @@
-import { API_BASE_URL } from "./api-base";
-type ApiResponse<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-};
-
-function getAuthToken() {
-  return localStorage.getItem("auth_token");
-}
-
-function getAuthHeaders() {
-  const token = getAuthToken();
-
-  return {
-    "Content-Type": "application/json",
-    Authorization: token ? `Bearer ${token}` : "",
-  };
-}
-
-function logoutAndRedirect() {
-  localStorage.removeItem("auth_token");
-  localStorage.removeItem("auth_user");
-
-  if (!window.location.pathname.includes("/login")) {
-    window.location.href = `${import.meta.env.BASE_URL}login`;
-  }
-}
-
-async function handleResponse<T>(response: Response): Promise<ApiResponse<T>> {
-  const data = await response.json();
-
-  if (response.status === 401) {
-    logoutAndRedirect();
-    throw new Error(data.message || "Phiên đăng nhập đã hết hạn.");
-  }
-
-  if (!response.ok) {
-    throw new Error(data.message || "Yêu cầu API thất bại.");
-  }
-
-  return data;
-}
-
-export async function getSettings() {
-  const response = await fetch(`${API_BASE_URL}/settings`, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
-
-  return handleResponse<Record<string, string>>(response);
-}
-
-export async function updateSettings(payload: Record<string, string>) {
-  const response = await fetch(`${API_BASE_URL}/settings`, {
-    method: "PUT",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(payload),
-  });
-
-  return handleResponse<Record<string, string>>(response);
-}
+import { apiRequest } from "./api-client";
 
 function readFileAsDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
@@ -82,37 +21,45 @@ function readFileAsDataUrl(file: File) {
   });
 }
 
+export function getSettings() {
+  return apiRequest<Record<string, string>>({
+    method: "GET",
+    url: "/settings",
+  });
+}
+
+export function updateSettings(payload: Record<string, string>) {
+  return apiRequest<Record<string, string>>({
+    method: "PUT",
+    url: "/settings",
+    data: payload,
+  });
+}
+
 export async function uploadLogo(file: File) {
   const imageBase64 = await readFileAsDataUrl(file);
 
-  const response = await fetch(`${API_BASE_URL}/settings/upload-logo`, {
+  return apiRequest<{ logoUrl: string }>({
     method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({
+    url: "/settings/upload-logo",
+    data: {
       fileName: file.name,
       imageBase64,
-    }),
+    },
   });
-
-  return handleResponse<{ logoUrl: string }>(response);
 }
 
-export async function downloadBackup() {
-  const response = await fetch(`${API_BASE_URL}/settings/backup`, {
+export function downloadBackup() {
+  return apiRequest<Record<string, unknown[]>>({
     method: "GET",
-    headers: getAuthHeaders(),
+    url: "/settings/backup",
   });
-
-  return handleResponse<Record<string, unknown[]>>(response);
 }
 
-export async function restoreDatabase(backupData: Record<string, unknown[]>) {
-  const response = await fetch(`${API_BASE_URL}/settings/restore`, {
+export function restoreDatabase(backupData: Record<string, unknown[]>) {
+  return apiRequest<null>({
     method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(backupData),
+    url: "/settings/restore",
+    data: backupData,
   });
-
-  return handleResponse<null>(response);
 }
-

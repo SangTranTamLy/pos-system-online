@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "./api-base";
+import { apiData } from "./api-client";
 import type { AuditLogQuery, AuditLogResponse } from "../types/audit-log";
 
 type JsonValue =
@@ -9,34 +9,22 @@ type JsonValue =
   | JsonValue[]
   | { [key: string]: JsonValue };
 
-function getAuthHeaders() {
-  const token = localStorage.getItem("auth_token");
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
-}
+export function getAuditLogs(
+  query: AuditLogQuery
+): Promise<AuditLogResponse> {
+  const params = new URLSearchParams();
+  if (query.page) params.set("page", String(query.page));
+  if (query.limit) params.set("limit", String(query.limit));
+  if (query.search) params.set("search", query.search);
+  if (query.actionType) params.set("actionType", query.actionType);
+  if (query.shiftId) params.set("shiftId", query.shiftId);
+  if (query.startDate) params.set("startDate", query.startDate);
+  if (query.endDate) params.set("endDate", query.endDate);
 
-export async function getAuditLogs(query: AuditLogQuery): Promise<AuditLogResponse> {
-  const searchParams = new URLSearchParams();
-  if (query.page) searchParams.set("page", String(query.page));
-  if (query.limit) searchParams.set("limit", String(query.limit));
-  if (query.search) searchParams.set("search", query.search);
-  if (query.actionType) searchParams.set("actionType", query.actionType);
-  if (query.shiftId) searchParams.set("shiftId", query.shiftId);
-  if (query.startDate) searchParams.set("startDate", query.startDate);
-  if (query.endDate) searchParams.set("endDate", query.endDate);
-
-  const url = `${API_BASE_URL}/audit-logs?${searchParams.toString()}`;
-
-  const response = await fetch(url, { headers: getAuthHeaders() });
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "Lỗi lấy nhật ký hệ thống");
-  }
-
-  return data.data;
+  return apiData<AuditLogResponse>({
+    method: "GET",
+    url: `/audit-logs?${params.toString()}`,
+  });
 }
 
 export async function createAuditLog(payload: {
@@ -46,15 +34,9 @@ export async function createAuditLog(payload: {
   oldValues?: JsonValue;
   newValues?: JsonValue;
 }): Promise<void> {
-  const url = `${API_BASE_URL}/audit-logs`;
-  const response = await fetch(url, {
+  await apiData<unknown>({
     method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(payload),
+    url: "/audit-logs",
+    data: payload,
   });
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "Lỗi ghi nhận nhật ký hệ thống");
-  }
 }

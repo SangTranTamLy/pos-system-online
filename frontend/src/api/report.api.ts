@@ -1,139 +1,77 @@
-import { API_BASE_URL } from "./api-base";
-import type { 
+import { apiData } from "./api-client";
+import type {
   EmployeeRevenue,
   FinancialReport,
   InventoryValuationReport,
   EmployeePerformance,
   ComparisonReport,
-  CustomerRetentionReport
+  CustomerRetentionReport,
 } from "../types/report";
 
-function getAuthHeaders() {
-  const token = localStorage.getItem("auth_token");
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
+function buildDateQuery(startDate?: string, endDate?: string) {
+  const params = new URLSearchParams();
+  if (startDate) params.set("startDate", startDate);
+  if (endDate) params.set("endDate", endDate);
+
+  const queryString = params.toString();
+  return queryString ? `?${queryString}` : "";
 }
 
-export async function getEmployeeRevenue(
+export function getEmployeeRevenue(
   startDate?: string,
   endDate?: string
 ): Promise<EmployeeRevenue[]> {
-  const searchParams = new URLSearchParams();
-  if (startDate) searchParams.set("startDate", startDate);
-  if (endDate) searchParams.set("endDate", endDate);
-
-  const queryString = searchParams.toString();
-  const url = `${API_BASE_URL}/reports/employee-revenue${queryString ? `?${queryString}` : ""}`;
-
-  const response = await fetch(url, { headers: getAuthHeaders() });
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "Lỗi lấy dữ liệu doanh thu nhân viên");
-  }
-
-  return data.data;
+  return apiData<EmployeeRevenue[]>({
+    method: "GET",
+    url: `/reports/employee-revenue${buildDateQuery(startDate, endDate)}`,
+  });
 }
 
-// 1. Lấy báo cáo tài chính
-export async function getFinancialReport(
+export function getFinancialReport(
   startDate?: string,
   endDate?: string
 ): Promise<FinancialReport> {
-  const searchParams = new URLSearchParams();
-  if (startDate) searchParams.set("startDate", startDate);
-  if (endDate) searchParams.set("endDate", endDate);
-
-  const queryString = searchParams.toString();
-  const url = `${API_BASE_URL}/reports/financial${queryString ? `?${queryString}` : ""}`;
-
-  const response = await fetch(url, { headers: getAuthHeaders() });
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "Lỗi lấy dữ liệu báo cáo tài chính");
-  }
-
-  return data.data;
+  return apiData<FinancialReport>({
+    method: "GET",
+    url: `/reports/financial${buildDateQuery(startDate, endDate)}`,
+  });
 }
 
-// 2. Lấy báo cáo giá trị kho
-export async function getInventoryValuation(): Promise<InventoryValuationReport> {
-  const url = `${API_BASE_URL}/reports/inventory-value`;
-
-  const response = await fetch(url, { headers: getAuthHeaders() });
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "Lỗi lấy dữ liệu báo cáo tồn kho");
-  }
-
-  return data.data;
+export function getInventoryValuation(): Promise<InventoryValuationReport> {
+  return apiData<InventoryValuationReport>({
+    method: "GET",
+    url: "/reports/inventory-value",
+  });
 }
 
-// 3. Lấy báo cáo hiệu suất nhân viên
-export async function getEmployeePerformanceReport(
+export function getEmployeePerformanceReport(
   startDate?: string,
   endDate?: string
 ): Promise<EmployeePerformance[]> {
-  const searchParams = new URLSearchParams();
-  if (startDate) searchParams.set("startDate", startDate);
-  if (endDate) searchParams.set("endDate", endDate);
-
-  const queryString = searchParams.toString();
-  const url = `${API_BASE_URL}/reports/employee-performance${queryString ? `?${queryString}` : ""}`;
-
-  const response = await fetch(url, { headers: getAuthHeaders() });
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "Lỗi lấy dữ liệu hiệu suất nhân viên");
-  }
-
-  return data.data;
+  return apiData<EmployeePerformance[]>({
+    method: "GET",
+    url: `/reports/employee-performance${buildDateQuery(startDate, endDate)}`,
+  });
 }
 
-// 4. Lấy báo cáo so sánh & tăng trưởng
-export async function getComparisonReport(
+export function getComparisonReport(
   startDate: string,
   endDate: string
 ): Promise<ComparisonReport> {
-  const searchParams = new URLSearchParams();
-  searchParams.set("startDate", startDate);
-  searchParams.set("endDate", endDate);
+  const params = new URLSearchParams({ startDate, endDate });
 
-  const url = `${API_BASE_URL}/reports/comparison?${searchParams.toString()}`;
-
-  const response = await fetch(url, { headers: getAuthHeaders() });
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "Lỗi lấy dữ liệu báo cáo so sánh");
-  }
-
-  return data.data;
+  return apiData<ComparisonReport>({
+    method: "GET",
+    url: `/reports/comparison?${params.toString()}`,
+  });
 }
 
-// 5. Lấy báo cáo khách hàng thân thiết
-export async function getCustomerRetention(
+export function getCustomerRetention(
   startDate?: string,
   endDate?: string
 ): Promise<CustomerRetentionReport[]> {
-  const searchParams = new URLSearchParams();
-  if (startDate) searchParams.set("startDate", startDate);
-  if (endDate) searchParams.set("endDate", endDate);
-
-  const queryString = searchParams.toString();
-  const url = `${API_BASE_URL}/reports/customer-retention${queryString ? `?${queryString}` : ""}`;
-
-  const response = await fetch(url, { headers: getAuthHeaders() });
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "Lỗi lấy dữ liệu báo cáo khách hàng");
-  }
-
-  return data.data;
+  return apiData<CustomerRetentionReport[]>({
+    method: "GET",
+    url: `/reports/customer-retention${buildDateQuery(startDate, endDate)}`,
+  });
 }

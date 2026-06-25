@@ -15,9 +15,13 @@ import {
 } from "recharts";
 import { getDashboardSummary, type DashboardSummary } from "../../api/dashboard.api";
 import { getOrders, type OrderListItem } from "../../api/order.api";
-import { API_BASE_URL } from "../../api/api-base";
 import { getEmployeeRevenue, getFinancialReport } from "../../api/report.api";
-import { fetchShifts, type Shift } from "../../api/shifts.api";
+import {
+  fetchShiftRevenueByShift,
+  fetchShifts,
+  type Shift,
+  type ShiftRevenueSummaryItem,
+} from "../../api/shifts.api";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 import type { EmployeeRevenue, FinancialReport, TopProductReportData } from "../../types/report";
 
@@ -27,34 +31,6 @@ type RevenueTrendPoint = {
   revenue: number;
 };
 
-type ShiftRevenueSummaryItem = {
-  date: string;
-  label: string;
-  morning: number;
-  afternoon: number;
-  night: number;
-  total: number;
-};
-
-async function fetchShiftRevenueByShift(days = 7): Promise<ShiftRevenueSummaryItem[]> {
-  const token = localStorage.getItem("auth_token");
-  const response = await fetch(
-    `${API_BASE_URL}/shifts/revenue-by-shift?days=${days}`,
-    {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: token ? `Bearer ${token}` : "",
-      },
-    }
-  );
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "Không tải được doanh thu theo ca");
-  }
-
-  return data.data;
-}
 
 const paymentLabels: Record<string, string> = {
   cash: "Tiền mặt",

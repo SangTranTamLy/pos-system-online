@@ -10,12 +10,15 @@ import {
   type PosPromotionPreview,
 } from "../../api/pos.api";
 import { fetchPromotions, type Promotion } from "../../api/promotions.api";
-import { fetchShifts, type Shift } from "../../api/shifts.api";
+import {
+  fetchShifts,
+  setShiftOpeningCash,
+  type Shift,
+} from "../../api/shifts.api";
 import PaymentConfirmModal from "../../components/pos/PaymentConfirmModal";
 import ProductCard from "../../components/pos/ProductCard";
 import QrPaymentModal from "../../components/pos/QrPaymentModal";
 import ReceiptModal from "../../components/pos/ReceiptModal";
-import { API_BASE_URL } from "../../api/api-base";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 
 type CartItem = {
@@ -27,25 +30,6 @@ type PosStockFilter = "all" | "available" | "low_stock" | "out_of_stock";
 type PosSortMode = "default" | "name_asc" | "price_asc" | "price_desc";
 type PosViewMode = "grid" | "list";
 type PosQuickFilter = "all" | "best_seller";
-
-function getAuthHeaders() {
-  const token = localStorage.getItem("auth_token");
-  return {
-    "Content-Type": "application/json",
-    Authorization: token ? `Bearer ${token}` : "",
-  };
-}
-
-async function setShiftOpeningCash(id: string, openingCash: number): Promise<Shift> {
-  const response = await fetch(`${API_BASE_URL}/shifts/${id}/opening-cash`, {
-    method: "PATCH",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ openingCash }),
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || "Khong the nhap tien dau ca");
-  return data.data;
-}
 
 function toPromotionPreviewItems(cartItems: CartItem[]) {
   return cartItems.map((item) => ({

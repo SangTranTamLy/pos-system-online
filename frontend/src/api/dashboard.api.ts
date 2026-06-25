@@ -1,4 +1,5 @@
-import { API_BASE_URL } from "./api-base";
+import { apiRequest } from "./api-client";
+
 export type DashboardRevenuePeriod = "week" | "year";
 
 export type DashboardSummary = {
@@ -64,22 +65,7 @@ export type DashboardSummary = {
   } | null;
 };
 
-type ApiResponse<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-};
-
-function getAuthHeaders() {
-  const token = localStorage.getItem("auth_token");
-
-  return {
-    "Content-Type": "application/json",
-    Authorization: token ? `Bearer ${token}` : "",
-  };
-}
-
-export async function getDashboardSummary(
+export function getDashboardSummary(
   period: DashboardRevenuePeriod = "week",
   startDate?: string,
   endDate?: string
@@ -88,20 +74,8 @@ export async function getDashboardSummary(
   if (startDate) params.append("startDate", startDate);
   if (endDate) params.append("endDate", endDate);
 
-  const response = await fetch(
-    `${API_BASE_URL}/dashboard/summary?${params.toString()}`,
-    {
-      method: "GET",
-      headers: getAuthHeaders(),
-      cache: "no-store",
-    }
-  );
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "Không tải được dữ liệu dashboard");
-  }
-
-  return data as ApiResponse<DashboardSummary>;
+  return apiRequest<DashboardSummary>({
+    method: "GET",
+    url: `/dashboard/summary?${params.toString()}`,
+  });
 }

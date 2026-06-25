@@ -76,6 +76,10 @@ app.get("/health", async (_req, res) => {
   }
 });
 
+app.get("/api/health", (_req, res) => {
+  return res.json({ ok: true, time: new Date() });
+});
+
 app.use("/api", apiRouter);
 
 app.use(notFoundMiddleware);

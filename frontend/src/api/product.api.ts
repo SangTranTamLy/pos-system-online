@@ -1,4 +1,5 @@
-import { API_BASE_URL } from "./api-base";
+import { apiRequest } from "./api-client";
+
 export type ProductStatus = "active" | "paused" | "out_of_stock";
 
 export type Product = {
@@ -43,45 +44,6 @@ export type UploadProductImageResult = {
   imageUrl: string;
 };
 
-type ApiResponse<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-};
-
-function getAuthHeaders() {
-  const token = localStorage.getItem("auth_token");
-
-  return {
-    "Content-Type": "application/json",
-    Authorization: token ? `Bearer ${token}` : "",
-  };
-}
-
-function logoutAndRedirect() {
-  localStorage.removeItem("auth_token");
-  localStorage.removeItem("auth_user");
-
-  if (!window.location.pathname.includes("/login")) {
-    window.location.href = `${import.meta.env.BASE_URL}login`;
-  }
-}
-
-async function handleResponse<T>(response: Response): Promise<ApiResponse<T>> {
-  const data = await response.json();
-
-  if (response.status === 401) {
-    logoutAndRedirect();
-    throw new Error(data.message || "Phiên đăng nhập đã hết hạn");
-  }
-
-  if (!response.ok) {
-    throw new Error(data.message || "Yêu cầu API thất bại");
-  }
-
-  return data;
-}
-
 function readFileAsDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -103,77 +65,50 @@ function readFileAsDataUrl(file: File) {
   });
 }
 
-export async function getProducts() {
-  const response = await fetch(`${API_BASE_URL}/products`, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
-
-  return handleResponse<Product[]>(response);
+export function getProducts() {
+  return apiRequest<Product[]>({ method: "GET", url: "/products" });
 }
 
-export async function getProductDetail(id: string) {
-  const response = await fetch(`${API_BASE_URL}/products/${id}`, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
-
-  return handleResponse<Product>(response);
+export function getProductDetail(id: string) {
+  return apiRequest<Product>({ method: "GET", url: `/products/${id}` });
 }
 
-export async function createProduct(payload: CreateProductPayload) {
-  const response = await fetch(`${API_BASE_URL}/products`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(payload),
-  });
-
-  return handleResponse<Product>(response);
+export function createProduct(payload: CreateProductPayload) {
+  return apiRequest<Product>({ method: "POST", url: "/products", data: payload });
 }
 
-export async function updateProduct(id: string, payload: UpdateProductPayload) {
-  const response = await fetch(`${API_BASE_URL}/products/${id}`, {
+export function updateProduct(id: string, payload: UpdateProductPayload) {
+  return apiRequest<Product>({
     method: "PUT",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(payload),
+    url: `/products/${id}`,
+    data: payload,
   });
-
-  return handleResponse<Product>(response);
 }
 
-export async function updateProductStatus(
+export function updateProductStatus(
   id: string,
   payload: UpdateProductStatusPayload
 ) {
-  const response = await fetch(`${API_BASE_URL}/products/${id}/status`, {
+  return apiRequest<Product>({
     method: "PATCH",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(payload),
+    url: `/products/${id}/status`,
+    data: payload,
   });
-
-  return handleResponse<Product>(response);
 }
 
-export async function deleteProduct(id: string) {
-  const response = await fetch(`${API_BASE_URL}/products/${id}`, {
-    method: "DELETE",
-    headers: getAuthHeaders(),
-  });
-
-  return handleResponse<Product>(response);
+export function deleteProduct(id: string) {
+  return apiRequest<Product>({ method: "DELETE", url: `/products/${id}` });
 }
 
 export async function uploadProductImage(file: File) {
   const imageBase64 = await readFileAsDataUrl(file);
 
-  const response = await fetch(`${API_BASE_URL}/products/upload-image`, {
+  return apiRequest<UploadProductImageResult>({
     method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({
+    url: "/products/upload-image",
+    data: {
       fileName: file.name,
       imageBase64,
-    }),
+    },
   });
-
-  return handleResponse<UploadProductImageResult>(response);
 }

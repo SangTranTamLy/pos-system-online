@@ -1,4 +1,5 @@
-import { API_BASE_URL } from "./api-base";
+import { apiRequest } from "./api-client";
+
 export type Customer = {
   id: string;
   fullName: string;
@@ -9,17 +10,6 @@ export type Customer = {
   lastOrderAt: string | null;
   createdAt: string;
   updatedAt: string;
-};
-
-type ApiResponse<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-  meta?: {
-    total: number;
-    limit: number;
-    offset: number;
-  };
 };
 
 export type CustomerPayload = {
@@ -36,40 +26,7 @@ export type CustomerOrderSummary = {
   createdAt: string;
 };
 
-function getAuthHeaders() {
-  const token = localStorage.getItem("auth_token");
-
-  return {
-    "Content-Type": "application/json",
-    Authorization: token ? `Bearer ${token}` : "",
-  };
-}
-
-function logoutAndRedirect() {
-  localStorage.removeItem("auth_token");
-  localStorage.removeItem("auth_user");
-
-  if (!window.location.pathname.includes("/login")) {
-    window.location.href = `${import.meta.env.BASE_URL}login`;
-  }
-}
-
-async function handleResponse<T>(response: Response): Promise<ApiResponse<T>> {
-  const data = await response.json();
-
-  if (response.status === 401) {
-    logoutAndRedirect();
-    throw new Error(data.message || "Phiên đăng nhập đã hết hạn");
-  }
-
-  if (!response.ok) {
-    throw new Error(data.message || "Yêu cầu API thất bại");
-  }
-
-  return data;
-}
-
-export async function getCustomers(query = "") {
+export function getCustomers(query = "") {
   const params = new URLSearchParams({
     limit: "100",
     offset: "0",
@@ -79,69 +36,46 @@ export async function getCustomers(query = "") {
     params.set("q", query.trim());
   }
 
-  const response = await fetch(`${API_BASE_URL}/customers?${params.toString()}`, {
+  return apiRequest<Customer[]>({
     method: "GET",
-    headers: getAuthHeaders(),
+    url: `/customers?${params.toString()}`,
   });
-
-  return handleResponse<Customer[]>(response);
 }
 
-export async function searchCustomers(query: string) {
-  const response = await fetch(
-    `${API_BASE_URL}/customers/search?q=${encodeURIComponent(query)}`,
-    {
-      method: "GET",
-      headers: getAuthHeaders(),
-    }
-  );
-
-  return handleResponse<Customer[]>(response);
+export function searchCustomers(query: string) {
+  return apiRequest<Customer[]>({
+    method: "GET",
+    url: `/customers/search?q=${encodeURIComponent(query)}`,
+  });
 }
 
-export async function createCustomer(payload: CustomerPayload) {
-  const response = await fetch(`${API_BASE_URL}/customers`, {
+export function createCustomer(payload: CustomerPayload) {
+  return apiRequest<Customer>({
     method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(payload),
+    url: "/customers",
+    data: payload,
   });
-
-  return handleResponse<Customer>(response);
 }
 
-export async function getCustomer(id: string) {
-  const response = await fetch(`${API_BASE_URL}/customers/${id}`, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
-
-  return handleResponse<Customer>(response);
+export function getCustomer(id: string) {
+  return apiRequest<Customer>({ method: "GET", url: `/customers/${id}` });
 }
 
-export async function updateCustomer(id: string, payload: CustomerPayload) {
-  const response = await fetch(`${API_BASE_URL}/customers/${id}`, {
+export function updateCustomer(id: string, payload: CustomerPayload) {
+  return apiRequest<Customer>({
     method: "PUT",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(payload),
+    url: `/customers/${id}`,
+    data: payload,
   });
-
-  return handleResponse<Customer>(response);
 }
 
-export async function deleteCustomer(id: string) {
-  const response = await fetch(`${API_BASE_URL}/customers/${id}`, {
-    method: "DELETE",
-    headers: getAuthHeaders(),
-  });
-
-  return handleResponse<Customer>(response);
+export function deleteCustomer(id: string) {
+  return apiRequest<Customer>({ method: "DELETE", url: `/customers/${id}` });
 }
 
-export async function getCustomerOrders(id: string) {
-  const response = await fetch(`${API_BASE_URL}/customers/${id}/orders`, {
+export function getCustomerOrders(id: string) {
+  return apiRequest<CustomerOrderSummary[]>({
     method: "GET",
-    headers: getAuthHeaders(),
+    url: `/customers/${id}/orders`,
   });
-
-  return handleResponse<CustomerOrderSummary[]>(response);
 }

@@ -1,4 +1,5 @@
-import { API_BASE_URL } from "./api-base";
+import { apiRequest } from "./api-client";
+
 export type PosPaymentMethod = "cash" | "qr" | "card";
 
 export type CreatePosOrderPayload = {
@@ -56,55 +57,6 @@ export type PosOrderResult = {
   alerts?: { name: string; stockQuantity: number; minStock: number }[];
 };
 
-type ApiResponse<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-};
-
-function getAuthHeaders() {
-  const token = localStorage.getItem("auth_token");
-
-  return {
-    "Content-Type": "application/json",
-    Authorization: token ? `Bearer ${token}` : "",
-  };
-}
-
-function logoutAndRedirect() {
-  localStorage.removeItem("auth_token");
-  localStorage.removeItem("auth_user");
-
-  if (!window.location.pathname.includes("/login")) {
-    window.location.href = `${import.meta.env.BASE_URL}login`;
-  }
-}
-
-async function handleResponse<T>(response: Response): Promise<ApiResponse<T>> {
-  const data = await response.json();
-
-  if (response.status === 401) {
-    logoutAndRedirect();
-    throw new Error(data.message || "Phiên đăng nhập đã hết hạn");
-  }
-
-  if (!response.ok) {
-    throw new Error(data.message || "Yêu cầu API thất bại");
-  }
-
-  return data;
-}
-
-export async function createPosOrder(payload: CreatePosOrderPayload) {
-  const response = await fetch(`${API_BASE_URL}/pos/orders`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(payload),
-  });
-
-  return handleResponse<PosOrderResult>(response);
-}
-
 export type ValidatePromotionItem = {
   productId: string;
   quantity: number;
@@ -128,28 +80,32 @@ export type PosPromotionPreview = {
   appliedPromotion: PosAppliedPromotion | null;
 };
 
-export async function validatePromotionCode(
+export function createPosOrder(payload: CreatePosOrderPayload) {
+  return apiRequest<PosOrderResult>({
+    method: "POST",
+    url: "/pos/orders",
+    data: payload,
+  });
+}
+
+export function validatePromotionCode(
   code: string,
   items: ValidatePromotionItem[] = []
 ) {
-  const response = await fetch(`${API_BASE_URL}/pos/promotions/validate`, {
+  return apiRequest<ValidatedPromotion>({
     method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ code, items }),
+    url: "/pos/promotions/validate",
+    data: { code, items },
   });
-
-  return handleResponse<ValidatedPromotion>(response);
 }
 
-export async function previewPosPromotion(
+export function previewPosPromotion(
   items: ValidatePromotionItem[],
   code?: string | null
 ) {
-  const response = await fetch(`${API_BASE_URL}/pos/promotions/preview`, {
+  return apiRequest<PosPromotionPreview>({
     method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ code: code || null, items }),
+    url: "/pos/promotions/preview",
+    data: { code: code || null, items },
   });
-
-  return handleResponse<PosPromotionPreview>(response);
 }

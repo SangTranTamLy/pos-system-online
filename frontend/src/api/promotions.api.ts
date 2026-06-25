@@ -1,21 +1,4 @@
-import { API_BASE_URL } from "./api-base";
-function getAuthHeaders(): HeadersInit {
-  const token = localStorage.getItem("auth_token");
-  return {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
-
-async function handleResponse<T>(res: Response): Promise<T> {
-  const json = await res.json();
-  if (!res.ok) {
-    const message =
-      (json as { message?: string }).message ?? `HTTP ${res.status}`;
-    throw new Error(message);
-  }
-  return (json as { data: T }).data;
-}
+import { apiData } from "./api-client";
 
 export type Promotion = {
   id: string;
@@ -43,68 +26,51 @@ export type PromotionFormData = {
   isActive?: boolean;
 };
 
-export async function fetchPromotions(): Promise<Promotion[]> {
-  const res = await fetch(`${API_BASE_URL}/promotions`, {
-    headers: getAuthHeaders(),
-  });
-  return handleResponse<Promotion[]>(res);
+function toPromotionPayload(data: PromotionFormData) {
+  return {
+    productId: data.productId,
+    code: data.code,
+    name: data.name,
+    discountType: data.discountType,
+    discountValue: data.discountValue,
+    startAt: data.startAt || null,
+    endAt: data.endAt || null,
+  };
 }
 
-export async function createPromotion(
-  data: PromotionFormData
-): Promise<Promotion> {
-  const res = await fetch(`${API_BASE_URL}/promotions`, {
+export function fetchPromotions(): Promise<Promotion[]> {
+  return apiData<Promotion[]>({ method: "GET", url: "/promotions" });
+}
+
+export function createPromotion(data: PromotionFormData): Promise<Promotion> {
+  return apiData<Promotion>({
     method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({
-      productId: data.productId,
-      code: data.code,
-      name: data.name,
-      discountType: data.discountType,
-      discountValue: data.discountValue,
-      startAt: data.startAt || null,
-      endAt: data.endAt || null,
-    }),
+    url: "/promotions",
+    data: toPromotionPayload(data),
   });
-  return handleResponse<Promotion>(res);
 }
 
-export async function updatePromotion(
+export function updatePromotion(
   id: string,
   data: PromotionFormData
 ): Promise<Promotion> {
-  const res = await fetch(`${API_BASE_URL}/promotions/${id}`, {
+  return apiData<Promotion>({
     method: "PUT",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({
-      productId: data.productId,
-      code: data.code,
-      name: data.name,
-      discountType: data.discountType,
-      discountValue: data.discountValue,
-      startAt: data.startAt || null,
-      endAt: data.endAt || null,
+    url: `/promotions/${id}`,
+    data: {
+      ...toPromotionPayload(data),
       isActive: data.isActive,
-    }),
+    },
   });
-  return handleResponse<Promotion>(res);
 }
 
-export async function togglePromotion(id: string): Promise<Promotion> {
-  const res = await fetch(`${API_BASE_URL}/promotions/${id}/toggle`, {
+export function togglePromotion(id: string): Promise<Promotion> {
+  return apiData<Promotion>({
     method: "PATCH",
-    headers: getAuthHeaders(),
+    url: `/promotions/${id}/toggle`,
   });
-  return handleResponse<Promotion>(res);
 }
 
 export async function deletePromotion(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/promotions/${id}`, {
-    method: "DELETE",
-    headers: getAuthHeaders(),
-  });
-  if (!res.ok) {
-    const json = (await res.json()) as { message?: string };
-    throw new Error(json.message ?? `HTTP ${res.status}`);
-  }
+  await apiData<unknown>({ method: "DELETE", url: `/promotions/${id}` });
 }

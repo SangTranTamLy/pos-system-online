@@ -1,4 +1,5 @@
-import { API_BASE_URL } from "./api-base";
+import { apiData } from "./api-client";
+
 export type ShiftStatus =
   | "PENDING"
   | "APPROVED"
@@ -58,124 +59,99 @@ export type OpenShiftForEmployeePayload = {
   openingCash?: number;
 };
 
-function getAuthHeaders() {
-  const token = localStorage.getItem("auth_token");
-  return {
-    "Content-Type": "application/json",
-    Authorization: token ? `Bearer ${token}` : "",
-  };
+export function fetchShifts(): Promise<Shift[]> {
+  return apiData<Shift[]>({ method: "GET", url: "/shifts" });
 }
 
-async function readShiftResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || fallbackMessage);
-  return data.data;
-}
-
-export async function fetchShifts(): Promise<Shift[]> {
-  const response = await fetch(`${API_BASE_URL}/shifts`, {
-    headers: getAuthHeaders(),
+export function fetchShiftRevenueByShift(
+  days = 7
+): Promise<ShiftRevenueSummaryItem[]> {
+  return apiData<ShiftRevenueSummaryItem[]>({
+    method: "GET",
+    url: `/shifts/revenue-by-shift?days=${days}`,
   });
-  return readShiftResponse<Shift[]>(response, "Lỗi lấy danh sách ca làm");
 }
 
-export async function fetchShiftRevenueByShift(days = 7): Promise<ShiftRevenueSummaryItem[]> {
-  const response = await fetch(`${API_BASE_URL}/shifts/revenue-by-shift?days=${days}`, {
-    headers: getAuthHeaders(),
-  });
-  return readShiftResponse<ShiftRevenueSummaryItem[]>(response, "Loi lay doanh thu theo ca");
-}
-
-export async function fetchStaffByShift(date?: string): Promise<StaffByShiftSummaryItem[]> {
+export function fetchStaffByShift(
+  date?: string
+): Promise<StaffByShiftSummaryItem[]> {
   const query = date ? `?date=${encodeURIComponent(date)}` : "";
-  const response = await fetch(`${API_BASE_URL}/shifts/staff-by-shift${query}`, {
-    headers: getAuthHeaders(),
+  return apiData<StaffByShiftSummaryItem[]>({
+    method: "GET",
+    url: `/shifts/staff-by-shift${query}`,
   });
-  return readShiftResponse<StaffByShiftSummaryItem[]>(response, "Loi lay nhan vien theo ca");
 }
 
-export async function registerShift(
+export function registerShift(
   expectedStartTime: string,
   expectedEndTime: string
 ): Promise<Shift> {
-  const response = await fetch(`${API_BASE_URL}/shifts`, {
+  return apiData<Shift>({
     method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ expectedStartTime, expectedEndTime }),
+    url: "/shifts",
+    data: { expectedStartTime, expectedEndTime },
   });
-  return readShiftResponse<Shift>(response, "Lỗi đăng ký ca");
 }
 
-export async function openShiftForEmployee(
+export function openShiftForEmployee(
   payload: OpenShiftForEmployeePayload
 ): Promise<Shift> {
-  const response = await fetch(`${API_BASE_URL}/shifts/open-for-employee`, {
+  return apiData<Shift>({
     method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(payload),
+    url: "/shifts/open-for-employee",
+    data: payload,
   });
-  return readShiftResponse<Shift>(response, "Lỗi mở ca cho nhân viên");
 }
 
-export async function approveShift(id: string): Promise<Shift> {
-  const response = await fetch(`${API_BASE_URL}/shifts/${id}/approve`, {
+export function approveShift(id: string): Promise<Shift> {
+  return apiData<Shift>({ method: "PATCH", url: `/shifts/${id}/approve` });
+}
+
+export function requestOpenShift(
+  id: string,
+  openingCash: number
+): Promise<Shift> {
+  return apiData<Shift>({
     method: "PATCH",
-    headers: getAuthHeaders(),
+    url: `/shifts/${id}/request-open`,
+    data: { openingCash },
   });
-  return readShiftResponse<Shift>(response, "Lỗi duyệt ca");
 }
 
-export async function requestOpenShift(id: string, openingCash: number): Promise<Shift> {
-  const response = await fetch(`${API_BASE_URL}/shifts/${id}/request-open`, {
+export function setShiftOpeningCash(
+  id: string,
+  openingCash: number
+): Promise<Shift> {
+  return apiData<Shift>({
     method: "PATCH",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ openingCash }),
+    url: `/shifts/${id}/opening-cash`,
+    data: { openingCash },
   });
-  return readShiftResponse<Shift>(response, "Lỗi yêu cầu mở ca");
 }
 
-export async function setShiftOpeningCash(id: string, openingCash: number): Promise<Shift> {
-  const response = await fetch(`${API_BASE_URL}/shifts/${id}/opening-cash`, {
+export function openShift(id: string): Promise<Shift> {
+  return apiData<Shift>({ method: "PATCH", url: `/shifts/${id}/open` });
+}
+
+export function requestCloseShift(id: string): Promise<Shift> {
+  return apiData<Shift>({
     method: "PATCH",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ openingCash }),
+    url: `/shifts/${id}/request-close`,
   });
-  return readShiftResponse<Shift>(response, "Lỗi nhập tiền đầu ca");
 }
 
-export async function openShift(id: string): Promise<Shift> {
-  const response = await fetch(`${API_BASE_URL}/shifts/${id}/open`, {
-    method: "PATCH",
-    headers: getAuthHeaders(),
-  });
-  return readShiftResponse<Shift>(response, "Lỗi xác nhận mở ca");
-}
-
-export async function requestCloseShift(id: string): Promise<Shift> {
-  const response = await fetch(`${API_BASE_URL}/shifts/${id}/request-close`, {
-    method: "PATCH",
-    headers: getAuthHeaders(),
-  });
-  return readShiftResponse<Shift>(response, "Lỗi yêu cầu đóng ca");
-}
-
-export async function closeShift(
+export function closeShift(
   id: string,
   actualClosingCash: number,
   closingNote?: string
 ): Promise<Shift> {
-  const response = await fetch(`${API_BASE_URL}/shifts/${id}/close`, {
+  return apiData<Shift>({
     method: "PATCH",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ actualClosingCash, closingNote }),
+    url: `/shifts/${id}/close`,
+    data: { actualClosingCash, closingNote },
   });
-  return readShiftResponse<Shift>(response, "Lỗi đóng ca");
 }
 
-export async function cancelShift(id: string): Promise<Shift> {
-  const response = await fetch(`${API_BASE_URL}/shifts/${id}/cancel`, {
-    method: "PATCH",
-    headers: getAuthHeaders(),
-  });
-  return readShiftResponse<Shift>(response, "Lỗi hủy ca");
+export function cancelShift(id: string): Promise<Shift> {
+  return apiData<Shift>({ method: "PATCH", url: `/shifts/${id}/cancel` });
 }
