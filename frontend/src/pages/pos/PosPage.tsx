@@ -22,6 +22,11 @@ type CartItem = {
   quantity: number;
 };
 
+type PosStockFilter = "all" | "available" | "low_stock" | "out_of_stock";
+type PosSortMode = "default" | "name_asc" | "price_asc" | "price_desc";
+type PosViewMode = "grid" | "list";
+type PosQuickFilter = "all" | "best_seller";
+
 const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string) || "http://localhost:5000/api";
 
@@ -92,6 +97,23 @@ function normalizeText(value: string) {
   return value.trim().toLowerCase();
 }
 
+function isProductUnavailable(product: Product) {
+  return (
+    product.status === "out_of_stock" ||
+    !product.isAvailable ||
+    (product.isTrackedStock && product.stockQuantity !== null && product.stockQuantity <= 0)
+  );
+}
+
+function isLowStockProduct(product: Product) {
+  return (
+    product.isTrackedStock &&
+    product.stockQuantity !== null &&
+    product.stockQuantity > 0 &&
+    product.stockQuantity <= 5
+  );
+}
+
 function PosPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
@@ -101,6 +123,11 @@ function PosPage() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [quickFilter, setQuickFilter] = useState<PosQuickFilter>("all");
+  const [stockFilter, setStockFilter] = useState<PosStockFilter>("all");
+  const [sortMode, setSortMode] = useState<PosSortMode>("default");
+  const [viewMode, setViewMode] = useState<PosViewMode>("grid");
+  const [showFilters, setShowFilters] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PosPaymentMethod>("cash");
   const [note, setNote] = useState("");
   const [completedOrder, setCompletedOrder] = useState<PosOrderResult | null>(null);
@@ -294,17 +321,45 @@ function PosPage() {
   const filteredProducts = useMemo(() => {
     const query = normalizeText(search);
 
-    return products.filter((product) => {
+    const filtered = products.filter((product) => {
       const matchesSearch =
         query.length === 0 ||
         normalizeText(product.name).includes(query) ||
-        normalizeText(product.sku).includes(query);
+        normalizeText(product.sku).includes(query) ||
+        normalizeText(product.id).includes(query);
       const matchesCategory =
         categoryFilter === "all" || product.categoryName === categoryFilter;
+      const matchesQuickFilter =
+        quickFilter === "all" || (quickFilter === "best_seller" && !isProductUnavailable(product));
+      const matchesStock =
+        stockFilter === "all" ||
+        (stockFilter === "available" && !isProductUnavailable(product)) ||
+        (stockFilter === "low_stock" && isLowStockProduct(product)) ||
+        (stockFilter === "out_of_stock" && isProductUnavailable(product));
 
-      return matchesSearch && matchesCategory;
+      return matchesSearch && matchesCategory && matchesQuickFilter && matchesStock;
     });
-  }, [categoryFilter, products, search]);
+
+    return [...filtered].sort((left, right) => {
+      if (quickFilter === "best_seller" && sortMode === "default") {
+        return Number(right.salePrice || 0) - Number(left.salePrice || 0);
+      }
+
+      if (sortMode === "name_asc") {
+        return left.name.localeCompare(right.name, "vi");
+      }
+
+      if (sortMode === "price_asc") {
+        return Number(left.salePrice || 0) - Number(right.salePrice || 0);
+      }
+
+      if (sortMode === "price_desc") {
+        return Number(right.salePrice || 0) - Number(left.salePrice || 0);
+      }
+
+      return 0;
+    });
+  }, [categoryFilter, products, quickFilter, search, sortMode, stockFilter]);
 
   const activePromotions = useMemo(() => {
     return promotions.filter((item) => {
@@ -645,43 +700,156 @@ function PosPage() {
     >
       <div className="flex h-full min-h-0 gap-4 overflow-hidden">
         <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <div className="mb-4 flex flex-col gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm lg:flex-row lg:items-center">
-            <div className="relative w-full lg:max-w-md">
-              <Icon
-                name="search"
-                className="absolute top-1/2 left-3 -translate-y-1/2 text-slate-400"
-              />
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Tìm sản phẩm theo tên hoặc SKU..."
-                className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 pr-4 pl-10 text-sm outline-none transition-all focus:border-[#f97316] focus:bg-white focus:ring-2 focus:ring-orange-100"
-              />
+          <div className="hidden">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+              <div className="relative min-w-0 flex-1">
+                <Icon
+                  name="search"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-[20px] text-slate-400"
+                />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Tìm món theo tên, SKU hoặc barcode..."
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-sm font-semibold text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                />
+              </div>
+
+              <div className="relative flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowFilters((current) => !current)}
+                  className={[
+                    "flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-extrabold transition",
+                    showFilters || stockFilter !== "all"
+                      ? "border-[#f97316] bg-orange-50 text-[#f97316]"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-orange-200 hover:bg-orange-50 hover:text-[#f97316]",
+                  ].join(" ")}
+                  aria-expanded={showFilters}
+                >
+                  <Icon name="tune" className="text-[19px]" />
+                  Bộ lọc
+                </button>
+
+                {showFilters ? (
+                  <div className="absolute right-0 top-full z-20 mt-2 w-64 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
+                    <label className="block">
+                      <span className="mb-2 block text-xs font-extrabold uppercase tracking-wide text-slate-400">
+                        Tồn kho
+                      </span>
+                      <select
+                        value={stockFilter}
+                        onChange={(event) => setStockFilter(event.target.value as PosStockFilter)}
+                        className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                      >
+                        <option value="all">Tất cả trạng thái</option>
+                        <option value="available">Đang bán</option>
+                        <option value="low_stock">Sắp hết hàng</option>
+                        <option value="out_of_stock">Hết hàng</option>
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStockFilter("all");
+                        setShowFilters(false);
+                      }}
+                      className="mt-3 w-full rounded-xl bg-slate-50 px-3 py-2 text-sm font-extrabold text-slate-600 transition hover:bg-orange-50 hover:text-[#f97316]"
+                    >
+                      Xóa bộ lọc
+                    </button>
+                  </div>
+                ) : null}
+
+                <label className="flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700">
+                  <span>Sắp xếp</span>
+                  <select
+                    value={sortMode}
+                    onChange={(event) => setSortMode(event.target.value as PosSortMode)}
+                    className="h-full min-w-[7.5rem] bg-transparent text-sm font-extrabold outline-none"
+                    aria-label="Sắp xếp sản phẩm"
+                  >
+                    <option value="default">Mặc định</option>
+                    <option value="name_asc">Tên A-Z</option>
+                    <option value="price_asc">Giá thấp</option>
+                    <option value="price_desc">Giá cao</option>
+                  </select>
+                </label>
+
+                <div className="flex h-11 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("grid")}
+                    className={[
+                      "flex w-11 items-center justify-center transition",
+                      viewMode === "grid" ? "bg-[#f97316] text-white" : "text-slate-500 hover:bg-orange-50 hover:text-[#f97316]",
+                    ].join(" ")}
+                    aria-label="Hiển thị dạng lưới"
+                    aria-pressed={viewMode === "grid"}
+                  >
+                    <Icon name="grid_view" className="text-[20px]" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("list")}
+                    className={[
+                      "flex w-11 items-center justify-center border-l border-slate-200 transition",
+                      viewMode === "list" ? "bg-[#f97316] text-white" : "text-slate-500 hover:bg-orange-50 hover:text-[#f97316]",
+                    ].join(" ")}
+                    aria-label="Hiển thị dạng danh sách"
+                    aria-pressed={viewMode === "list"}
+                  >
+                    <Icon name="view_list" className="text-[21px]" />
+                  </button>
+                </div>
+              </div>
             </div>
 
-            <div className="flex flex-1 gap-2 overflow-x-auto pb-1 lg:pb-0">
+            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
               <button
                 type="button"
-                onClick={() => setCategoryFilter("all")}
+                onClick={() => {
+                  setCategoryFilter("all");
+                  setQuickFilter("all");
+                }}
                 className={[
-                  "h-10 whitespace-nowrap rounded-full px-4 text-sm font-bold transition-colors",
-                  categoryFilter === "all"
-                    ? "bg-[#f97316] text-white"
-                    : "bg-slate-50 text-slate-600 hover:bg-orange-50 hover:text-[#f97316]",
+                  "h-10 whitespace-nowrap rounded-full px-5 text-sm font-extrabold transition-colors",
+                  categoryFilter === "all" && quickFilter === "all"
+                    ? "bg-[#f97316] text-white shadow-sm shadow-orange-100"
+                    : "bg-slate-50 text-slate-700 hover:bg-orange-50 hover:text-[#f97316]",
                 ].join(" ")}
               >
                 Tất cả
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setQuickFilter("best_seller");
+                  setCategoryFilter("all");
+                }}
+                className={[
+                  "flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full px-5 text-sm font-extrabold transition-colors",
+                  quickFilter === "best_seller"
+                    ? "bg-[#f97316] text-white shadow-sm shadow-orange-100"
+                    : "bg-slate-50 text-slate-700 hover:bg-orange-50 hover:text-[#f97316]",
+                ].join(" ")}
+              >
+                <Icon name="local_fire_department" className="text-[17px]" />
+                Bán chạy
               </button>
               {categories.map((category) => (
                 <button
                   key={category}
                   type="button"
-                  onClick={() => setCategoryFilter(category)}
+                  onClick={() => {
+                    setCategoryFilter(category);
+                    setQuickFilter("all");
+                  }}
                   className={[
-                    "h-10 whitespace-nowrap rounded-full px-4 text-sm font-bold transition-colors",
-                    categoryFilter === category
-                      ? "bg-[#f97316] text-white"
-                      : "bg-slate-50 text-slate-600 hover:bg-orange-50 hover:text-[#f97316]",
+                    "h-10 whitespace-nowrap rounded-full px-5 text-sm font-extrabold transition-colors",
+                    categoryFilter === category && quickFilter === "all"
+                      ? "bg-[#f97316] text-white shadow-sm shadow-orange-100"
+                      : "bg-slate-50 text-slate-700 hover:bg-orange-50 hover:text-[#f97316]",
                   ].join(" ")}
                 >
                   {category}
@@ -710,12 +878,208 @@ function PosPage() {
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto pb-36 pr-1 xl:pb-0">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
-                {filteredProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} onAdd={addToCart} />
+            <div className="mb-4 space-y-3">
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+                <div className="relative min-w-0 flex-1">
+                  <Icon
+                    name="search"
+                    className="absolute left-4 top-1/2 -translate-y-1/2 text-[20px] text-slate-400"
+                  />
+                  <input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Tìm món theo tên, SKU hoặc barcode..."
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-sm font-semibold text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                  />
+                </div>
+
+                <div className="relative flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowFilters((current) => !current)}
+                    className={[
+                      "flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-extrabold transition",
+                      showFilters || stockFilter !== "all"
+                        ? "border-[#f97316] bg-orange-50 text-[#f97316]"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-orange-200 hover:bg-orange-50 hover:text-[#f97316]",
+                    ].join(" ")}
+                    aria-expanded={showFilters}
+                  >
+                    <Icon name="tune" className="text-[19px]" />
+                    Bộ lọc
+                  </button>
+
+                  {showFilters ? (
+                    <div className="absolute right-0 top-full z-20 mt-2 w-64 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
+                      <label className="block">
+                        <span className="mb-2 block text-xs font-extrabold uppercase tracking-wide text-slate-400">
+                          Tồn kho
+                        </span>
+                        <select
+                          value={stockFilter}
+                          onChange={(event) => setStockFilter(event.target.value as PosStockFilter)}
+                          className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                        >
+                          <option value="all">Tất cả trạng thái</option>
+                          <option value="available">Đang bán</option>
+                          <option value="low_stock">Sắp hết hàng</option>
+                          <option value="out_of_stock">Hết hàng</option>
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStockFilter("all");
+                          setShowFilters(false);
+                        }}
+                        className="mt-3 w-full rounded-xl bg-slate-50 px-3 py-2 text-sm font-extrabold text-slate-600 transition hover:bg-orange-50 hover:text-[#f97316]"
+                      >
+                        Xóa bộ lọc
+                      </button>
+                    </div>
+                  ) : null}
+
+                  <label className="flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700">
+                    <span>Sắp xếp</span>
+                    <select
+                      value={sortMode}
+                      onChange={(event) => setSortMode(event.target.value as PosSortMode)}
+                      className="h-full min-w-[7.5rem] bg-transparent text-sm font-extrabold outline-none"
+                      aria-label="Sắp xếp sản phẩm"
+                    >
+                      <option value="default">Mặc định</option>
+                      <option value="name_asc">Tên A-Z</option>
+                      <option value="price_asc">Giá thấp</option>
+                      <option value="price_desc">Giá cao</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCategoryFilter("all");
+                    setQuickFilter("all");
+                  }}
+                  className={[
+                    "h-10 whitespace-nowrap rounded-full px-5 text-sm font-extrabold transition-colors",
+                    categoryFilter === "all" && quickFilter === "all"
+                      ? "bg-[#f97316] text-white shadow-sm shadow-orange-100"
+                      : "bg-slate-50 text-slate-700 hover:bg-orange-50 hover:text-[#f97316]",
+                  ].join(" ")}
+                >
+                  Tất cả
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuickFilter("best_seller");
+                    setCategoryFilter("all");
+                  }}
+                  className={[
+                    "flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full px-5 text-sm font-extrabold transition-colors",
+                    quickFilter === "best_seller"
+                      ? "bg-[#f97316] text-white shadow-sm shadow-orange-100"
+                      : "bg-slate-50 text-slate-700 hover:bg-orange-50 hover:text-[#f97316]",
+                  ].join(" ")}
+                >
+                  <Icon name="local_fire_department" className="text-[17px]" />
+                  Bán chạy
+                </button>
+                {categories.map((category) => (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => {
+                      setCategoryFilter(category);
+                      setQuickFilter("all");
+                    }}
+                    className={[
+                      "h-10 whitespace-nowrap rounded-full px-5 text-sm font-extrabold transition-colors",
+                      categoryFilter === category && quickFilter === "all"
+                        ? "bg-[#f97316] text-white shadow-sm shadow-orange-100"
+                        : "bg-slate-50 text-slate-700 hover:bg-orange-50 hover:text-[#f97316]",
+                    ].join(" ")}
+                  >
+                    {category}
+                  </button>
                 ))}
               </div>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto pb-36 pr-1 xl:pb-0">
+              {viewMode === "grid" ? (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+                  {filteredProducts.map((product) => (
+                    <ProductCard key={product.id} product={product} onAdd={addToCart} />
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {filteredProducts.map((product) => {
+                    const isUnavailable = isProductUnavailable(product);
+
+                    return (
+                      <article
+                        key={product.id}
+                        className={[
+                          "flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition hover:border-orange-100 hover:shadow-md",
+                          isUnavailable ? "opacity-60" : "",
+                        ].join(" ")}
+                      >
+                        <div className="flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-xl bg-orange-50 text-[#f97316]">
+                          {product.imageUrl ? (
+                            <img
+                              src={product.imageUrl}
+                              alt={product.name}
+                              className={[
+                                "h-full w-full object-contain p-1",
+                                isUnavailable ? "grayscale" : "",
+                              ].join(" ")}
+                            />
+                          ) : (
+                            <Icon name="restaurant" className="text-[28px]" />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-extrabold text-[#0b1c30]">{product.name}</p>
+                          <p className="mt-1 truncate text-xs font-semibold text-slate-400">
+                            SKU: {product.sku} {product.categoryName ? `- ${product.categoryName}` : ""}
+                          </p>
+                        </div>
+                        <span className="hidden rounded-full bg-slate-50 px-3 py-1 text-xs font-extrabold text-slate-500 sm:inline-flex">
+                          {isUnavailable
+                            ? "Hết hàng"
+                            : product.isTrackedStock
+                              ? `Còn ${product.stockQuantity}`
+                              : "Đang bán"}
+                        </span>
+                        <p className="w-28 text-right text-sm font-extrabold text-[#f97316]">
+                          {formatCurrency(product.salePrice)}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!isUnavailable) addToCart(product);
+                          }}
+                          disabled={isUnavailable}
+                          className={[
+                            "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition",
+                            isUnavailable
+                              ? "cursor-not-allowed bg-slate-100 text-slate-400"
+                              : "bg-orange-50 text-[#f97316] hover:bg-[#f97316] hover:text-white",
+                          ].join(" ")}
+                          aria-label={`Thêm ${product.name} vào giỏ`}
+                        >
+                          <Icon name="add" />
+                        </button>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
 
               {!isLoading && filteredProducts.length === 0 ? (
                 <div className="flex min-h-64 flex-col items-center justify-center text-center text-slate-400">

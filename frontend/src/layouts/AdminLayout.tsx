@@ -135,6 +135,27 @@ function formatLocalDateInput(date: Date) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function formatNotificationCurrency(value: number) {
+  return new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+    maximumFractionDigits: 0,
+  }).format(value || 0);
+}
+
+function getShortOrderCode(id: string) {
+  return id.slice(0, 8).toUpperCase();
+}
+
+function getStockNotificationSignature(
+  items: Array<{ id: string; stockQuantity?: number | null; updatedAt?: string }>
+) {
+  return items
+    .map((item) => `${item.id}:${Number(item.stockQuantity ?? 0)}:${item.updatedAt || ""}`)
+    .sort()
+    .join("|");
+}
+
 function textIncludesAny(value: string | null | undefined, keywords: string[]) {
   const normalized = (value || "").toLowerCase();
   return keywords.some((keyword) => normalized.includes(keyword.toLowerCase()));
@@ -149,17 +170,72 @@ type NotificationItem = {
   timeLabel?: string;
 };
 
+const DISMISSED_NOTIFICATION_IDS_KEY = "quickserve:dismissed-notification-ids";
+const READ_NOTIFICATION_IDS_KEY = "quickserve:read-notification-ids";
+
+function getNotificationStorageKey(baseKey: string, scopeKey: string) {
+  return `${baseKey}:${scopeKey}`;
+}
+
+function readNotificationIds(storageKey: string) {
+  try {
+    const value = localStorage.getItem(storageKey);
+    const parsed = value ? JSON.parse(value) : [];
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeNotificationIds(storageKey: string, ids: string[]) {
+  localStorage.setItem(storageKey, JSON.stringify(ids));
+  window.dispatchEvent(new Event("quickserve:dismissed-notifications-change"));
+}
+
 function NotificationBell({
   items,
+  scopeKey,
 }: {
   items: NotificationItem[];
+  scopeKey: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const itemsSignature = items.map((item) => item.id).join("|");
-  const [clearedSignature, setClearedSignature] = useState("");
-  const isCleared = clearedSignature === itemsSignature;
-  const displayItems = isCleared ? [] : items;
-  const visibleCount = Math.min(displayItems.length, 99);
+  const dismissedStorageKey = getNotificationStorageKey(DISMISSED_NOTIFICATION_IDS_KEY, scopeKey);
+  const readStorageKey = getNotificationStorageKey(READ_NOTIFICATION_IDS_KEY, scopeKey);
+  const [dismissedIds, setDismissedIds] = useState<string[]>(() => readNotificationIds(dismissedStorageKey));
+  const [readIds, setReadIds] = useState<string[]>(() => readNotificationIds(readStorageKey));
+  const dismissedIdSet = useMemo(() => new Set(dismissedIds), [dismissedIds]);
+  const readIdSet = useMemo(() => new Set(readIds), [readIds]);
+  const displayItems = items.filter((item) => !dismissedIdSet.has(item.id));
+  const unreadItems = displayItems.filter((item) => !readIdSet.has(item.id));
+  const visibleCount = Math.min(unreadItems.length, 99);
+
+  useEffect(() => {
+    const syncNotificationState = () => {
+      setDismissedIds(readNotificationIds(dismissedStorageKey));
+      setReadIds(readNotificationIds(readStorageKey));
+    };
+
+    window.addEventListener("storage", syncNotificationState);
+    window.addEventListener("quickserve:dismissed-notifications-change", syncNotificationState);
+
+    return () => {
+      window.removeEventListener("storage", syncNotificationState);
+      window.removeEventListener("quickserve:dismissed-notifications-change", syncNotificationState);
+    };
+  }, [dismissedStorageKey, readStorageKey]);
+
+  function markDisplayItemsAsRead() {
+    const nextIds = Array.from(new Set([...readIds, ...displayItems.map((item) => item.id)]));
+    writeNotificationIds(readStorageKey, nextIds);
+    setReadIds(nextIds);
+  }
+
+  function dismissDisplayItems() {
+    const nextIds = Array.from(new Set([...dismissedIds, ...displayItems.map((item) => item.id)]));
+    writeNotificationIds(dismissedStorageKey, nextIds);
+    setDismissedIds(nextIds);
+  }
 
   return (
     <div className="relative">
@@ -193,7 +269,7 @@ function NotificationBell({
             <div className="absolute right-4 top-4 flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => setClearedSignature(itemsSignature)}
+                onClick={markDisplayItemsAsRead}
                 className="rounded-md p-1 text-[#f97316] transition-all duration-200 hover:bg-orange-50 hover:text-orange-600"
                 title="Đánh dấu đã đọc"
               >
@@ -219,7 +295,9 @@ function NotificationBell({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start gap-2">
                       <p className="min-w-0 break-words text-sm font-extrabold uppercase tracking-wide text-slate-900">{item.title}</p>
-                      <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#f97316]" />
+                      {!readIdSet.has(item.id) ? (
+                        <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#f97316]" />
+                      ) : null}
                     </div>
                     <p className="mt-1 text-sm font-semibold leading-relaxed text-slate-500">
                       {item.description}
@@ -238,7 +316,7 @@ function NotificationBell({
           {displayItems.length > 0 ? (
             <button
               type="button"
-              onClick={() => setClearedSignature(itemsSignature)}
+              onClick={dismissDisplayItems}
               className="flex w-full items-center justify-center gap-2 border-t border-slate-100 px-4 py-4 text-xs font-extrabold uppercase tracking-wide text-slate-500 transition hover:bg-orange-50 hover:text-[#f97316]"
             >
               <Icon name="delete" className="text-[18px]" />
@@ -409,6 +487,7 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
   const [todayOrders, setTodayOrders] = useState<OrderListItem[]>([]);
   const [cancelledOrders, setCancelledOrders] = useState<OrderListItem[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [notificationRefreshKey, setNotificationRefreshKey] = useState(0);
 
   useEffect(() => {
     const roleName = user.roleName?.toLowerCase() || "";
@@ -430,6 +509,7 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
   useEffect(() => {
     const roleName = user.roleName?.toLowerCase() || "";
     const canSeeAdminNotifications = ["admin", "manager"].includes(roleName);
+    const canSeeSharedNotifications = ["admin", "manager", "staff", "cashier"].includes(roleName);
 
     if (!["admin", "manager", "staff", "cashier"].includes(roleName)) {
       void Promise.resolve().then(() => {
@@ -454,7 +534,7 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
             message: "",
             data: [],
           } as Awaited<ReturnType<typeof getOrders>>),
-      canSeeAdminNotifications
+      canSeeSharedNotifications
         ? getOrders({ status: "cancelled", dateFrom: today, dateTo: today })
         : Promise.resolve({
             success: true,
@@ -474,7 +554,21 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
       setCancelledOrders(cancelledResult.status === "fulfilled" ? cancelledResult.value.data : []);
       setAuditLogs(logsResult.status === "fulfilled" ? logsResult.value.logs : []);
     });
-  }, [user.roleName]);
+  }, [notificationRefreshKey, user.roleName]);
+
+  useEffect(() => {
+    const refreshNotifications = () => {
+      setNotificationRefreshKey((current) => current + 1);
+    };
+
+    window.addEventListener("quickserve:notifications-refresh", refreshNotifications);
+    const interval = window.setInterval(refreshNotifications, 60_000);
+
+    return () => {
+      window.removeEventListener("quickserve:notifications-refresh", refreshNotifications);
+      window.clearInterval(interval);
+    };
+  }, []);
 
   const mainMenuItems = useMemo(
     () =>
@@ -513,6 +607,7 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
 
   const displayName = user.fullName?.trim() || "Admin Demo";
   const displayRole = user.roleName?.trim() || "admin";
+  const notificationScopeKey = `${user.id || displayName}:${displayRole}`.toLowerCase();
   const notificationItems = useMemo<NotificationItem[]>(() => {
     const roleName = user.roleName?.toLowerCase() || "";
     const items: NotificationItem[] = [];
@@ -528,8 +623,21 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
     );
 
     if (lowMaterials.length + lowProducts.length > 0) {
+      const lowStockSignature = getStockNotificationSignature([
+        ...lowMaterials.map((material) => ({
+          id: `material-${material.id}`,
+          stockQuantity: material.stockQuantity,
+          updatedAt: material.updatedAt,
+        })),
+        ...lowProducts.map((product) => ({
+          id: `product-${product.id}`,
+          stockQuantity: product.stockQuantity,
+          updatedAt: product.updatedAt,
+        })),
+      ]);
+
       items.push({
-        id: "low-stock",
+        id: `low-stock-${lowStockSignature}`,
         title: `${lowMaterials.length + lowProducts.length} mặt hàng tồn kho thấp`,
         description: "Có hàng hóa hoặc nguyên liệu sắp hết, cần kiểm tra nhập thêm.",
         icon: "warning",
@@ -538,14 +646,33 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
     }
 
     if (outOfStockProducts.length > 0) {
+      const outOfStockSignature = getStockNotificationSignature(
+        outOfStockProducts.map((product) => ({
+          id: `product-${product.id}`,
+          stockQuantity: product.stockQuantity,
+          updatedAt: product.updatedAt,
+        }))
+      );
+
       items.push({
-        id: "out-of-stock-products",
+        id: `out-of-stock-products-${outOfStockSignature}`,
         title: `${outOfStockProducts.length} sản phẩm hết hàng`,
         description: "Các sản phẩm này không đủ tồn để bán, cần nhập hoặc tạm ẩn khỏi POS.",
         icon: "inventory_2",
         tone: "bg-red-50 text-red-600",
       });
     }
+
+    cancelledOrders.slice(0, 5).forEach((order) => {
+      items.push({
+        id: `cancelled-invoice-${order.id}-${order.updatedAt}`,
+        title: `Đã hủy hóa đơn ${getShortOrderCode(order.id)}`,
+        description: `Lý do: ${order.cancelReason || "Không có lý do"}. Tổng tiền: ${formatNotificationCurrency(order.finalAmount)}`,
+        icon: "receipt_long",
+        tone: "bg-rose-50 text-rose-600",
+        timeLabel: new Date(order.updatedAt || order.createdAt).toLocaleString("vi-VN"),
+      });
+    });
 
     if (["staff", "cashier"].includes(roleName)) {
       return items;
@@ -565,7 +692,7 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
       textIncludesAny(`${log.actionType} ${log.description}`, ["dang_nhap", "đăng nhập", "login", "bao_mat", "bảo mật", "bat thuong", "bất thường"])
     );
 
-    if (cancelledOrders.length > 0) {
+    if (cancelledOrders.length < 0) {
       items.push({
         id: "cancelled-invoices",
         title: `${cancelledOrders.length} hóa đơn bị hủy hôm nay`,
@@ -637,7 +764,7 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
     <div className="h-screen min-h-screen w-full overflow-hidden bg-[#f8f9ff] font-['Inter',sans-serif] text-[#0b1c30]">
       <aside className="hidden h-screen w-64 shrink-0 overflow-y-auto overflow-x-hidden border-r border-slate-200 bg-white px-4 py-1 shadow-sm lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:flex lg:flex-col">
         <div className="mb-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 -ml-2.5">
             <div className="flex items-center gap-2.5 flex-1">
               <img
                 src={systemLogo}
@@ -655,7 +782,7 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
             </div>
           </div>
           <div className="-mt-2.5 flex items-center gap-3">
-            <NotificationBell items={notificationItems} />
+            <NotificationBell items={notificationItems} scopeKey={notificationScopeKey} />
           </div>
         </div>
 
@@ -698,7 +825,7 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
                   QuickServe POS
                 </h1>
               </div>
-              <NotificationBell items={notificationItems} />
+              <NotificationBell items={notificationItems} scopeKey={notificationScopeKey} />
               <button
                 type="button"
                 onClick={() => setIsMobileMenuOpen(false)}

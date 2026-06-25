@@ -46,6 +46,17 @@ app.use((req, res, next) => {
 
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
+app.get("/", (_req, res) => {
+  return res.json({
+    success: true,
+    message: "QuickServe POS API is running",
+    endpoints: {
+      health: "/health",
+      api: "/api",
+    },
+  });
+});
+
 app.get("/health", async (_req, res) => {
   try {
     const [rows] = await db.query("SELECT 1 AS status");

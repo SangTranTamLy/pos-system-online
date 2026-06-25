@@ -24,6 +24,7 @@ type OrderListRow = RowDataPacket & {
   final_amount: string;
   payment_method: PaymentMethod | null;
   payment_status: PaymentStatus | null;
+  cancel_reason: string | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -75,6 +76,7 @@ function mapOrderListItem(row: OrderListRow): OrderListItem {
     finalAmount: Number(row.final_amount),
     paymentMethod: row.payment_method,
     paymentStatus: row.payment_status,
+    cancelReason: row.cancel_reason,
     createdAt: toIsoString(row.created_at) || "",
     updatedAt: toIsoString(row.updated_at) || "",
   };
@@ -145,6 +147,11 @@ function buildOrderFilters(query: OrderListQuery) {
     params.push(query.createdBy);
   }
 
+  if (query.shiftId) {
+    conditions.push("o.shift_id = ?");
+    params.push(query.shiftId);
+  }
+
   return {
     whereClause: conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "",
     params,
@@ -178,6 +185,7 @@ export async function findOrders(query: OrderListQuery): Promise<OrderListItem[]
       o.final_amount,
       p.payment_method,
       p.payment_status,
+      o.cancel_reason,
       o.created_at,
       o.updated_at
     FROM orders o
@@ -217,6 +225,7 @@ export async function findOrderById(
 
       p.payment_method,
       p.payment_status,
+      o.cancel_reason,
       o.created_at,
       o.updated_at
     FROM orders o

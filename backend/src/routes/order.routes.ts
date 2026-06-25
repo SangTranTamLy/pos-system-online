@@ -14,12 +14,12 @@ orderRouter.get("/", asyncHandler(getOrdersController));
 orderRouter.get("/:id", asyncHandler(getOrderDetailController));
 orderRouter.post(
   "/:id/cancel",
-  requireRoles(["ADMIN"]),
+  requireRoles(["ADMIN", "MANAGER"]),
   asyncHandler(cancelOrderController)
 );
 orderRouter.patch(
   "/:id/cancel",
-  requireRoles(["ADMIN"]),
+  requireRoles(["ADMIN", "MANAGER"]),
   asyncHandler(cancelOrderController)
 );
 

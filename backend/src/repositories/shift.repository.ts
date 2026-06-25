@@ -195,7 +195,7 @@ export const calculateShiftSales = async (
     `SELECT p.payment_method, SUM(p.amount) as total
      FROM payments p
      JOIN orders o ON p.order_id = o.id
-     WHERE o.shift_id = ? AND p.payment_status = 'paid'
+     WHERE o.shift_id = ? AND o.status = 'completed' AND p.payment_status = 'paid'
      GROUP BY p.payment_method`,
     [shiftId]
   );

@@ -17,6 +17,7 @@ function normalizeOrderQuery(query: Record<string, unknown>): OrderListQuery {
   const dateFrom = typeof query.dateFrom === "string" ? query.dateFrom.trim() : undefined;
   const dateTo = typeof query.dateTo === "string" ? query.dateTo.trim() : undefined;
   const createdBy = typeof query.createdBy === "string" ? query.createdBy.trim() : undefined;
+  const shiftId = typeof query.shiftId === "string" ? query.shiftId.trim() : undefined;
 
   if (status && !allowedStatuses.includes(status as OrderStatus)) {
     throw new ApiError(400, "Trạng thái hóa đơn không hợp lệ");
@@ -40,6 +41,7 @@ function normalizeOrderQuery(query: Record<string, unknown>): OrderListQuery {
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
     createdBy: createdBy || undefined,
+    shiftId: shiftId || undefined,
   };
 }
 

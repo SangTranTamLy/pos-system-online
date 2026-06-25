@@ -14,6 +14,7 @@ export type OrderListQuery = {
   dateFrom?: string;
   dateTo?: string;
   createdBy?: string;
+  shiftId?: string;
 };
 
 export type OrderListItem = {
@@ -28,6 +29,7 @@ export type OrderListItem = {
   finalAmount: number;
   paymentMethod: PaymentMethod | null;
   paymentStatus: PaymentStatus | null;
+  cancelReason: string | null;
   createdAt: string;
   updatedAt: string;
 };

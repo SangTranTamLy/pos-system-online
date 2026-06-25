@@ -14,6 +14,7 @@ export type OrderListParams = {
   dateFrom?: string;
   dateTo?: string;
   createdBy?: string;
+  shiftId?: string;
 };
 
 export type OrderListItem = {
@@ -28,6 +29,7 @@ export type OrderListItem = {
   finalAmount: number;
   paymentMethod: PaymentMethod | null;
   paymentStatus: PaymentStatus | null;
+  cancelReason: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -120,6 +122,10 @@ function buildQuery(params?: OrderListParams) {
 
   if (params?.createdBy) {
     searchParams.set("createdBy", params.createdBy);
+  }
+
+  if (params?.shiftId) {
+    searchParams.set("shiftId", params.shiftId);
   }
 
   const queryString = searchParams.toString();

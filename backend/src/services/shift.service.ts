@@ -349,6 +349,17 @@ export const cancelShift = async (id: string, userId: string): Promise<Shift> =>
   if (["CLOSED", "CANCELLED"].includes(shift.status)) {
     throw new ApiError(400, "Ca này không thể hủy");
   }
+  if (shift.status === "OPEN") {
+    const { totalCash, totalQr } = await shiftRepo.calculateShiftSales(id);
+    const hasStartedSelling =
+      Number(shift.openingCash || 0) > 0 ||
+      Number(shift.totalSales || 0) > 0 ||
+      totalCash + totalQr > 0;
+
+    if (hasStartedSelling) {
+      throw new ApiError(400, "Không thể hủy ca khi nhân viên đã bắt đầu bán hàng");
+    }
+  }
 
   await shiftRepo.updateShiftStatus(id, "CANCELLED");
 

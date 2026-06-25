@@ -2,6 +2,14 @@ import type { AuditLogQuery, AuditLogResponse } from "../types/audit-log";
 
 const API_BASE_URL = "http://localhost:5000/api";
 
+type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
 function getAuthHeaders() {
   const token = localStorage.getItem("auth_token");
   return {
@@ -36,8 +44,8 @@ export async function createAuditLog(payload: {
   actionType: string;
   targetObject: string;
   description: string;
-  oldValues?: any;
-  newValues?: any;
+  oldValues?: JsonValue;
+  newValues?: JsonValue;
 }): Promise<void> {
   const url = `${API_BASE_URL}/audit-logs`;
   const response = await fetch(url, {

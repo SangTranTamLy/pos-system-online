@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getOrders } from "../../api/order.api";
+import { getOrders, type OrderListItem } from "../../api/order.api";
 import { getEmployeeRevenue } from "../../api/report.api";
 import { fetchShifts, type Shift } from "../../api/shifts.api";
 import EmployeeRevenueTable from "../../components/dashboard/EmployeeRevenueTable";
@@ -19,13 +19,6 @@ function formatCurrency(value: number) {
     currency: "VND",
     maximumFractionDigits: 0,
   }).format(value || 0);
-}
-
-function formatLocalDateInput(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
 }
 
 function formatShiftTime(value?: string | null) {
@@ -96,7 +89,7 @@ function StaffDashboard() {
   const navigate = useNavigate();
   const [employeeRevenue, setEmployeeRevenue] = useState<EmployeeRevenue[]>([]);
   const [activeShift, setActiveShift] = useState<Shift | null>(null);
-  const [shiftOrderCount, setShiftOrderCount] = useState(0);
+  const [shiftOrders, setShiftOrders] = useState<OrderListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isShiftLoading, setIsShiftLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -118,21 +111,18 @@ function StaffDashboard() {
       setActiveShift(openShift);
 
       if (!openShift) {
-        setShiftOrderCount(0);
+        setShiftOrders([]);
         return;
       }
 
-      const dateKey = formatLocalDateInput(new Date(openShift.expectedStartTime));
       const orders = await getOrders({
-        createdBy: openShift.userId,
-        dateFrom: dateKey,
-        dateTo: dateKey,
+        shiftId: openShift.id,
       });
 
-      setShiftOrderCount(orders.data.length);
+      setShiftOrders(orders.data);
     } catch (error) {
       setActiveShift(null);
-      setShiftOrderCount(0);
+      setShiftOrders([]);
       setShiftErrorMessage(
         error instanceof Error ? error.message : "Không tải được dữ liệu ca làm."
       );
@@ -178,8 +168,16 @@ function StaffDashboard() {
   const shiftTimeRange = activeShift
     ? `${formatShiftTime(activeShift.expectedStartTime)} - ${formatShiftTime(activeShift.expectedEndTime)}`
     : "";
+  const completedShiftOrders = shiftOrders.filter((order) => order.status === "completed");
+  const shiftRevenue = completedShiftOrders.reduce(
+    (sum, order) => sum + Number(order.finalAmount || 0),
+    0
+  );
+  const shiftCashRevenue = completedShiftOrders
+    .filter((order) => order.paymentMethod === "cash")
+    .reduce((sum, order) => sum + Number(order.finalAmount || 0), 0);
   const cashInDrawer = activeShift
-    ? Number(activeShift.openingCash || 0) + Number(activeShift.totalSalesCash || 0)
+    ? Number(activeShift.openingCash || 0) + shiftCashRevenue
     : 0;
   const variance = Number(activeShift?.variance || 0);
 
@@ -243,13 +241,13 @@ function StaffDashboard() {
                 icon="monitoring"
                 tone="text-emerald-600"
                 label="Doanh thu ca"
-                value={formatCurrency(Number(activeShift.totalSales || 0))}
+                value={formatCurrency(shiftRevenue)}
               />
               <ShiftStatCard
                 icon="receipt_long"
                 tone="text-blue-600"
                 label="Số đơn"
-                value={shiftOrderCount}
+                value={completedShiftOrders.length}
               />
               <ShiftStatCard
                 icon="payments"
@@ -261,7 +259,7 @@ function StaffDashboard() {
                 icon="difference"
                 tone="text-purple-600"
                 label="Lệch tiền"
-                value={variance === 0 ? "-" : formatCurrency(variance)}
+                value={activeShift.actualEndTime ? (variance === 0 ? "0 đ" : formatCurrency(variance)) : "Chưa chốt"}
               />
             </div>
           </>

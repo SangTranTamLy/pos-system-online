@@ -93,8 +93,8 @@ function getCurrentUser() {
   }
 }
 
-function isAdminUser(user: StoredAuthUser | null) {
-  return user?.roleName?.trim().toUpperCase() === "ADMIN";
+function canManageInvoices(user: StoredAuthUser | null) {
+  return ["ADMIN", "MANAGER"].includes(user?.roleName?.trim().toUpperCase() || "");
 }
 
 function escapeHtml(value: string) {
@@ -506,8 +506,8 @@ function InvoicePage() {
   const [users, setUsers] = useState<User[]>([]);
   const [createdBy, setCreatedBy] = useState<string>("all");
   const currentUser = getCurrentUser();
-  const isAdmin = isAdminUser(currentUser);
-  const canCancelSelectedOrder = isAdmin && selectedOrder?.status === "completed";
+  const canManageInvoiceActions = canManageInvoices(currentUser);
+  const canCancelSelectedOrder = canManageInvoiceActions && selectedOrder?.status === "completed";
 
   useEffect(() => {
     let isMounted = true;
@@ -563,7 +563,7 @@ function InvoicePage() {
 
   useEffect(() => {
     let isMounted = true;
-    if (isAdmin) {
+    if (canManageInvoiceActions) {
       fetchUsers()
         .then((data) => {
           if (isMounted) setUsers(data);
@@ -575,7 +575,7 @@ function InvoicePage() {
     return () => {
       isMounted = false;
     };
-  }, [isAdmin]);
+  }, [canManageInvoiceActions]);
 
   useEffect(() => {
     let isMounted = true;
@@ -649,6 +649,7 @@ function InvoicePage() {
       );
       setCancelModal("closed");
       setCancelReason("");
+      window.dispatchEvent(new Event("quickserve:notifications-refresh"));
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Không hủy được hóa đơn");
     } finally {
@@ -714,7 +715,7 @@ function InvoicePage() {
               setCreatedBy("all");
             }}
             className={`grid gap-3 border-b border-slate-200 p-4 lg:items-center ${
-              isAdmin
+              canManageInvoiceActions
                 ? "lg:grid-cols-[1fr_150px_150px_160px_170px_auto]"
                 : "lg:grid-cols-[1fr_150px_150px_170px_auto]"
             }`}
@@ -751,7 +752,7 @@ function InvoicePage() {
               <option value="cancelled">Đã hủy</option>
               <option value="refunded">Đã hoàn tiền</option>
             </select>
-            {isAdmin && (
+            {canManageInvoiceActions && (
               <select
                 value={createdBy}
                 onChange={(event) => setCreatedBy(event.target.value)}
@@ -821,12 +822,12 @@ function InvoicePage() {
                           type="button"
                           onClick={() => {
                             setSelectedOrderId(order.id);
-                            if (order.status === "completed" && isAdmin) {
+                            if (order.status === "completed" && canManageInvoiceActions) {
                               setCancelReason("");
                               setCancelModal("open");
                             }
                           }}
-                          disabled={order.status !== "completed" || !isAdmin}
+                          disabled={order.status !== "completed" || !canManageInvoiceActions}
                           className="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:text-slate-300 disabled:hover:bg-transparent"
                           title="Hủy đơn"
                         >

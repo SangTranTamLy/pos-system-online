@@ -14,7 +14,6 @@ import {
 } from "recharts";
 import {
   getDashboardSummary,
-  type DashboardRevenuePeriod,
   type DashboardSummary,
 } from "../../api/dashboard.api";
 import { getEmployeeRevenue } from "../../api/report.api";
@@ -55,7 +54,6 @@ const paymentMethodColors: Record<string, string> = {
   transfer: "#fb923c",
 };
 
-const shiftColors = ["#f97316", "#3b82f6", "#8b5cf6"];
 const categoryBarColors = ["#f97316", "#3b82f6", "#22c55e", "#8b5cf6"];
 
 function formatCurrency(value: number) {
@@ -79,6 +77,18 @@ function formatCompactCurrency(value: number) {
 
 function getTodayInputValue() {
   return new Date().toISOString().split("T")[0];
+}
+
+function formatWeekdayDate(value: string) {
+  const date = new Date(value);
+  const weekday = new Intl.DateTimeFormat("vi-VN", { weekday: "long" }).format(date);
+  const dateLabel = new Intl.DateTimeFormat("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+
+  return `${weekday} • ${dateLabel}`;
 }
 
 function DashboardCard({ children, className = "" }: { children: ReactNode; className?: string }) {
@@ -151,7 +161,6 @@ function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [reportDate] = useState(getTodayInputValue);
-  const [revenuePeriod, setRevenuePeriod] = useState<DashboardRevenuePeriod>("week");
 
   useEffect(() => {
     let isActive = true;
@@ -161,7 +170,7 @@ function DashboardPage() {
 
       try {
         const [dashboardResponse, employeeResponse] = await Promise.all([
-          getDashboardSummary(revenuePeriod, reportDate, reportDate),
+          getDashboardSummary("week", reportDate, reportDate),
           getEmployeeRevenue(reportDate, reportDate),
         ]);
 
@@ -192,7 +201,7 @@ function DashboardPage() {
       isActive = false;
       window.clearInterval(interval);
     };
-  }, [reportDate, revenuePeriod]);
+  }, [reportDate]);
 
   const stats = dashboard?.stats;
   const lowStockItems = dashboard?.lowStockItems ?? [];
@@ -229,19 +238,6 @@ function DashboardPage() {
     [employeeRevenue]
   );
 
-  const topCustomers = useMemo(() => {
-    const totals = recentOrders.reduce<Record<string, number>>((result, order) => {
-      const customer = order.customerName || "Khách lẻ";
-      result[customer] = (result[customer] || 0) + Number(order.finalAmount || 0);
-      return result;
-    }, {});
-
-    return Object.entries(totals)
-      .map(([name, revenue]) => ({ name, revenue }))
-      .sort((left, right) => right.revenue - left.revenue)
-      .slice(0, 5);
-  }, [recentOrders]);
-
   const cancelledOrders = recentOrders.filter((order) => order.status === "cancelled").length;
   const categorySalesTotal = categorySales.reduce(
     (sum, item) => sum + Number(item.quantity || 0),
@@ -256,12 +252,6 @@ function DashboardPage() {
       color: categoryBarColors[index % categoryBarColors.length],
       percentage: Math.round((Number(item.quantity || 0) / Math.max(categorySalesTotal, 1)) * 100),
     }));
-  const shiftData = [
-    { name: "Ca sáng (06:00 - 14:00)", value: Math.round(totalRevenue * 0.452), color: shiftColors[0] },
-    { name: "Ca chiều (14:00 - 22:00)", value: Math.round(totalRevenue * 0.365), color: shiftColors[1] },
-    { name: "Ca tối (22:00 - 06:00)", value: Math.max(totalRevenue - Math.round(totalRevenue * 0.817), 0), color: shiftColors[2] },
-  ].filter((item) => item.value > 0);
-
   const statCards: StatCard[] = [
     {
       label: "Doanh thu hôm nay",
@@ -278,18 +268,18 @@ function DashboardPage() {
       tone: "green",
     },
     {
-      label: "Khách hàng mới",
+      label: "Ca đang mở",
+      value: dashboard?.currentShift ? "1" : "0",
+      helper: dashboard?.currentShift ? dashboard.currentShift.userName : "Chưa có ca mở",
+      icon: "work_history",
+      tone: "purple",
+    },
+    {
+      label: "Tổng khách hàng",
       value: `${stats?.totalCustomers ?? 0}`,
       helper: "12.5% so với hôm qua",
       icon: "groups",
       tone: "blue",
-    },
-    {
-      label: "Sản phẩm bán chạy",
-      value: `${topProducts[0]?.soldQuantity ?? stats?.activeProducts ?? 0}`,
-      helper: "6.1% so với hôm qua",
-      icon: "inventory_2",
-      tone: "purple",
     },
     {
       label: "Tồn kho thấp",
@@ -332,31 +322,7 @@ function DashboardPage() {
 
         <section className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-3">
           <DashboardCard className="h-full lg:col-span-3">
-            <SectionHeader
-              title={revenuePeriod === "week" ? "Doanh thu 7 ngày gần nhất" : "Doanh thu 12 tháng gần nhất"}
-              action={
-                <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-1">
-                  {[
-                    ["week", "7 ngày"],
-                    ["year", "12 tháng"],
-                  ].map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setRevenuePeriod(value as DashboardRevenuePeriod)}
-                      className={[
-                        "h-8 rounded-md px-3 text-xs font-bold transition-colors",
-                        revenuePeriod === value
-                          ? "bg-white text-[#f97316] shadow-sm"
-                          : "text-slate-500 hover:text-slate-900",
-                      ].join(" ")}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              }
-            />
+            <SectionHeader title="Doanh thu 7 ngày gần nhất" />
 
             <div className="h-[300px] min-w-0">
               <ResponsiveContainer width="100%" height="100%">
@@ -458,40 +424,29 @@ function DashboardPage() {
                 </div> </> ) : ( <EmptyState>Chưa có đơn thanh toán</EmptyState> )} 
           </DashboardCard>
           <DashboardCard className="h-full">
-            <SectionHeader title="Doanh thu theo ca" />
-            {shiftData.length > 0 ? (
-              <div className="flex flex-col items-center">
-                <div className="relative mb-3 h-48 w-48 shrink-0 animate-[dashboardDonutReveal_520ms_cubic-bezier(0.22,1,0.36,1)_both]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={shiftData} dataKey="value" innerRadius={55} outerRadius={78} paddingAngle={2} stroke="none" isAnimationActive={false}>
-                        {shiftData.map((item) => (
-                          <Cell key={item.name} fill={item.color} />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center ">
-                    <p className="text-[10px] font-bold text-slate-900">{formatCompactCurrency(totalRevenue)}</p>
-                    <p className="text-[8px] text-slate-500">Tổng doanh thu</p>
-                  </div>
-                </div>
-                <div className="w-full max-w-[260px] space-y-1.5">
-                  {shiftData.map((item) => (
-                    <div key={item.name} className="flex items-center justify-between gap-3 text-[11px]">
-                      <span className="flex min-w-0 items-center gap-1.5 text-slate-600">
-                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
-                        <span className="truncate">{item.name}</span>
-                      </span>
-                      <span className="font-bold text-slate-900">
-                        {Math.round((item.value / Math.max(totalRevenue, 1)) * 1000) / 10}%
+            <SectionHeader title="Đơn hàng gần đây" />
+            {recentOrders.length > 0 ? (
+              <div className="space-y-3">
+                {recentOrders.slice(0, 5).map((order, index) => (
+                  <div key={order.id} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2 text-xs">
+                    <div className="min-w-0">
+                      <p className="font-extrabold text-slate-900">HD{String(index + 1).padStart(6, "0")}</p>
+                      <p className="truncate text-slate-500">{order.customerName || "Khách lẻ"}</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="font-extrabold text-slate-900">{formatCurrency(order.finalAmount)}</p>
+                      <span className={["text-[11px] font-bold", order.status === "cancelled" ? "text-red-500" : "text-emerald-600"].join(" ")}>
+                        {order.status === "cancelled" ? "Đã hủy" : "Hoàn thành"}
                       </span>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
+                <button type="button" onClick={() => navigate("/invoices")} className="mt-2 flex w-full items-center justify-center gap-1 text-xs font-bold text-[#f97316] hover:underline">
+                  Xem hóa đơn <Icon name="chevron_right" className="text-[14px]" />
+                </button>
               </div>
             ) : (
-              <EmptyState>Chưa có doanh thu ca</EmptyState>
+              <EmptyState>Chưa có đơn hàng hôm nay</EmptyState>
             )}
           </DashboardCard>
 
@@ -589,33 +544,39 @@ function DashboardPage() {
           </DashboardCard>
 
           <DashboardCard className="flex h-full flex-col">
-            <SectionHeader title="Top khách hàng" />
-            {topCustomers.length > 0 ? (
-              <div className="flex-1 overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-slate-100 font-semibold text-slate-400">
-                      <th className="w-8 pb-3">#</th>
-                      <th className="pb-3">Khách hàng</th>
-                      <th className="pb-3 text-right">Doanh thu</th>
-                    </tr>
-                  </thead>
-                  <tbody className="text-slate-700">
-                    {topCustomers.map((customer, index) => (
-                      <tr key={customer.name} className="border-b border-slate-50 transition hover:bg-slate-50">
-                        <td className="py-3.5">{index + 1}</td>
-                        <td className="py-3.5 font-medium">{customer.name}</td>
-                        <td className="py-3.5 text-right font-bold">{formatCurrency(customer.revenue)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <button type="button" onClick={() => navigate("/customers")} className="mt-4 flex w-full items-center justify-center gap-1 text-center text-xs font-bold text-[#f97316] hover:underline">
-                  Xem tất cả <Icon name="chevron_right" className="text-[14px]" />
+            <SectionHeader title="Ca hiện tại" />
+            {dashboard?.currentShift ? (
+              <div className="flex flex-1 flex-col justify-between gap-4">
+                <div className="rounded-xl bg-orange-50 p-4 text-[#f97316]">
+                  <Icon name="work_history" className="text-[28px]" />
+                  <p className="mt-3 text-xs font-bold uppercase tracking-wide">Đang có ca mở</p>
+                  <p className="mt-1 font-['Outfit',sans-serif] text-xl font-extrabold text-slate-900">
+                    {dashboard.currentShift.userName}
+                  </p>
+                  <p className="mt-2 text-xs font-bold capitalize text-slate-500">
+                    {formatWeekdayDate(dashboard.currentShift.expectedStartTime)}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="rounded-xl bg-slate-50 p-3">
+                    <p className="font-bold text-slate-400">Bắt đầu</p>
+                    <p className="mt-1 font-extrabold text-slate-900">
+                      {new Date(dashboard.currentShift.expectedStartTime).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", hour12: false })}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 p-3">
+                    <p className="font-bold text-slate-400">Kết thúc</p>
+                    <p className="mt-1 font-extrabold text-slate-900">
+                      {new Date(dashboard.currentShift.expectedEndTime).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", hour12: false })}
+                    </p>
+                  </div>
+                </div>
+                <button type="button" onClick={() => navigate("/shifts")} className="flex w-full items-center justify-center gap-1 text-xs font-bold text-[#f97316] hover:underline">
+                  Xem ca làm <Icon name="chevron_right" className="text-[14px]" />
                 </button>
               </div>
             ) : (
-              <EmptyState>Chưa có dữ liệu khách hàng</EmptyState>
+              <EmptyState>Chưa có ca đang mở</EmptyState>
             )}
           </DashboardCard>
 
