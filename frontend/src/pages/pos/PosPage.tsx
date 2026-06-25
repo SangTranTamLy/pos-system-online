@@ -15,6 +15,7 @@ import PaymentConfirmModal from "../../components/pos/PaymentConfirmModal";
 import ProductCard from "../../components/pos/ProductCard";
 import QrPaymentModal from "../../components/pos/QrPaymentModal";
 import ReceiptModal from "../../components/pos/ReceiptModal";
+import { API_BASE_URL } from "../../api/api-base";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 
 type CartItem = {
@@ -26,9 +27,6 @@ type PosStockFilter = "all" | "available" | "low_stock" | "out_of_stock";
 type PosSortMode = "default" | "name_asc" | "price_asc" | "price_desc";
 type PosViewMode = "grid" | "list";
 type PosQuickFilter = "all" | "best_seller";
-
-const API_BASE_URL =
-  (import.meta.env.VITE_API_BASE_URL as string) || "http://localhost:5000/api";
 
 function getAuthHeaders() {
   const token = localStorage.getItem("auth_token");

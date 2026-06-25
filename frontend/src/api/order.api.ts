@@ -1,5 +1,4 @@
-const API_BASE_URL = "http://localhost:5000/api";
-
+import { API_BASE_URL } from "./api-base";
 export type OrderStatus = "completed" | "cancelled" | "refunded";
 export type PaymentMethod = "cash" | "qr" | "card";
 export type PaymentStatus = "pending" | "paid" | "failed" | "refunded";

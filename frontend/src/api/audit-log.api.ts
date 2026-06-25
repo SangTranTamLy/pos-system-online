@@ -1,6 +1,5 @@
+import { API_BASE_URL } from "./api-base";
 import type { AuditLogQuery, AuditLogResponse } from "../types/audit-log";
-
-const API_BASE_URL = "http://localhost:5000/api";
 
 type JsonValue =
   | string

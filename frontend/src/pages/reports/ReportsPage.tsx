@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import { getDashboardSummary, type DashboardSummary } from "../../api/dashboard.api";
 import { getOrders, type OrderListItem } from "../../api/order.api";
+import { API_BASE_URL } from "../../api/api-base";
 import { getEmployeeRevenue, getFinancialReport } from "../../api/report.api";
 import { fetchShifts, type Shift } from "../../api/shifts.api";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
@@ -38,7 +39,7 @@ type ShiftRevenueSummaryItem = {
 async function fetchShiftRevenueByShift(days = 7): Promise<ShiftRevenueSummaryItem[]> {
   const token = localStorage.getItem("auth_token");
   const response = await fetch(
-    `http://localhost:5000/api/shifts/revenue-by-shift?days=${days}`,
+    `${API_BASE_URL}/shifts/revenue-by-shift?days=${days}`,
     {
       headers: {
         "Content-Type": "application/json",

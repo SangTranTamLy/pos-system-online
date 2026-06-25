@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "./api-base";
 import type { 
   EmployeeRevenue,
   FinancialReport,
@@ -6,8 +7,6 @@ import type {
   ComparisonReport,
   CustomerRetentionReport
 } from "../types/report";
-
-const API_BASE_URL = "http://localhost:5000/api";
 
 function getAuthHeaders() {
   const token = localStorage.getItem("auth_token");

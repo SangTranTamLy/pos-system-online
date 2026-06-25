@@ -1,5 +1,4 @@
-const API_BASE_URL = "http://localhost:5000/api";
-
+import { API_BASE_URL } from "./api-base";
 export type Supplier = {
   id: string;
   name: string;
@@ -328,4 +327,3 @@ export async function deleteInventoryAudit(id: string) {
   });
   return handleResponse<{ success: boolean; message?: string }>(response);
 }
-
