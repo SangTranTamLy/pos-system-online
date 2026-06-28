@@ -1,5 +1,6 @@
 import { findCustomerByPhone } from "../repositories/customers.repository";
 import { createPosOrderTransaction } from "../repositories/pos.repository";
+import { findUserById } from "../repositories/user.repository";
 import type {
   CreatePosOrderBody,
   NormalizedPosOrderItem,
@@ -8,6 +9,16 @@ import type {
 import { ApiError } from "../utils/apiError";
 
 const allowedPaymentMethods: PosPaymentMethod[] = ["cash", "qr", "card"];
+
+function canSellWithoutShift(roleName?: string) {
+  const role = (roleName || "").trim().toLowerCase();
+  return (
+    role === "admin" ||
+    role === "manager" ||
+    role === "quản lý" ||
+    role === "quản trị viên"
+  );
+}
 
 function normalizeItems(items: CreatePosOrderBody["items"]) {
   if (!Array.isArray(items) || items.length === 0) {
@@ -58,19 +69,25 @@ export async function createPosOrderService(
     customerId = customer?.id ?? null;
   }
 
-  const { db } = await import("../config/database");
-  const [shifts] = await db.execute<any[]>(
-    "SELECT id, opening_cash FROM shifts WHERE user_id = ? AND status = 'OPEN' LIMIT 1",
-    [createdBy]
-  );
-  const shiftId = shifts[0]?.id || null;
+  const user = await findUserById(createdBy);
+  const allowNoShift = canSellWithoutShift(user?.roleName);
+  let shiftId: string | null = null;
 
-  if (!shiftId) {
-    throw new ApiError(409, "Bạn cần mở ca làm trước khi bán hàng.");
-  }
+  if (!allowNoShift) {
+    const { db } = await import("../config/database");
+    const [shifts] = await db.execute<any[]>(
+      "SELECT id, opening_cash FROM shifts WHERE user_id = ? AND status = 'OPEN' LIMIT 1",
+      [createdBy]
+    );
+    shiftId = shifts[0]?.id || null;
 
-  if (Number(shifts[0]?.opening_cash || 0) <= 0) {
-    throw new ApiError(409, "Bạn cần nhập tiền đầu ca trước khi bán hàng.");
+    if (!shiftId) {
+      throw new ApiError(409, "B?n c?n m? ca l�m tru?c khi b�n h�ng.");
+    }
+
+    if (Number(shifts[0]?.opening_cash || 0) <= 0) {
+      throw new ApiError(409, "B?n c?n nh?p ti?n d?u ca tru?c khi b�n h�ng.");
+    }
   }
 
   return createPosOrderTransaction({

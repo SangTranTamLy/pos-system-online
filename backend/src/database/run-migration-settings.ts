@@ -36,7 +36,11 @@ async function runSettingsMigration() {
       ["inventory_auto_deduct", "true"],
       ["shift_require_open_before_sale", "true"],
       ["shift_require_close_end_of_day", "true"],
-      ["shift_default_opening_cash", "500000"]
+      ["shift_default_opening_cash", "500000"],
+      ["payment_bank_code", "MoMo"],
+      ["payment_account_no", "PSP2605210000000331"],
+      ["payment_account_name", "CHAU THANH SANG"],
+      ["payment_display_name", "Ví MoMo"]
     ];
 
     for (const [key, value] of defaultSettings) {

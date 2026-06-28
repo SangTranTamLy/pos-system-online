@@ -703,7 +703,7 @@ function SettingsOfficialPage() {
             </div>
         </form>
 
-        <section className="grid gap-5 xl:grid-cols-3">
+        <section className="grid gap-5 xl:grid-cols-4">
           <form
             onSubmit={handleSave}
             className="flex min-h-71.25 flex-col rounded-xl border border-slate-100 bg-white p-5 shadow-sm"
@@ -858,6 +858,64 @@ function SettingsOfficialPage() {
                   </span>
                 </div>
               </div>
+
+              <div className="mt-auto flex justify-end pt-4">
+                <SaveButton compact disabled={saving} />
+              </div>
+            </div>
+          </form>
+
+          <form
+            onSubmit={handleSave}
+            className="flex min-h-71.25 flex-col rounded-xl border border-slate-100 bg-white p-5 shadow-sm"
+          >
+            <h2 className="mb-6 flex items-center gap-3 text-base font-extrabold text-slate-800">
+              <Icon name="account_balance" filled className="text-[20px] text-[#f97316]" />
+              Tài khoản ngân hàng
+            </h2>
+            <div className="flex flex-1 flex-col">
+              <div className="space-y-4">
+                <div>
+                  <label className={settingCompactLabelClass}>Ngân hàng / Ví điện tử</label>
+                  <input
+                    className={settingCompactInputClass}
+                    value={formData.payment_bank_code || ""}
+                    onChange={(e) => handleChange("payment_bank_code", e.target.value)}
+                    placeholder="Ví dụ: MBBank, Vietcombank, MoMo"
+                  />
+                </div>
+                <div>
+                  <label className={settingCompactLabelClass}>Số tài khoản</label>
+                  <input
+                    className={settingCompactInputClass}
+                    value={formData.payment_account_no || ""}
+                    onChange={(e) => handleChange("payment_account_no", e.target.value)}
+                    placeholder="Nhập số tài khoản nhận tiền"
+                  />
+                </div>
+                <div>
+                  <label className={settingCompactLabelClass}>Tên chủ tài khoản</label>
+                  <input
+                    className={settingCompactInputClass}
+                    value={formData.payment_account_name || ""}
+                    onChange={(e) => handleChange("payment_account_name", e.target.value)}
+                    placeholder="Viết không dấu để QR ổn định"
+                  />
+                </div>
+                <div>
+                  <label className={settingCompactLabelClass}>Tên hiển thị thanh toán</label>
+                  <input
+                    className={settingCompactInputClass}
+                    value={formData.payment_display_name || ""}
+                    onChange={(e) => handleChange("payment_display_name", e.target.value)}
+                    placeholder="Ví dụ: Chuyển khoản ngân hàng"
+                  />
+                </div>
+              </div>
+
+              <p className="mt-4 rounded-lg bg-orange-50 px-3 py-2 text-xs font-semibold leading-relaxed text-orange-700">
+                Thông tin này dùng để tạo mã QR chuyển khoản ở màn hình POS.
+              </p>
 
               <div className="mt-auto flex justify-end pt-4">
                 <SaveButton compact disabled={saving} />

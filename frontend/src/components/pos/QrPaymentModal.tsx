@@ -1,11 +1,18 @@
+import { useEffect, useMemo, useState } from "react";
+import { getSettings } from "../../api/settings.api";
 import { Icon } from "../../layouts/AdminLayout";
 
-const WALLET_NAME = "MoMo";
-const ACCOUNT_NO = "PSP2605210000000331";
-const ACCOUNT_NAME = "CHAU THANH SANG";
-const PAYMENT_NAME = "Vi MoMo";
-const SEPAY_QR_URL =
-  "https://qr.sepay.vn/img?acc=PSP2605210000000331&bank=MoMo&holder=CHAU+THANH+SANG&template=qronly&showinfo=false";
+const DEFAULT_BANK_CODE = "MoMo";
+const DEFAULT_ACCOUNT_NO = "PSP2605210000000331";
+const DEFAULT_ACCOUNT_NAME = "CHAU THANH SANG";
+const DEFAULT_PAYMENT_NAME = "Ví MoMo";
+
+type BankSettings = {
+  bankCode: string;
+  accountNo: string;
+  accountName: string;
+  paymentName: string;
+};
 
 type QrPaymentModalProps = {
   amount: number;
@@ -33,9 +40,18 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
-function buildSepayQrUrl(amount: number, description: string) {
-  const qrUrl = new URL(SEPAY_QR_URL);
+function buildSepayQrUrl(
+  amount: number,
+  description: string,
+  settings: BankSettings
+) {
+  const qrUrl = new URL("https://qr.sepay.vn/img");
 
+  qrUrl.searchParams.set("acc", settings.accountNo);
+  qrUrl.searchParams.set("bank", settings.bankCode);
+  qrUrl.searchParams.set("holder", settings.accountName);
+  qrUrl.searchParams.set("template", "qronly");
+  qrUrl.searchParams.set("showinfo", "false");
   qrUrl.searchParams.set("amount", String(Math.max(0, Math.round(amount))));
   qrUrl.searchParams.set("des", description.trim());
 
@@ -51,6 +67,37 @@ function QrPaymentModal({
   onConfirm,
   onClose,
 }: QrPaymentModalProps) {
+  const [bankSettings, setBankSettings] = useState<BankSettings>({
+    bankCode: DEFAULT_BANK_CODE,
+    accountNo: DEFAULT_ACCOUNT_NO,
+    accountName: DEFAULT_ACCOUNT_NAME,
+    paymentName: DEFAULT_PAYMENT_NAME,
+  });
+
+  useEffect(() => {
+    let isActive = true;
+
+    getSettings()
+      .then((response) => {
+        if (!isActive) return;
+
+        const settings = response.data;
+        setBankSettings({
+          bankCode: settings.payment_bank_code || DEFAULT_BANK_CODE,
+          accountNo: settings.payment_account_no || DEFAULT_ACCOUNT_NO,
+          accountName: settings.payment_account_name || DEFAULT_ACCOUNT_NAME,
+          paymentName: settings.payment_display_name || DEFAULT_PAYMENT_NAME,
+        });
+      })
+      .catch(() => {
+        // Keep defaults when settings cannot be loaded.
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
   const copyText = (value: string) => {
     void navigator.clipboard?.writeText(value);
   };
@@ -62,7 +109,10 @@ function QrPaymentModal({
   const transferContent = productCodes
     ? `Thanh toán đơn hàng ${productCodes}`
     : "Thanh toán đơn hàng";
-  const qrImageUrl = buildSepayQrUrl(amount, transferContent);
+  const qrImageUrl = useMemo(
+    () => buildSepayQrUrl(amount, transferContent, bankSettings),
+    [amount, bankSettings, transferContent]
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/60 p-4">
@@ -95,7 +145,7 @@ function QrPaymentModal({
                 />
               </div>
               <div className="mx-auto mt-4 w-fit rounded-full border border-orange-100 bg-white px-4 py-1 text-xs font-extrabold uppercase text-[#f97316]">
-                {WALLET_NAME}
+                {bankSettings.bankCode}
               </div>
             </section>
 
@@ -106,7 +156,7 @@ function QrPaymentModal({
                     Hình thức nhận tiền
                   </p>
                   <p className="mt-2 text-lg font-extrabold text-[#0b1c30]">
-                    {PAYMENT_NAME}
+                    {bankSettings.paymentName}
                   </p>
                 </div>
 
@@ -117,12 +167,12 @@ function QrPaymentModal({
                         Tài khoản nhận
                       </p>
                       <p className="mt-2 text-lg font-extrabold text-[#0b1c30]">
-                        {ACCOUNT_NO}
+                        {bankSettings.accountNo}
                       </p>
                     </div>
                     <button
                       type="button"
-                      onClick={() => copyText(ACCOUNT_NO)}
+                      onClick={() => copyText(bankSettings.accountNo)}
                       className="rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-[#f97316]"
                     >
                       <Icon name="content_copy" />
@@ -137,12 +187,12 @@ function QrPaymentModal({
                         Tên người nhận
                       </p>
                       <p className="mt-2 text-lg font-extrabold text-[#0b1c30]">
-                        {ACCOUNT_NAME}
+                        {bankSettings.accountName}
                       </p>
                     </div>
                     <button
                       type="button"
-                      onClick={() => copyText(ACCOUNT_NAME)}
+                      onClick={() => copyText(bankSettings.accountName)}
                       className="rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-[#f97316]"
                     >
                       <Icon name="content_copy" />

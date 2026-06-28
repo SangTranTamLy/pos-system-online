@@ -32,7 +32,6 @@ function validatePromotionBody(body: Record<string, unknown>) {
   const discountValue = Number(body.discountValue);
   const startAt = body.startAt ? String(body.startAt) : null;
   const endAt = body.endAt ? String(body.endAt) : null;
-
   if (!productId) throw new ApiError(400, "Vui lòng chọn sản phẩm áp dụng.");
   if (!code) throw new ApiError(400, "Vui lòng nhập mã khuyến mãi.");
   if (!/^[A-Z0-9_-]{2,30}$/.test(code)) {
@@ -75,6 +74,7 @@ export async function createPromotionController(req: Request, res: Response) {
 
   const existing = await findPromotionByCode(data.code);
   if (existing) throw new ApiError(409, "Mã khuyến mãi đã tồn tại.");
+
 
   const promotion = await createPromotion(data);
 

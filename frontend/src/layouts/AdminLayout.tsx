@@ -161,6 +161,37 @@ function textIncludesAny(value: string | null | undefined, keywords: string[]) {
   return keywords.some((keyword) => normalized.includes(keyword.toLowerCase()));
 }
 
+function formatNotificationNameList(names: string[], maxItems = 3) {
+  const visibleNames = names.slice(0, maxItems);
+  const remainingCount = names.length - visibleNames.length;
+
+  if (remainingCount <= 0) {
+    return visibleNames.join(", ");
+  }
+
+  return `${visibleNames.join(", ")} và ${remainingCount} mục khác`;
+}
+
+function getPromotionLogTitle(log: AuditLog) {
+  const source = `${log.targetObject || ""} ${log.description || ""}`;
+  const codeMatch = source.match(/(?:Mã KM:\s*|Mã:\s*)([A-Z0-9_-]+)/i);
+  const code = codeMatch?.[1]?.toUpperCase();
+
+  if (textIncludesAny(log.description, ["tạo mới", "tao moi"])) {
+    return code ? `Mã khuyến mãi mới: ${code}` : "Có mã khuyến mãi mới";
+  }
+
+  if (textIncludesAny(log.description, ["xóa", "xoa"])) {
+    return code ? `Đã xóa mã khuyến mãi: ${code}` : "Đã xóa khuyến mãi";
+  }
+
+  if (textIncludesAny(log.description, ["trạng thái", "trang thai", "tạm dừng", "tam dung", "hoạt động", "hoat dong"])) {
+    return code ? `Đã đổi trạng thái mã: ${code}` : "Đã đổi trạng thái khuyến mãi";
+  }
+
+  return code ? `Cập nhật mã khuyến mãi: ${code}` : "Cập nhật khuyến mãi";
+}
+
 type NotificationItem = {
   id: string;
   title: string;
@@ -168,6 +199,7 @@ type NotificationItem = {
   icon: string;
   tone: string;
   timeLabel?: string;
+  path?: string;
 };
 
 const DISMISSED_NOTIFICATION_IDS_KEY = "quickserve:dismissed-notification-ids";
@@ -199,6 +231,7 @@ function NotificationBell({
   items: NotificationItem[];
   scopeKey: string;
 }) {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const dismissedStorageKey = getNotificationStorageKey(DISMISSED_NOTIFICATION_IDS_KEY, scopeKey);
   const readStorageKey = getNotificationStorageKey(READ_NOTIFICATION_IDS_KEY, scopeKey);
@@ -235,6 +268,17 @@ function NotificationBell({
     const nextIds = Array.from(new Set([...dismissedIds, ...displayItems.map((item) => item.id)]));
     writeNotificationIds(dismissedStorageKey, nextIds);
     setDismissedIds(nextIds);
+  }
+
+  function openNotification(item: NotificationItem) {
+    const nextIds = Array.from(new Set([...readIds, item.id]));
+    writeNotificationIds(readStorageKey, nextIds);
+    setReadIds(nextIds);
+    setIsOpen(false);
+
+    if (item.path) {
+      navigate(item.path);
+    }
   }
 
   return (
@@ -288,7 +332,12 @@ function NotificationBell({
           <div className="max-h-[448px] overflow-y-auto">
             {displayItems.length > 0 ? (
               displayItems.map((item) => (
-                <div key={item.id} className="group flex gap-3 border-b border-slate-100 px-4 py-4 transition-all duration-200 last:border-b-0 hover:bg-orange-50/50">
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => openNotification(item)}
+                  className="group flex w-full gap-3 border-b border-slate-100 px-4 py-4 text-left transition-all duration-200 last:border-b-0 hover:bg-orange-50/50 focus:bg-orange-50 focus:outline-none"
+                >
                   <span className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-transform duration-200 group-hover:scale-105 ${item.tone}`}>
                     <Icon name={item.icon} className="text-[19px]" />
                   </span>
@@ -304,7 +353,10 @@ function NotificationBell({
                     </p>
                     <p className="mt-2 text-xs font-bold text-slate-600">{item.timeLabel || "Vừa cập nhật"}</p>
                   </div>
-                </div>
+                  {item.path ? (
+                    <Icon name="chevron_right" className="mt-1 text-[18px] text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-[#f97316]" />
+                  ) : null}
+                </button>
               ))
             ) : (
               <div className="px-4 py-10 text-center">
@@ -610,6 +662,7 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
   const notificationScopeKey = `${user.id || displayName}:${displayRole}`.toLowerCase();
   const notificationItems = useMemo<NotificationItem[]>(() => {
     const roleName = user.roleName?.toLowerCase() || "";
+    const canManageBackOffice = ["admin", "manager"].includes(roleName);
     const items: NotificationItem[] = [];
 
     const lowMaterials = materials.filter((material) =>
@@ -623,6 +676,14 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
     );
 
     if (lowMaterials.length + lowProducts.length > 0) {
+      const lowStockNames = [
+        ...lowMaterials.map((material) =>
+          `${material.name} (${Number(material.stockQuantity || 0).toLocaleString("vi-VN")} ${material.unit})`
+        ),
+        ...lowProducts.map((product) =>
+          `${product.name} (${Number(product.stockQuantity || 0).toLocaleString("vi-VN")})`
+        ),
+      ];
       const lowStockSignature = getStockNotificationSignature([
         ...lowMaterials.map((material) => ({
           id: `material-${material.id}`,
@@ -639,13 +700,15 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
       items.push({
         id: `low-stock-${lowStockSignature}`,
         title: `${lowMaterials.length + lowProducts.length} mặt hàng tồn kho thấp`,
-        description: "Có hàng hóa hoặc nguyên liệu sắp hết, cần kiểm tra nhập thêm.",
+        description: `Sắp hết: ${formatNotificationNameList(lowStockNames)}. Cần kiểm tra nhập thêm.`,
         icon: "warning",
         tone: "bg-amber-50 text-amber-600",
+        path: canManageBackOffice ? "/stock" : "/pos",
       });
     }
 
     if (outOfStockProducts.length > 0) {
+      const outOfStockNames = outOfStockProducts.map((product) => product.name);
       const outOfStockSignature = getStockNotificationSignature(
         outOfStockProducts.map((product) => ({
           id: `product-${product.id}`,
@@ -657,9 +720,10 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
       items.push({
         id: `out-of-stock-products-${outOfStockSignature}`,
         title: `${outOfStockProducts.length} sản phẩm hết hàng`,
-        description: "Các sản phẩm này không đủ tồn để bán, cần nhập hoặc tạm ẩn khỏi POS.",
+        description: `Hết hàng: ${formatNotificationNameList(outOfStockNames)}. Cần nhập thêm hoặc tạm ẩn khỏi POS.`,
         icon: "inventory_2",
         tone: "bg-red-50 text-red-600",
+        path: canManageBackOffice ? "/products" : "/pos",
       });
     }
 
@@ -671,6 +735,7 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
         icon: "receipt_long",
         tone: "bg-rose-50 text-rose-600",
         timeLabel: new Date(order.updatedAt || order.createdAt).toLocaleString("vi-VN"),
+        path: "/invoices",
       });
     });
 
@@ -691,6 +756,7 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
     const securityLogs = auditLogs.filter((log) =>
       textIncludesAny(`${log.actionType} ${log.description}`, ["dang_nhap", "đăng nhập", "login", "bao_mat", "bảo mật", "bat thuong", "bất thường"])
     );
+    const promotionLogs = auditLogs.filter((log) => log.actionType === "SUA_KHUYEN_MAI");
 
     if (cancelledOrders.length < 0) {
       items.push({
@@ -709,8 +775,21 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
         description: "Tổng hợp đơn hàng phát sinh trong ngày hiện tại.",
         icon: "shopping_cart",
         tone: "bg-blue-50 text-blue-600",
+        path: "/invoices",
       });
     }
+
+    promotionLogs.slice(0, 5).forEach((log) => {
+      items.push({
+        id: `promotion-log-${log.id}`,
+        title: getPromotionLogTitle(log),
+        description: log.description || "Có cập nhật mới trong menu khuyến mãi.",
+        icon: "redeem",
+        tone: "bg-orange-50 text-[#f97316]",
+        timeLabel: new Date(log.timestamp).toLocaleString("vi-VN"),
+        path: "/promotions",
+      });
+    });
 
     if (systemErrors.length > 0) {
       items.push({
@@ -719,6 +798,7 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
         description: "Có bản ghi lỗi hoặc thao tác thất bại trong nhật ký hệ thống.",
         icon: "error",
         tone: "bg-red-50 text-red-600",
+        path: roleName === "admin" ? "/audit-logs" : "/reports",
       });
     }
 
@@ -729,6 +809,7 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
         description: "Có thao tác sao lưu hoặc khôi phục dữ liệu được ghi nhận.",
         icon: "cloud_upload",
         tone: "bg-orange-50 text-[#f97316]",
+        path: roleName === "admin" ? "/settings" : "/reports",
       });
     }
 
@@ -739,6 +820,7 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
         description: "Có hoạt động đăng nhập hoặc bảo mật cần theo dõi.",
         icon: "shield",
         tone: "bg-purple-50 text-purple-600",
+        path: roleName === "admin" ? "/audit-logs" : "/reports",
       });
     }
 

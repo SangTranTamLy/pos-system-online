@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 import {
   type Promotion,
@@ -11,7 +11,7 @@ import {
 } from "../../api/promotions.api";
 import { getProducts, type Product } from "../../api/product.api";
 
-// ─── Helpers ──────────────────────────────────────────────────
+
 function formatDate(iso: string | null) {
   if (!iso) return "—";
   return new Intl.DateTimeFormat("vi-VN", {
@@ -36,7 +36,12 @@ function isUpcoming(startAt: string | null) {
   return new Date(startAt) > new Date();
 }
 
-// ─── Stat Card ────────────────────────────────────────────────
+function refreshLayoutNotifications() {
+  window.setTimeout(() => {
+    window.dispatchEvent(new Event("quickserve:notifications-refresh"));
+  }, 300);
+}
+
 type StatCardProps = {
   label: string;
   value: string | number;
@@ -63,7 +68,7 @@ function StatCard({ label, value, icon, accent }: StatCardProps) {
   );
 }
 
-// ─── Badge ────────────────────────────────────────────────────
+// â”€â”€â”€ Badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function StatusBadge({ promotion }: { promotion: Promotion }) {
   if (!promotion.isActive) {
     return (
@@ -93,7 +98,7 @@ function StatusBadge({ promotion }: { promotion: Promotion }) {
   );
 }
 
-// ─── Empty state ──────────────────────────────────────────────
+// â”€â”€â”€ Empty state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function EmptyState({ onAdd }: { onAdd: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -118,7 +123,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
   );
 }
 
-// ─── Modal Form ───────────────────────────────────────────────
+// â”€â”€â”€ Modal Form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type ModalProps = {
   editing: Promotion | null;
   products: Product[];
@@ -371,7 +376,7 @@ function PromotionModal({ editing, products, onClose, onSaved }: ModalProps) {
               onClick={onClose}
               className="inline-flex h-10 items-center justify-center border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
             >
-              Huỷ
+              Hủy
             </button>
             <button
               type="submit"
@@ -390,7 +395,7 @@ function PromotionModal({ editing, products, onClose, onSaved }: ModalProps) {
   );
 }
 
-// ─── Delete Confirm ───────────────────────────────────────────
+// â”€â”€â”€ Delete Confirm â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function DeleteConfirm({
   promotion,
   onClose,
@@ -423,9 +428,9 @@ function DeleteConfirm({
       <div className="w-full max-w-sm border border-slate-200 bg-white shadow-xl">
         <div className="border-b border-slate-200 px-6 py-4">
           <p className="text-xs font-bold uppercase tracking-widest text-red-500">
-            Xác nhận xoá
+            Xác nhận xóa
           </p>
-          <h2 className="text-lg font-extrabold text-[#0b1c30]">Xoá khuyến mãi</h2>
+          <h2 className="text-lg font-extrabold text-[#0b1c30]">Xóa khuyến mãi</h2>
         </div>
         <div className="px-6 py-5">
           {error && (
@@ -434,7 +439,7 @@ function DeleteConfirm({
             </div>
           )}
           <p className="mb-1 text-sm text-slate-700">
-            Bạn sắp xoá mã khuyến mãi:
+            Bạn sắp xóa mã khuyến mãi:
           </p>
           <p className="mb-4 font-mono text-base font-extrabold text-[#0b1c30]">
             {promotion.code}
@@ -449,7 +454,7 @@ function DeleteConfirm({
             onClick={onClose}
             className="inline-flex h-10 items-center justify-center border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
           >
-            Huỷ
+            Hủy
           </button>
           <button
             type="button"
@@ -460,7 +465,7 @@ function DeleteConfirm({
             {loading && (
               <Icon name="progress_activity" className="animate-spin text-base" />
             )}
-            Xoá
+            Xóa
           </button>
         </div>
       </div>
@@ -468,7 +473,7 @@ function DeleteConfirm({
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────
+
 export default function PromotionsPage() {
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [loading, setLoading] = useState(true);
@@ -480,11 +485,11 @@ export default function PromotionsPage() {
   const [products, setProducts] = useState<Product[]>([]);
 
 
-  // Khởi tạo bằng lazy initializer — chỉ chạy 1 lần khi mount, không tính là gọi trong render
+
   const [now] = useState(() => Date.now());
 
   useEffect(() => {
-    // Tất cả setState gọi trong callbacks (.then/.catch/.finally), không đồng bộ
+
     Promise.all([fetchPromotions(), getProducts()])
       .then(([data, productResponse]) => {
         setPromotions(data);
@@ -541,11 +546,13 @@ export default function PromotionsPage() {
       return [saved, ...prev];
     });
     setShowModal(false);
+    refreshLayoutNotifications();
   }
 
   function handleDeleted(id: string) {
     setPromotions((prev) => prev.filter((p) => p.id !== id));
     setDeletingPromotion(null);
+    refreshLayoutNotifications();
   }
 
   async function handleToggle(p: Promotion) {
@@ -555,6 +562,7 @@ export default function PromotionsPage() {
       setPromotions((prev) =>
         prev.map((item) => (item.id === updated.id ? updated : item))
       );
+      refreshLayoutNotifications();
     } catch {
       // ignore
     } finally {
@@ -564,7 +572,7 @@ export default function PromotionsPage() {
 
   return (
     <AdminLayout title="Khuyến mãi" subtitle="Quản lý mã giảm giá và chương trình ưu đãi tại quầy">
-      {/* ── Header ── */}
+      {/* â”€â”€ Header â”€â”€ */}
       <div className="mb-6">
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-[#f97316]">
@@ -585,7 +593,7 @@ export default function PromotionsPage() {
         </button>
       </div>
 
-      {/* ── Stat cards ── */}
+      {/* â”€â”€ Stat cards â”€â”€ */}
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           label="Tổng mã"
@@ -613,7 +621,6 @@ export default function PromotionsPage() {
         />
       </div>
 
-      {/* ── Table card ── */}
       <div className="border border-slate-200 bg-white">
         {/* Search bar */}
         <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-3">
@@ -777,7 +784,7 @@ export default function PromotionsPage() {
                           <button
                             type="button"
                             onClick={() => setDeletingPromotion(p)}
-                            title="Xoá"
+                            title="Xóa"
                             className="flex h-8 w-8 items-center justify-center text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600"
                           >
                             <Icon name="delete" className="text-[18px]" />
@@ -793,12 +800,14 @@ export default function PromotionsPage() {
         )}
       </div>
 
-      {/* ── Modals ── */}
+      {/* â”€â”€ Modals â”€â”€ */}
       {showModal && (
         <PromotionModal
           editing={editingPromotion}
           products={products}
-          onClose={() => setShowModal(false)}
+          onClose={() => {
+            setShowModal(false);
+          }}
           onSaved={handleSaved}
         />
       )}
@@ -813,3 +822,4 @@ export default function PromotionsPage() {
     </AdminLayout>
   );
 }
+

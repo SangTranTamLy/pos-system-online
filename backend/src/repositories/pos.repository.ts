@@ -126,7 +126,7 @@ export async function createPosOrderTransaction(
       0
     );
 
-    let discountAmount = Number(data.discountAmount) || 0;
+    let discountAmount = 0;
     let promotionId: string | null = null;
     const appliedPromotion = await calculateBestPosPromotion(
       connection,
@@ -140,7 +140,7 @@ export async function createPosOrderTransaction(
     }
 
     if (appliedPromotion) {
-      discountAmount += appliedPromotion.discountAmount;
+      discountAmount = appliedPromotion.discountAmount;
       promotionId =
         appliedPromotion.ruleType === "product_code" ? appliedPromotion.id : null;
     }

@@ -30,5 +30,4 @@ apiRouter.use("/shifts", shiftRouter);
 apiRouter.use("/reports", reportRouter);
 apiRouter.use("/audit-logs", auditLogRouter);
 apiRouter.use("/settings", settingsRouter);
-
 export default apiRouter;

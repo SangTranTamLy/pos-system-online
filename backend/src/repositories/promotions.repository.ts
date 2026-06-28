@@ -455,6 +455,19 @@ function calculateRuleDiscount(
   if (row.rule_type === "combo_fixed") {
     const comboSets = countComboSets(lines, config);
     if (comboSets <= 0) return 0;
+
+    if (row.discount_type === "percent") {
+      const requiredLines = lines.filter((line) => {
+        if (config.requiredProductIds?.includes(line.productId)) return true;
+        return textIncludes(line.productName, config.requiredProductNameIncludes);
+      });
+      const comboSubtotal = requiredLines.reduce(
+        (total, line) => total + line.unitPrice * comboSets,
+        0
+      );
+      return (comboSubtotal * discountValue) / 100;
+    }
+
     return Math.min(discountValue * comboSets, totalAmount);
   }
 
@@ -567,8 +580,15 @@ export async function calculateBestPosPromotion(
 ): Promise<AppliedPosPromotion | null> {
   let bestPromotion: AppliedPosPromotion | null = null;
   const normalizedCode = promotionCode?.trim() || null;
+  const rules = await findActivePromotionRules(connection);
+  const hasCodeRule = Boolean(
+    normalizedCode &&
+      rules.some(
+        (rule) => rule.code?.toUpperCase() === normalizedCode.toUpperCase()
+      )
+  );
 
-  if (normalizedCode) {
+  if (normalizedCode && !hasCodeRule) {
     const productPromotion = await findActivePromotionByCode(
       connection,
       normalizedCode
@@ -591,8 +611,6 @@ export async function calculateBestPosPromotion(
       }
     }
   }
-
-  const rules = await findActivePromotionRules(connection);
 
   for (const rule of rules) {
     const discountAmount = Math.min(
