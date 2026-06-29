@@ -96,6 +96,51 @@ function isLowStockProduct(product: Product) {
   );
 }
 
+function getCartQuantity(
+  cartItems: CartItem[],
+  productId: string | null,
+  productName?: string | null
+) {
+  const normalizedName = String(productName ?? "").trim().toLocaleLowerCase("vi-VN");
+  return cartItems
+    .filter((item) => {
+      if (productId && item.product.id === productId) return true;
+      if (!normalizedName) return false;
+      return item.product.name.toLocaleLowerCase("vi-VN").includes(normalizedName);
+    })
+    .reduce((total, item) => total + item.quantity, 0);
+}
+
+function isPromotionEligibleForCart(promotion: Promotion, cartItems: CartItem[]) {
+  if (cartItems.length === 0) return false;
+
+  if (promotion.promotionScope === "product") {
+    return getCartQuantity(cartItems, promotion.productId, promotion.productName) > 0;
+  }
+
+  return promotion.requiredItems.every(
+    (item) =>
+      getCartQuantity(cartItems, item.productId, item.productName) >=
+      item.quantity
+  );
+}
+
+function getPromotionConditionLabel(promotion: Promotion) {
+  if (promotion.promotionScope === "product") {
+    return promotion.productName;
+  }
+
+  return promotion.requiredItems
+    .map((item) => `${item.productName} x${item.quantity}`)
+    .join(" + ");
+}
+
+function getPromotionDiscountLabel(promotion: Promotion) {
+  return promotion.discountType === "percent"
+    ? `-${promotion.discountValue}%`
+    : `-${formatCurrency(promotion.discountValue)}`;
+}
+
 function PosPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
@@ -353,6 +398,45 @@ function PosPage() {
     });
   }, [promotionFilterTime, promotions]);
 
+  const promotionOptions = useMemo(() => {
+    return activePromotions.map((promotion) => ({
+      promotion,
+      isEligible: isPromotionEligibleForCart(promotion, cartItems),
+      conditionLabel: getPromotionConditionLabel(promotion),
+      discountLabel: getPromotionDiscountLabel(promotion),
+    }));
+  }, [activePromotions, cartItems]);
+
+  const eligiblePromotionOptions = useMemo(
+    () => promotionOptions.filter((item) => item.isEligible),
+    [promotionOptions]
+  );
+
+  const ineligiblePromotionOptions = useMemo(
+    () => promotionOptions.filter((item) => !item.isEligible),
+    [promotionOptions]
+  );
+
+  const selectedPromotion = useMemo(
+    () =>
+      activePromotions.find(
+        (promotion) => promotion.code === promotionCode.trim().toUpperCase()
+      ) ?? null,
+    [activePromotions, promotionCode]
+  );
+
+  const handlePromotionSelect = (code: string) => {
+    const normalizedCode = code.trim().toUpperCase();
+    setPromotionCode(normalizedCode);
+    setPromoMessage("");
+    if (normalizedCode) {
+      void validatePromotion(normalizedCode);
+    } else {
+      setPromotionPreview(null);
+      setIsPromotionError(false);
+    }
+  };
+
   const subtotal = useMemo(
     () =>
       cartItems.reduce(
@@ -365,6 +449,20 @@ function PosPage() {
   const isPromotionApplicable = !isPromotionError;
   const displayedPromoMessage = promoMessage;
   const discountAmount = promotionPreview?.discountAmount ?? 0;
+  const promotionDiscountLabel = selectedPromotion
+    ? getPromotionDiscountLabel(selectedPromotion)
+    : "";
+  const promotionTotalLabel = promotionPreview?.appliedPromotion
+    ? [
+        promotionPreview.appliedPromotion.name,
+        promotionPreview.appliedPromotion.code
+          ? `(${promotionPreview.appliedPromotion.code})`
+          : "",
+        promotionDiscountLabel,
+      ]
+        .filter(Boolean)
+        .join(" ")
+    : "Giảm giá";
 
   const finalAmount = useMemo(
     () => Math.max(0, subtotal - discountAmount),
@@ -1092,7 +1190,7 @@ function PosPage() {
               </button>
             </div>
 
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+            <div className="min-h-32 flex-1 space-y-3 overflow-y-auto p-4">
               {cartItems.length === 0 ? (
                 <div className="flex h-full min-h-56 flex-col items-center justify-center rounded-2xl bg-slate-50 text-center text-slate-400">
                   <Icon name="shopping_basket" className="mb-3 text-5xl" />
@@ -1147,7 +1245,7 @@ function PosPage() {
               ))}
             </div>
 
-            <div className="space-y-4 border-t border-slate-200 p-5">
+            <div className="max-h-[64%] shrink-0 space-y-3 overflow-y-auto border-t border-slate-200 p-4">
               <label className="block space-y-2">
                 <span className="text-sm font-bold text-[#0b1c30]">
                   Số điện thoại khách
@@ -1173,33 +1271,103 @@ function PosPage() {
                 ) : null}
               </label>
 
-              <select
-                value={promotionCode}
-                onChange={(event) => {
-                  const code = event.target.value;
-                  setPromotionCode(code);
-                  setPromoMessage("");
-                  if (code) {
-                    void validatePromotion(code);
-                  } else {
-                    setPromotionPreview(null);
-                  }
-                }}
-                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
-              >
-                <option value="">Chọn mã khuyến mãi</option>
-                {activePromotions.map((item) => (
-                  <option key={item.id} value={item.code}>
-                    {item.code} - {item.productName}
-                  </option>
-                ))}
-              </select>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-bold text-[#0b1c30]">
+                    Khuyến mãi
+                  </span>
+                  {promotionCode ? (
+                    <button
+                      type="button"
+                      onClick={() => handlePromotionSelect("")}
+                      className="text-xs font-bold text-red-500 hover:text-red-600"
+                    >
+                      Bỏ mã
+                    </button>
+                  ) : null}
+                </div>
+
+                {eligiblePromotionOptions.length > 0 ? (
+                  <div className="max-h-24 space-y-1.5 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5">
+                    {eligiblePromotionOptions.map(({ promotion, discountLabel, conditionLabel }) => {
+                      const isSelected = promotionCode.trim().toUpperCase() === promotion.code;
+
+                      return (
+                        <button
+                          key={promotion.id}
+                          type="button"
+                          onClick={() => handlePromotionSelect(promotion.code)}
+                          className={[
+                            "w-full rounded-lg border px-3 py-1.5 text-left transition",
+                            isSelected
+                              ? "border-[#f97316] bg-orange-50 text-[#9a3412]"
+                              : "border-slate-100 bg-slate-50 text-slate-700 hover:border-orange-200 hover:bg-orange-50",
+                          ].join(" ")}
+                          aria-pressed={isSelected}
+                        >
+                          <span className="flex items-center justify-between gap-2 text-xs font-extrabold">
+                            <span className="truncate">{promotion.code}</span>
+                            <span className="shrink-0 text-[#f97316]">
+                              {discountLabel}
+                            </span>
+                          </span>
+                          <span className="mt-1 block truncate text-[11px] font-semibold text-slate-500">
+                            {promotion.name} - {conditionLabel}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs font-semibold text-slate-500">
+                    Chưa có mã phù hợp với giỏ hàng hiện tại.
+                  </div>
+                )}
+
+                {ineligiblePromotionOptions.length > 0 ? (
+                  <details className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                    <summary className="cursor-pointer text-xs font-bold text-slate-500">
+                      Mã chưa đủ điều kiện ({ineligiblePromotionOptions.length})
+                    </summary>
+                    <div className="mt-2 max-h-20 space-y-1 overflow-y-auto">
+                      {ineligiblePromotionOptions.map(({ promotion, discountLabel, conditionLabel }) => (
+                        <div
+                          key={promotion.id}
+                          className="rounded-lg bg-white px-3 py-1.5 text-xs text-slate-400"
+                        >
+                          <div className="flex items-center justify-between gap-2 font-bold">
+                            <span className="truncate">{promotion.code}</span>
+                            <span className="shrink-0">{discountLabel}</span>
+                          </div>
+                          <p className="mt-1 truncate">Cần {conditionLabel}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                ) : null}
+              </div>
+
+              {selectedPromotion ? (
+                <div className="rounded-xl border border-orange-100 bg-orange-50 px-3 py-2 text-xs font-semibold text-[#9a3412]">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="truncate">
+                      {selectedPromotion.name} ({selectedPromotion.code})
+                    </span>
+                    <span className="shrink-0 font-extrabold">
+                      {getPromotionDiscountLabel(selectedPromotion)}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-[#c2410c]">
+                    Điều kiện: {getPromotionConditionLabel(selectedPromotion)}
+                  </p>
+                </div>
+              ) : null}
 
               <div className="grid grid-cols-[1fr_auto] gap-2">
                 <input
                   value={promotionCode}
                   onChange={(event) => {
-                    setPromotionCode(event.target.value);
+                    setPromotionCode(event.target.value.toUpperCase());
                     setPromoMessage("");
                   }}
                   placeholder="Mã giảm giá"
@@ -1262,9 +1430,7 @@ function PosPage() {
                 </div>
                 {discountAmount > 0 ? (
                   <div className="flex justify-between text-slate-500">
-                    <span>
-                      {promotionPreview?.appliedPromotion?.name || "Giảm giá"}
-                    </span>
+                    <span className="min-w-0 truncate">{promotionTotalLabel}</span>
                     <span>-{formatCurrency(discountAmount)}</span>
                   </div>
                 ) : null}

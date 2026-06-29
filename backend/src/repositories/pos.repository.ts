@@ -10,6 +10,7 @@ import type {
 import { ApiError } from "../utils/apiError";
 import {
   calculateBestPosPromotion,
+  getPromotionCodeFailureMessage,
 } from "./promotions.repository";
 import {
   findCustomerById,
@@ -136,7 +137,16 @@ export async function createPosOrderTransaction(
     );
 
     if (data.promotionCode && !appliedPromotion) {
-      throw new ApiError(400, "Mã khuyến mãi không hợp lệ hoặc không phù hợp với đơn hàng.");
+      const failureMessage = await getPromotionCodeFailureMessage(
+        connection,
+        details,
+        data.promotionCode
+      );
+      throw new ApiError(
+        400,
+        failureMessage ??
+          "Mã khuyến mãi không hợp lệ hoặc không phù hợp với đơn hàng."
+      );
     }
 
     if (appliedPromotion) {

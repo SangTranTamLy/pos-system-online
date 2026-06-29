@@ -5,8 +5,10 @@ import { db } from "../config/database";
 
 export type Promotion = {
   id: string;
-  productId: string;
+  promotionScope: "product" | "combo";
+  productId: string | null;
   productName: string;
+  requiredItems: PromotionRequiredItem[];
   code: string;
   name: string;
   discountType: "percent" | "fixed";
@@ -16,6 +18,12 @@ export type Promotion = {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+};
+
+export type PromotionRequiredItem = {
+  productId: string;
+  productName: string;
+  quantity: number;
 };
 
 type PromotionRow = RowDataPacket & {
@@ -31,6 +39,25 @@ type PromotionRow = RowDataPacket & {
   is_active: number;
   created_at: Date;
   updated_at: Date;
+};
+
+type ComboPromotionRow = RowDataPacket & {
+  id: string;
+  code: string;
+  name: string;
+  discount_type: "percent" | "fixed";
+  discount_value: string;
+  config: unknown;
+  is_active: number;
+  starts_at: Date | null;
+  ends_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
+type ComboProductRow = RowDataPacket & {
+  id: string;
+  name: string;
 };
 
 export type ValidatedPromotion = {
@@ -67,6 +94,11 @@ type PromotionRuleRow = RowDataPacket & {
 };
 
 type PromotionRuleConfig = {
+  requiredItems?: Array<{
+    productId?: string;
+    productName?: string;
+    quantity?: number;
+  }>;
   requiredProductIds?: string[];
   requiredProductNameIncludes?: string[];
   productIds?: string[];
@@ -78,6 +110,12 @@ type PromotionRuleConfig = {
   specialPrice?: number;
   buyQuantity?: number;
   getQuantity?: number;
+};
+
+type NormalizedRequiredItem = {
+  productId: string;
+  productName?: string;
+  quantity: number;
 };
 
 export type PosPromotionLine = {
@@ -102,8 +140,10 @@ export type AppliedPosPromotion = {
 function mapPromotion(row: PromotionRow): Promotion {
   return {
     id: row.id,
+    promotionScope: "product",
     productId: row.product_id,
     productName: row.product_name,
+    requiredItems: [],
     code: row.code,
     name: row.name,
     discountType: row.discount_type,
@@ -114,6 +154,80 @@ function mapPromotion(row: PromotionRow): Promotion {
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
+}
+
+function normalizeRequiredItems(config: PromotionRuleConfig): NormalizedRequiredItem[] {
+  if (config.requiredItems?.length) {
+    const normalized = config.requiredItems
+      .map((item) => ({
+        productId: String(item.productId ?? "").trim(),
+        productName: String(item.productName ?? "").trim() || undefined,
+        quantity: Math.max(1, Number(item.quantity ?? 1)),
+      }))
+      .filter((item) => item.productId);
+
+    if (normalized.length > 0) return normalized;
+  }
+
+  return (config.requiredProductIds ?? [])
+    .map((productId) => ({
+      productId: String(productId).trim(),
+      quantity: 1,
+    }))
+    .filter((item) => item.productId);
+}
+
+async function attachComboItems(
+  rows: ComboPromotionRow[]
+): Promise<Promotion[]> {
+  const parsed = rows.map((row) => ({
+    row,
+    requiredItems: normalizeRequiredItems(parseRuleConfig(row.config)),
+  }));
+
+  const productIds = Array.from(
+    new Set(
+      parsed.flatMap((item) =>
+        item.requiredItems.map((requiredItem) => requiredItem.productId)
+      )
+    )
+  );
+
+  const productNameMap = new Map<string, string>();
+  if (productIds.length > 0) {
+    const placeholders = productIds.map(() => "?").join(", ");
+    const [products] = await db.execute<ComboProductRow[]>(
+      `SELECT id, name FROM products WHERE id IN (${placeholders})`,
+      productIds
+    );
+    for (const product of products) {
+      productNameMap.set(product.id, product.name);
+    }
+  }
+
+  return parsed.map(({ row, requiredItems }) => {
+    const enrichedItems = requiredItems.map((item) => ({
+      ...item,
+      productName: productNameMap.get(item.productId) ?? "Sản phẩm",
+    }));
+
+    return {
+      id: row.id,
+      promotionScope: "combo",
+      productId: null,
+      productName: enrichedItems.map((item) => item.productName).join(" + "),
+      requiredItems: enrichedItems,
+      code: row.code,
+      name: row.name,
+      discountType: row.discount_type,
+      discountValue: Number(row.discount_value),
+      startAt: row.starts_at ? row.starts_at.toISOString() : null,
+      endAt: row.ends_at ? row.ends_at.toISOString() : null,
+      isActive: row.is_active === 1,
+      createdAt: row.created_at.toISOString(),
+      updatedAt: row.updated_at.toISOString(),
+    };
+  });
 }
 
 const promotionSelect = `
@@ -138,7 +252,34 @@ export async function findAllPromotions(): Promise<Promotion[]> {
   const [rows] = await db.execute<PromotionRow[]>(
     `${promotionSelect} ORDER BY promotions.created_at DESC`
   );
-  return rows.map(mapPromotion);
+  const [comboRows] = await db.execute<ComboPromotionRow[]>(
+    `
+    SELECT
+      id,
+      code,
+      name,
+      discount_type,
+      discount_value,
+      config,
+      is_active,
+      starts_at,
+      ends_at,
+      created_at,
+      updated_at
+    FROM promotion_rules
+    WHERE rule_type = 'combo_fixed'
+      AND code IS NOT NULL
+    ORDER BY created_at DESC
+    `
+  );
+
+  const productPromotions = rows.map(mapPromotion);
+  const comboPromotions = await attachComboItems(comboRows);
+
+  return [...productPromotions, ...comboPromotions].sort(
+    (left, right) =>
+      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+  );
 }
 
 export async function findPromotionById(id: string): Promise<Promotion | null> {
@@ -146,24 +287,60 @@ export async function findPromotionById(id: string): Promise<Promotion | null> {
     `${promotionSelect} WHERE promotions.id = ? LIMIT 1`,
     [id]
   );
-  return rows[0] ? mapPromotion(rows[0]) : null;
+  if (rows[0]) return mapPromotion(rows[0]);
+
+  const [comboRows] = await db.execute<ComboPromotionRow[]>(
+    `
+    SELECT
+      id,
+      code,
+      name,
+      discount_type,
+      discount_value,
+      config,
+      is_active,
+      starts_at,
+      ends_at,
+      created_at,
+      updated_at
+    FROM promotion_rules
+    WHERE id = ?
+      AND rule_type = 'combo_fixed'
+      AND code IS NOT NULL
+    LIMIT 1
+    `,
+    [id]
+  );
+
+  if (!comboRows[0]) return null;
+  const comboPromotions = await attachComboItems(comboRows);
+  return comboPromotions[0] ?? null;
 }
 
 export async function findPromotionByCode(
   code: string,
   excludeId?: string
 ): Promise<Promotion | null> {
+  const normalizedCode = code.trim().toUpperCase();
   const sql = excludeId
     ? `SELECT id FROM promotions WHERE code = ? AND id != ? LIMIT 1`
     : `SELECT id FROM promotions WHERE code = ? LIMIT 1`;
-  const params = excludeId ? [code, excludeId] : [code];
+  const params = excludeId ? [normalizedCode, excludeId] : [normalizedCode];
   const [rows] = await db.execute<RowDataPacket[]>(sql, params);
-  if (!rows[0]) return null;
-  return findPromotionById((rows[0] as { id: string }).id);
+  if (rows[0]) return findPromotionById((rows[0] as { id: string }).id);
+
+  const comboSql = excludeId
+    ? `SELECT id FROM promotion_rules WHERE code = ? AND id != ? LIMIT 1`
+    : `SELECT id FROM promotion_rules WHERE code = ? LIMIT 1`;
+  const [comboRows] = await db.execute<RowDataPacket[]>(comboSql, params);
+  if (!comboRows[0]) return null;
+  return findPromotionById((comboRows[0] as { id: string }).id);
 }
 
 export type CreatePromotionData = {
-  productId: string;
+  promotionScope: "product" | "combo";
+  productId: string | null;
+  requiredItems: Array<{ productId: string; quantity: number }>;
   code: string;
   name: string;
   discountType: "percent" | "fixed";
@@ -172,10 +349,75 @@ export type CreatePromotionData = {
   endAt: string | null;
 };
 
+async function buildComboRuleConfig(
+  requiredItems: Array<{ productId: string; quantity: number }>
+) {
+  const productIds = requiredItems.map((item) => item.productId);
+  const productNameMap = new Map<string, string>();
+
+  if (productIds.length > 0) {
+    const placeholders = productIds.map(() => "?").join(", ");
+    const [products] = await db.execute<ComboProductRow[]>(
+      `SELECT id, name FROM products WHERE id IN (${placeholders})`,
+      productIds
+    );
+
+    for (const product of products) {
+      productNameMap.set(product.id, product.name);
+    }
+  }
+
+  const enrichedItems = requiredItems.map((item) => ({
+    ...item,
+    productName: productNameMap.get(item.productId) ?? "",
+  }));
+
+  return {
+    requiredItems: enrichedItems,
+    requiredProductIds: productIds,
+    requiredProductNameIncludes: enrichedItems
+      .map((item) => item.productName)
+      .filter(Boolean),
+  };
+}
+
 export async function createPromotion(
   data: CreatePromotionData
 ): Promise<Promotion> {
   const id = randomUUID();
+
+  if (data.promotionScope === "combo") {
+    await db.execute<ResultSetHeader>(
+      `INSERT INTO promotion_rules (
+         id,
+         code,
+         name,
+         rule_type,
+         discount_type,
+         discount_value,
+         priority,
+         config,
+         is_active,
+         starts_at,
+         ends_at
+       )
+       VALUES (?, ?, ?, 'combo_fixed', ?, ?, 30, ?, 1, ?, ?)`,
+      [
+        id,
+        data.code,
+        data.name,
+        data.discountType,
+        data.discountValue,
+        JSON.stringify(await buildComboRuleConfig(data.requiredItems)),
+        data.startAt ?? null,
+        data.endAt ?? null,
+      ]
+    );
+    const created = await findPromotionById(id);
+    if (!created) throw new Error("Create promotion failed");
+    return created;
+  }
+
   await db.execute<ResultSetHeader>(
     `INSERT INTO promotions (
        id,
@@ -212,6 +454,35 @@ export async function updatePromotion(
   data: UpdatePromotionData
 ): Promise<Promotion | null> {
   const isActiveValue = data.isActive === false ? 0 : 1;
+
+  if (data.promotionScope === "combo") {
+    await db.execute<ResultSetHeader>(
+      `UPDATE promotion_rules
+       SET code = ?,
+           name = ?,
+           discount_type = ?,
+           discount_value = ?,
+           config = ?,
+           starts_at = ?,
+           ends_at = ?,
+           is_active = ?
+       WHERE id = ?
+         AND rule_type = 'combo_fixed'`,
+      [
+        data.code,
+        data.name,
+        data.discountType,
+        data.discountValue,
+        JSON.stringify(await buildComboRuleConfig(data.requiredItems)),
+        data.startAt ?? null,
+        data.endAt ?? null,
+        isActiveValue,
+        id,
+      ]
+    );
+    return findPromotionById(id);
+  }
+
   await db.execute<ResultSetHeader>(
     `UPDATE promotions
      SET product_id = ?,
@@ -242,8 +513,14 @@ export async function togglePromotion(
   id: string,
   isActive: boolean
 ): Promise<Promotion | null> {
-  await db.execute<ResultSetHeader>(
+  const [productResult] = await db.execute<ResultSetHeader>(
     `UPDATE promotions SET is_active = ? WHERE id = ?`,
+    [isActive ? 1 : 0, id]
+  );
+  if (productResult.affectedRows > 0) return findPromotionById(id);
+
+  await db.execute<ResultSetHeader>(
+    `UPDATE promotion_rules SET is_active = ? WHERE id = ? AND rule_type = 'combo_fixed'`,
     [isActive ? 1 : 0, id]
   );
   return findPromotionById(id);
@@ -254,7 +531,13 @@ export async function deletePromotion(id: string): Promise<boolean> {
     `DELETE FROM promotions WHERE id = ?`,
     [id]
   );
-  return result.affectedRows > 0;
+  if (result.affectedRows > 0) return true;
+
+  const [comboResult] = await db.execute<ResultSetHeader>(
+    `DELETE FROM promotion_rules WHERE id = ? AND rule_type = 'combo_fixed'`,
+    [id]
+  );
+  return comboResult.affectedRows > 0;
 }
 
 export async function findActivePromotionByCode(
@@ -336,6 +619,59 @@ function textIncludes(value: string | null | undefined, needles?: string[]) {
   );
 }
 
+function getRequiredProductName(
+  item: NormalizedRequiredItem,
+  productNameMap?: Map<string, string>
+) {
+  return item.productName || productNameMap?.get(item.productId) || "";
+}
+
+function findLineForRequiredItem(
+  lines: PosPromotionLine[],
+  item: NormalizedRequiredItem,
+  productNameMap?: Map<string, string>
+) {
+  const lineById = lines.find((line) => line.productId === item.productId);
+  if (lineById) return lineById;
+
+  const productName = getRequiredProductName(item, productNameMap);
+  if (!productName) return null;
+
+  return (
+    lines.find((line) => textIncludes(line.productName, [productName])) ?? null
+  );
+}
+
+async function buildRequiredProductNameMap(
+  connection: PoolConnection,
+  rules: PromotionRuleRow[]
+) {
+  const productIds = Array.from(
+    new Set(
+      rules.flatMap((rule) =>
+        normalizeRequiredItems(parseRuleConfig(rule.config)).map(
+          (item) => item.productId
+        )
+      )
+    )
+  ).filter(Boolean);
+
+  const productNameMap = new Map<string, string>();
+  if (productIds.length === 0) return productNameMap;
+
+  const placeholders = productIds.map(() => "?").join(", ");
+  const [products] = await connection.execute<ComboProductRow[]>(
+    `SELECT id, name FROM products WHERE id IN (${placeholders})`,
+    productIds
+  );
+
+  for (const product of products) {
+    productNameMap.set(product.id, product.name);
+  }
+
+  return productNameMap;
+}
+
 function getMatchingLines(
   lines: PosPromotionLine[],
   config: PromotionRuleConfig
@@ -351,8 +687,17 @@ function getMatchingLines(
 
 function hasRequiredProducts(
   lines: PosPromotionLine[],
-  config: PromotionRuleConfig
+  config: PromotionRuleConfig,
+  productNameMap?: Map<string, string>
 ) {
+  const requiredItems = normalizeRequiredItems(config);
+  const itemOk =
+    requiredItems.length === 0 ||
+    requiredItems.every((item) => {
+      const line = findLineForRequiredItem(lines, item, productNameMap);
+      return (line?.quantity ?? 0) >= item.quantity;
+    });
+
   const idsOk =
     !config.requiredProductIds?.length ||
     config.requiredProductIds.every((productId) =>
@@ -367,10 +712,23 @@ function hasRequiredProducts(
       )
     );
 
-  return idsOk && namesOk;
+  return itemOk && idsOk && namesOk;
 }
 
-function countComboSets(lines: PosPromotionLine[], config: PromotionRuleConfig) {
+function countComboSets(
+  lines: PosPromotionLine[],
+  config: PromotionRuleConfig,
+  productNameMap?: Map<string, string>
+) {
+  const requiredItems = normalizeRequiredItems(config);
+  if (requiredItems.length > 0) {
+    const setCounts = requiredItems.map((item) => {
+      const line = findLineForRequiredItem(lines, item, productNameMap);
+      return Math.floor((line?.quantity ?? 0) / item.quantity);
+    });
+    return Math.min(...setCounts);
+  }
+
   if (config.requiredProductIds?.length) {
     const quantities = config.requiredProductIds.map((productId) => {
       const line = lines.find((item) => item.productId === productId);
@@ -424,10 +782,15 @@ function calculateRuleDiscount(
   row: PromotionRuleRow,
   lines: PosPromotionLine[],
   totalAmount: number,
-  promotionCode: string | null
+  promotionCode: string | null,
+  productNameMap?: Map<string, string>
 ) {
   const config = parseRuleConfig(row.config);
   const discountValue = Number(row.discount_value);
+
+  if (row.code && row.code.toUpperCase() !== promotionCode?.toUpperCase()) {
+    return 0;
+  }
 
   if (row.rule_type === "code") {
     if (!row.code || row.code.toUpperCase() !== promotionCode?.toUpperCase()) {
@@ -453,19 +816,11 @@ function calculateRuleDiscount(
   }
 
   if (row.rule_type === "combo_fixed") {
-    const comboSets = countComboSets(lines, config);
+    const comboSets = countComboSets(lines, config, productNameMap);
     if (comboSets <= 0) return 0;
 
     if (row.discount_type === "percent") {
-      const requiredLines = lines.filter((line) => {
-        if (config.requiredProductIds?.includes(line.productId)) return true;
-        return textIncludes(line.productName, config.requiredProductNameIncludes);
-      });
-      const comboSubtotal = requiredLines.reduce(
-        (total, line) => total + line.unitPrice * comboSets,
-        0
-      );
-      return (comboSubtotal * discountValue) / 100;
+      return (totalAmount * discountValue) / 100;
     }
 
     return Math.min(discountValue * comboSets, totalAmount);
@@ -498,7 +853,7 @@ function calculateRuleDiscount(
   }
 
   if (row.rule_type === "bundle_special_price") {
-    if (!hasRequiredProducts(lines, config)) return 0;
+    if (!hasRequiredProducts(lines, config, productNameMap)) return 0;
 
     const discountedLines = lines.filter((line) => {
       if (config.discountedProductId && line.productId === config.discountedProductId) {
@@ -557,6 +912,71 @@ export async function findActivePromotionRules(
   return rows.filter((row) => isRuleInTime(row, now));
 }
 
+export async function getPromotionCodeFailureMessage(
+  connection: PoolConnection,
+  lines: PosPromotionLine[],
+  code: string
+): Promise<string | null> {
+  const now = new Date();
+  const [rows] = await connection.execute<ComboPromotionRow[]>(
+    `
+    SELECT
+      id,
+      code,
+      name,
+      discount_type,
+      discount_value,
+      config,
+      is_active,
+      starts_at,
+      ends_at,
+      created_at,
+      updated_at
+    FROM promotion_rules
+    WHERE code = ?
+      AND rule_type = 'combo_fixed'
+      AND is_active = 1
+      AND (starts_at IS NULL OR starts_at <= ?)
+      AND (ends_at IS NULL OR ends_at > ?)
+    LIMIT 1
+    `,
+    [code.trim().toUpperCase(), now, now]
+  );
+
+  const rule = rows[0];
+  if (!rule) return null;
+
+  const requiredItems = normalizeRequiredItems(parseRuleConfig(rule.config));
+  if (requiredItems.length === 0) return null;
+
+  const productIds = requiredItems.map((item) => item.productId);
+  const placeholders = productIds.map(() => "?").join(", ");
+  const [products] = await connection.execute<ComboProductRow[]>(
+    `SELECT id, name FROM products WHERE id IN (${placeholders})`,
+    productIds
+  );
+  const productNameMap = new Map(products.map((item) => [item.id, item.name]));
+
+  const missingItems = requiredItems
+    .map((item) => {
+      const line = findLineForRequiredItem(lines, item, productNameMap);
+      const missingQuantity = item.quantity - (line?.quantity ?? 0);
+      return {
+        productName: getRequiredProductName(item, productNameMap) || "Sản phẩm",
+        missingQuantity,
+      };
+    })
+    .filter((item) => item.missingQuantity > 0);
+
+  if (missingItems.length === 0) return null;
+
+  const missingText = missingItems
+    .map((item) => `${item.productName} x${item.missingQuantity}`)
+    .join(", ");
+
+  return `Mã "${rule.code}" là mã combo. Vui lòng thêm ${missingText} để áp dụng khuyến mãi.`;
+}
+
 function chooseBetterPromotion(
   current: AppliedPosPromotion | null,
   candidate: AppliedPosPromotion
@@ -581,6 +1001,10 @@ export async function calculateBestPosPromotion(
   let bestPromotion: AppliedPosPromotion | null = null;
   const normalizedCode = promotionCode?.trim() || null;
   const rules = await findActivePromotionRules(connection);
+  const requiredProductNameMap = await buildRequiredProductNameMap(
+    connection,
+    rules
+  );
   const hasCodeRule = Boolean(
     normalizedCode &&
       rules.some(
@@ -605,7 +1029,9 @@ export async function calculateBestPosPromotion(
           code: productPromotion.code,
           name: productPromotion.name,
           ruleType: "product_code",
-          discountAmount: calculateDiscount(eligibleSubtotal, productPromotion),
+          discountAmount: Math.round(
+            calculateDiscount(eligibleSubtotal, productPromotion)
+          ),
           priority: 30,
         });
       }
@@ -613,9 +1039,17 @@ export async function calculateBestPosPromotion(
   }
 
   for (const rule of rules) {
-    const discountAmount = Math.min(
-      calculateRuleDiscount(rule, lines, totalAmount, normalizedCode),
-      totalAmount
+    const discountAmount = Math.round(
+      Math.min(
+        calculateRuleDiscount(
+          rule,
+          lines,
+          totalAmount,
+          normalizedCode,
+          requiredProductNameMap
+        ),
+        totalAmount
+      )
     );
 
     if (discountAmount <= 0) continue;

@@ -132,7 +132,9 @@ type ModalProps = {
 };
 
 const EMPTY_FORM: PromotionFormData = {
+  promotionScope: "product",
   productId: "",
+  requiredItems: [],
   code: "",
   name: "",
   discountType: "percent",
@@ -146,7 +148,12 @@ function PromotionModal({ editing, products, onClose, onSaved }: ModalProps) {
   const [form, setForm] = useState<PromotionFormData>(() =>
     editing
       ? {
+          promotionScope: editing.promotionScope,
           productId: editing.productId,
+          requiredItems: editing.requiredItems.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+          })),
           code: editing.code,
           name: editing.name,
           discountType: editing.discountType,
@@ -173,8 +180,79 @@ function PromotionModal({ editing, products, onClose, onSaved }: ModalProps) {
     setError("");
   }
 
+  function setPromotionScope(scope: "product" | "combo") {
+    setForm((prev) => ({
+      ...prev,
+      promotionScope: scope,
+      productId: scope === "product" ? prev.productId || products[0]?.id || "" : null,
+      requiredItems:
+        scope === "combo"
+          ? prev.requiredItems.length > 0
+            ? prev.requiredItems
+            : [
+                { productId: products[0]?.id ?? "", quantity: 1 },
+                { productId: products[1]?.id ?? "", quantity: 1 },
+              ].filter((item) => item.productId)
+          : [],
+    }));
+    setError("");
+  }
+
+  function updateComboItem(
+    index: number,
+    field: "productId" | "quantity",
+    value: string | number
+  ) {
+    setForm((prev) => ({
+      ...prev,
+      requiredItems: prev.requiredItems.map((item, itemIndex) =>
+        itemIndex === index
+          ? {
+              ...item,
+              [field]: field === "quantity" ? Math.max(1, Number(value)) : String(value),
+            }
+          : item
+      ),
+    }));
+    setError("");
+  }
+
+  function addComboItem() {
+    const selectedIds = new Set(form.requiredItems.map((item) => item.productId));
+    const nextProduct = products.find((product) => !selectedIds.has(product.id));
+    if (!nextProduct) return;
+    setForm((prev) => ({
+      ...prev,
+      requiredItems: [
+        ...prev.requiredItems,
+        { productId: nextProduct.id, quantity: 1 },
+      ],
+    }));
+  }
+
+  function removeComboItem(index: number) {
+    setForm((prev) => ({
+      ...prev,
+      requiredItems: prev.requiredItems.filter((_, itemIndex) => itemIndex !== index),
+    }));
+    setError("");
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (form.promotionScope === "combo") {
+      const selectedItems = form.requiredItems.filter((item) => item.productId);
+      const uniqueProductIds = new Set(selectedItems.map((item) => item.productId));
+      if (selectedItems.length < 2) {
+        setError("Combo cần ít nhất 2 sản phẩm áp dụng.");
+        return;
+      }
+      if (uniqueProductIds.size !== selectedItems.length) {
+        setError("Sản phẩm trong combo không được trùng nhau.");
+        return;
+      }
+    }
+
     setLoading(true);
     setError("");
     try {
@@ -197,7 +275,7 @@ function PromotionModal({ editing, products, onClose, onSaved }: ModalProps) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="w-full max-w-lg border border-slate-200 bg-white shadow-xl">
+      <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto border border-slate-200 bg-white shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <div>
@@ -226,11 +304,51 @@ function PromotionModal({ editing, products, onClose, onSaved }: ModalProps) {
           )}
 
           <div>
+            <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-600">
+              Loại khuyến mãi <span className="text-red-500">*</span>
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setPromotionScope("product")}
+                disabled={Boolean(editing)}
+                className={`flex items-center justify-center gap-2 border px-3 py-2.5 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-70 ${
+                  form.promotionScope === "product"
+                    ? "border-[#f97316] bg-orange-50 text-[#f97316]"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                }`}
+              >
+                <Icon name="sell" className="text-[18px]" />
+                Sản phẩm đơn
+              </button>
+              <button
+                type="button"
+                onClick={() => setPromotionScope("combo")}
+                disabled={Boolean(editing)}
+                className={`flex items-center justify-center gap-2 border px-3 py-2.5 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-70 ${
+                  form.promotionScope === "combo"
+                    ? "border-[#f97316] bg-orange-50 text-[#f97316]"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                }`}
+              >
+                <Icon name="add_shopping_cart" className="text-[18px]" />
+                Combo sản phẩm
+              </button>
+            </div>
+            {editing ? (
+              <p className="mt-2 text-xs font-medium text-slate-400">
+                Không thể đổi loại sau khi đã tạo. Nếu cần đổi, hãy tạo mã mới.
+              </p>
+            ) : null}
+          </div>
+
+          {form.promotionScope === "product" ? (
+            <div>
             <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-600">
               Sản phẩm áp dụng <span className="text-red-500">*</span>
             </label>
             <select
-              value={form.productId}
+              value={form.productId ?? ""}
               onChange={(e) => setField("productId", e.target.value)}
               required
               className="w-full border border-slate-300 bg-white px-3 py-2.5 text-sm text-[#0b1c30] outline-none transition-colors focus:border-[#f97316] focus:ring-1 focus:ring-[#f97316]"
@@ -243,6 +361,67 @@ function PromotionModal({ editing, products, onClose, onSaved }: ModalProps) {
               ))}
             </select>
           </div>
+          ) : (
+            <div>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                  Sản phẩm trong combo <span className="text-red-500">*</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={addComboItem}
+                  disabled={form.requiredItems.length >= products.length}
+                  className="inline-flex items-center gap-1 text-xs font-bold text-[#f97316] disabled:text-slate-300"
+                >
+                  <Icon name="add" className="text-[16px]" />
+                  Thêm sản phẩm
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                {form.requiredItems.map((item, index) => (
+                  <div key={`${item.productId}-${index}`} className="grid grid-cols-[1fr_92px_36px] gap-2">
+                    <select
+                      value={item.productId}
+                      onChange={(e) =>
+                        updateComboItem(index, "productId", e.target.value)
+                      }
+                      required
+                      className="w-full border border-slate-300 bg-white px-3 py-2.5 text-sm text-[#0b1c30] outline-none transition-colors focus:border-[#f97316] focus:ring-1 focus:ring-[#f97316]"
+                    >
+                      <option value="">Chọn sản phẩm</option>
+                      {products.map((product) => (
+                        <option key={product.id} value={product.id}>
+                          {product.name} - {product.sku}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      min={1}
+                      value={item.quantity}
+                      onChange={(e) =>
+                        updateComboItem(index, "quantity", e.target.value)
+                      }
+                      className="w-full border border-slate-300 bg-white px-3 py-2.5 text-sm text-[#0b1c30] outline-none transition-colors focus:border-[#f97316] focus:ring-1 focus:ring-[#f97316]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeComboItem(index)}
+                      disabled={form.requiredItems.length <= 2}
+                      className="flex h-10 items-center justify-center border border-slate-200 text-slate-400 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+                      title="Xóa sản phẩm khỏi combo"
+                    >
+                      <Icon name="close" className="text-[18px]" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-2 text-xs font-medium text-slate-400">
+                Khách phải có đủ từng sản phẩm trong combo thì mã mới được áp dụng.
+              </p>
+            </div>
+          )}
 
           {/* Code */}
           <div>
@@ -666,7 +845,7 @@ export default function PromotionsPage() {
         {/* Table */}
         {!loading && promotions.length > 0 && (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-left text-sm">
+            <table className="w-full min-w-[920px] text-left text-sm">
               <thead className="border-b border-slate-200 bg-slate-50">
                 <tr>
                   <th className="px-5 py-3 text-xs font-bold uppercase tracking-wider text-slate-500">
@@ -674,6 +853,9 @@ export default function PromotionsPage() {
                   </th>
                   <th className="px-5 py-3 text-xs font-bold uppercase tracking-wider text-slate-500">
                     Tên chương trình
+                  </th>
+                  <th className="px-5 py-3 text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Áp dụng
                   </th>
                   <th className="px-5 py-3 text-xs font-bold uppercase tracking-wider text-slate-500">
                     Loại giảm
@@ -699,7 +881,7 @@ export default function PromotionsPage() {
                 {filtered.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={9}
                       className="py-12 text-center text-sm font-semibold text-slate-400"
                     >
                       Không có kết quả phù hợp
@@ -723,6 +905,21 @@ export default function PromotionsPage() {
                         <span className="font-semibold text-[#0b1c30]">
                           {p.name}
                         </span>
+                      </td>
+
+                      <td className="px-5 py-3.5">
+                        <div className="max-w-[260px]">
+                          <span className="mb-1 inline-flex border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-bold uppercase text-slate-500">
+                            {p.promotionScope === "combo" ? "Combo" : "Sản phẩm"}
+                          </span>
+                          <p className="line-clamp-2 text-xs font-semibold text-slate-600">
+                            {p.promotionScope === "combo"
+                              ? p.requiredItems
+                                  .map((item) => `${item.productName} x${item.quantity}`)
+                                  .join(" + ")
+                              : p.productName}
+                          </p>
+                        </div>
                       </td>
 
                       {/* Discount type */}

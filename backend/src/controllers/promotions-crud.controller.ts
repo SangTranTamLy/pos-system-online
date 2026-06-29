@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { findProductById } from "../repositories/product.repository";
 import {
+  type CreatePromotionData,
   createPromotion,
   deletePromotion,
   findAllPromotions,
@@ -11,6 +12,10 @@ import {
 } from "../repositories/promotions.repository";
 import { ApiError } from "../utils/apiError";
 import { createAuditLog } from "../repositories/audit-log.repository";
+
+type AuthenticatedRequest = Request & {
+  user?: { id?: string };
+};
 
 export async function listPromotionsController(_req: Request, res: Response) {
   const promotions = await findAllPromotions();
@@ -24,15 +29,45 @@ export async function getPromotionController(req: Request, res: Response) {
   return res.json({ success: true, data: promotion });
 }
 
-function validatePromotionBody(body: Record<string, unknown>) {
+function normalizeRequiredItems(value: unknown) {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((item) => {
+      const row = item as Record<string, unknown>;
+      return {
+        productId: String(row.productId ?? "").trim(),
+        quantity: Math.max(1, Number(row.quantity ?? 1)),
+      };
+    })
+    .filter((item) => item.productId);
+}
+
+function validatePromotionBody(body: Record<string, unknown>): CreatePromotionData {
+  const promotionScope = body.promotionScope === "combo" ? "combo" : "product";
   const productId = String(body.productId ?? "").trim();
+  const requiredItems = normalizeRequiredItems(body.requiredItems);
   const code = String(body.code ?? "").trim().toUpperCase();
   const name = String(body.name ?? "").trim();
   const discountType = body.discountType as string;
   const discountValue = Number(body.discountValue);
   const startAt = body.startAt ? String(body.startAt) : null;
   const endAt = body.endAt ? String(body.endAt) : null;
-  if (!productId) throw new ApiError(400, "Vui lòng chọn sản phẩm áp dụng.");
+
+  if (promotionScope === "product" && !productId) {
+    throw new ApiError(400, "Vui lòng chọn sản phẩm áp dụng.");
+  }
+
+  if (promotionScope === "combo") {
+    const uniqueProductIds = new Set(requiredItems.map((item) => item.productId));
+    if (requiredItems.length < 2) {
+      throw new ApiError(400, "Combo cần ít nhất 2 sản phẩm áp dụng.");
+    }
+    if (uniqueProductIds.size !== requiredItems.length) {
+      throw new ApiError(400, "Sản phẩm trong combo không được trùng nhau.");
+    }
+  }
+
   if (!code) throw new ApiError(400, "Vui lòng nhập mã khuyến mãi.");
   if (!/^[A-Z0-9_-]{2,30}$/.test(code)) {
     throw new ApiError(
@@ -45,14 +80,16 @@ function validatePromotionBody(body: Record<string, unknown>) {
     throw new ApiError(400, "Loại giảm giá không hợp lệ.");
   }
   if (!Number.isFinite(discountValue) || discountValue <= 0) {
-    throw new ApiError(400, "Gia tri giam phai lon hon 0");
+    throw new ApiError(400, "Giá trị giảm phải lớn hơn 0.");
   }
   if (discountType === "percent" && discountValue > 100) {
     throw new ApiError(400, "Giảm theo % không được vượt quá 100.");
   }
 
   return {
-    productId,
+    promotionScope,
+    productId: promotionScope === "product" ? productId : null,
+    requiredItems: promotionScope === "combo" ? requiredItems : [],
     code,
     name,
     discountType: discountType as "percent" | "fixed",
@@ -67,19 +104,29 @@ async function ensurePromotionProductExists(productId: string) {
   if (!product) throw new ApiError(404, "Không tìm thấy sản phẩm áp dụng.");
 }
 
+async function ensurePromotionProductsExist(data: CreatePromotionData) {
+  if (data.promotionScope === "product") {
+    await ensurePromotionProductExists(data.productId ?? "");
+    return;
+  }
+
+  for (const item of data.requiredItems) {
+    await ensurePromotionProductExists(item.productId);
+  }
+}
+
 export async function createPromotionController(req: Request, res: Response) {
   const data = validatePromotionBody(req.body as Record<string, unknown>);
 
-  await ensurePromotionProductExists(data.productId);
+  await ensurePromotionProductsExist(data);
 
   const existing = await findPromotionByCode(data.code);
   if (existing) throw new ApiError(409, "Mã khuyến mãi đã tồn tại.");
 
-
   const promotion = await createPromotion(data);
 
-  const userId = (req as any).user?.id;
-  if (userId && promotion) {
+  const userId = (req as AuthenticatedRequest).user?.id;
+  if (userId) {
     void createAuditLog(
       userId,
       "SUA_KHUYEN_MAI",
@@ -101,7 +148,14 @@ export async function updatePromotionController(req: Request, res: Response) {
   if (!existing) throw new ApiError(404, "Không tìm thấy khuyến mãi.");
 
   const data = validatePromotionBody(body);
-  await ensurePromotionProductExists(data.productId);
+  if (data.promotionScope !== existing.promotionScope) {
+    throw new ApiError(
+      400,
+      "Không thể đổi loại khuyến mãi sau khi đã tạo. Vui lòng tạo mã mới."
+    );
+  }
+
+  await ensurePromotionProductsExist(data);
 
   const duplicateCode = await findPromotionByCode(data.code, id);
   if (duplicateCode) throw new ApiError(409, "Mã khuyến mãi đã tồn tại.");
@@ -112,7 +166,7 @@ export async function updatePromotionController(req: Request, res: Response) {
   const updated = await updatePromotion(id, { ...data, isActive });
   if (!updated) throw new ApiError(404, "Không tìm thấy khuyến mãi.");
 
-  const userId = (req as any).user?.id;
+  const userId = (req as AuthenticatedRequest).user?.id;
   if (userId) {
     void createAuditLog(
       userId,
@@ -134,7 +188,7 @@ export async function togglePromotionController(req: Request, res: Response) {
 
   const updated = await togglePromotion(id, !existing.isActive);
 
-  const userId = (req as any).user?.id;
+  const userId = (req as AuthenticatedRequest).user?.id;
   if (userId && updated) {
     const statusLabel = updated.isActive ? "Hoạt động" : "Tạm dừng";
     void createAuditLog(
@@ -157,7 +211,7 @@ export async function deletePromotionController(req: Request, res: Response) {
 
   await deletePromotion(id);
 
-  const userId = (req as any).user?.id;
+  const userId = (req as AuthenticatedRequest).user?.id;
   if (userId) {
     void createAuditLog(
       userId,

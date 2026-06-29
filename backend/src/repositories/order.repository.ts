@@ -61,6 +61,7 @@ type CancelOrderItemRow = RowDataPacket & {
   product_name: string;
   quantity: number;
   is_tracked_stock: boolean | number | string;
+  is_stock_returnable: boolean | number | string;
 };
 
 function mapOrderListItem(row: OrderListRow): OrderListItem {
@@ -169,9 +170,17 @@ const latestPaymentJoin = `
   ) p ON p.order_id = o.id
 `;
 
+function isLegacyPaymentSchemaError(error: unknown) {
+  const code = (error as { code?: string }).code;
+  return code === "ER_NO_SUCH_TABLE" || code === "ER_BAD_FIELD_ERROR";
+}
+
 export async function findOrders(query: OrderListQuery): Promise<OrderListItem[]> {
   const { whereClause, params } = buildOrderFilters(query);
-  const [rows] = await db.execute<OrderListRow[]>(
+  let rows: OrderListRow[];
+
+  try {
+    [rows] = await db.execute<OrderListRow[]>(
     `
     SELECT
       o.id,
@@ -197,7 +206,39 @@ export async function findOrders(query: OrderListQuery): Promise<OrderListItem[]
     LIMIT 200
     `,
     params
-  );
+    );
+  } catch (error) {
+    if (!isLegacyPaymentSchemaError(error)) {
+      throw error;
+    }
+
+    [rows] = await db.execute<OrderListRow[]>(
+      `
+      SELECT
+        o.id,
+        o.customer_id,
+        COALESCE(c.full_name, 'KhÃ¡ch láº»') AS customer_name,
+        o.created_by,
+        u.full_name AS created_by_name,
+        o.status,
+        o.total_amount,
+        o.discount_amount,
+        o.final_amount,
+        NULL AS payment_method,
+        NULL AS payment_status,
+        o.cancel_reason,
+        o.created_at,
+        o.updated_at
+      FROM orders o
+      LEFT JOIN customers c ON c.id = o.customer_id
+      LEFT JOIN users u ON u.id = o.created_by
+      ${whereClause}
+      ORDER BY o.created_at DESC
+      LIMIT 200
+      `,
+      params
+    );
+  }
 
   return rows.map(mapOrderListItem);
 }
@@ -303,7 +344,8 @@ async function findOrderItemsForCancel(connection: PoolConnection, orderId: stri
       od.product_id,
       p.name AS product_name,
       od.quantity,
-      COALESCE(p.is_tracked_stock, 0) AS is_tracked_stock
+      COALESCE(p.is_tracked_stock, 0) AS is_tracked_stock,
+      COALESCE(p.is_stock_returnable, 0) AS is_stock_returnable
     FROM order_details od
     JOIN products p ON p.id = od.product_id
     WHERE od.order_id = ?
@@ -318,8 +360,12 @@ function toBooleanFlag(value: boolean | number | string) {
   return value === true || value === 1 || value === "1";
 }
 
-function shouldRestoreStock(item: CancelOrderItemRow) {
+function shouldTrackStock(item: CancelOrderItemRow) {
   return toBooleanFlag(item.is_tracked_stock);
+}
+
+function shouldRestoreStock(item: CancelOrderItemRow) {
+  return shouldTrackStock(item) && toBooleanFlag(item.is_stock_returnable);
 }
 
 export async function cancelOrderById(
@@ -349,7 +395,38 @@ export async function cancelOrderById(
     const wasteItems: Array<{ productId: string; productName: string; quantity: number }> = [];
 
     for (const item of items) {
+      if (!shouldTrackStock(item) && toBooleanFlag(item.is_stock_returnable)) {
+        continue;
+      }
+
       if (!shouldRestoreStock(item)) {
+        await connection.execute(
+          `
+          INSERT INTO waste_transactions (
+            id,
+            order_id,
+            product_id,
+            created_by,
+            quantity,
+            reason
+          )
+          VALUES (?, ?, ?, ?, ?, ?)
+          `,
+          [
+            randomUUID(),
+            orderId,
+            item.product_id,
+            cancelledBy,
+            item.quantity,
+            `Hao hụt khi hủy hóa đơn ${orderId}. Lý do: ${cancelReason}`,
+          ]
+        );
+
+        wasteItems.push({
+          productId: item.product_id,
+          productName: item.product_name,
+          quantity: item.quantity,
+        });
         // Món tự làm/tự pha (không quản lý kho) thì không thực hiện hoàn kho hay ghi nhận hao hụt/waste
         continue;
       }

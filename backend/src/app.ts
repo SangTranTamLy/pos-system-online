@@ -5,6 +5,7 @@ import path from "path";
 import morgan from "morgan";
 import jwt from "jsonwebtoken";
 import { db } from "./config/database";
+import { syncDatabaseSchema } from "./database/schema-sync";
 import apiRouter from "./routes";
 import {
   errorMiddleware,
@@ -96,6 +97,8 @@ process.on("uncaughtException", (error) => {
   console.error("Uncaught Exception:", error);
 });
 
-app.listen(PORT, () => {
-  console.log(`Server đang chạy trên ${PORT}`);
+syncDatabaseSchema().finally(() => {
+  app.listen(PORT, () => {
+    console.log(`Server đang chạy trên ${PORT}`);
+  });
 });

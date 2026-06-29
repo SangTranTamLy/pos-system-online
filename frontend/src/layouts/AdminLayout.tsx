@@ -5,6 +5,7 @@ import { createAuditLog, getAuditLogs } from "../api/audit-log.api";
 import { fetchMaterials, type Material } from "../api/inventory.api";
 import { getProducts, type Product } from "../api/product.api";
 import { getOrders, type OrderListItem } from "../api/order.api";
+import { fetchPromotions, type Promotion } from "../api/promotions.api";
 import type { AuditLog } from "../types/audit-log";
 import { translateRole } from "../utils/role";
 import systemLogo from "../assets/logo-1.png";
@@ -172,24 +173,23 @@ function formatNotificationNameList(names: string[], maxItems = 3) {
   return `${visibleNames.join(", ")} và ${remainingCount} mục khác`;
 }
 
-function getPromotionLogTitle(log: AuditLog) {
-  const source = `${log.targetObject || ""} ${log.description || ""}`;
-  const codeMatch = source.match(/(?:Mã KM:\s*|Mã:\s*)([A-Z0-9_-]+)/i);
-  const code = codeMatch?.[1]?.toUpperCase();
+function getPromotionNotificationTitle(promotion: Promotion) {
+  return `Cập nhật mã khuyến mãi: ${promotion.code}`;
+}
 
-  if (textIncludesAny(log.description, ["tạo mới", "tao moi"])) {
-    return code ? `Mã khuyến mãi mới: ${code}` : "Có mã khuyến mãi mới";
-  }
+function getPromotionNotificationDescription(promotion: Promotion) {
+  const discount =
+    promotion.discountType === "percent"
+      ? `${promotion.discountValue}%`
+      : `${promotion.discountValue.toLocaleString("vi-VN")} đ`;
+  const condition =
+    promotion.promotionScope === "combo"
+      ? promotion.requiredItems
+          .map((item) => `${item.productName} x${item.quantity}`)
+          .join(" + ")
+      : promotion.productName;
 
-  if (textIncludesAny(log.description, ["xóa", "xoa"])) {
-    return code ? `Đã xóa mã khuyến mãi: ${code}` : "Đã xóa khuyến mãi";
-  }
-
-  if (textIncludesAny(log.description, ["trạng thái", "trang thai", "tạm dừng", "tam dung", "hoạt động", "hoat dong"])) {
-    return code ? `Đã đổi trạng thái mã: ${code}` : "Đã đổi trạng thái khuyến mãi";
-  }
-
-  return code ? `Cập nhật mã khuyến mãi: ${code}` : "Cập nhật khuyến mãi";
+  return `${promotion.name} (Mã: ${promotion.code}) - giảm ${discount}. Điều kiện: ${condition}.`;
 }
 
 type NotificationItem = {
@@ -536,6 +536,7 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
   const [, setLayoutShifts] = useState<LayoutShift[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [todayOrders, setTodayOrders] = useState<OrderListItem[]>([]);
   const [cancelledOrders, setCancelledOrders] = useState<OrderListItem[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -567,6 +568,7 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
       void Promise.resolve().then(() => {
         setMaterials([]);
         setProducts([]);
+        setPromotions([]);
         setTodayOrders([]);
         setCancelledOrders([]);
         setAuditLogs([]);
@@ -579,6 +581,7 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
     void Promise.allSettled([
       fetchMaterials(),
       getProducts(),
+      canSeeSharedNotifications ? fetchPromotions() : Promise.resolve([]),
       canSeeAdminNotifications
         ? getOrders({ dateFrom: today, dateTo: today })
         : Promise.resolve({
@@ -599,9 +602,10 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
             logs: [],
             total: 0,
           } as Awaited<ReturnType<typeof getAuditLogs>>),
-    ]).then(([materialsResult, productsResult, ordersResult, cancelledResult, logsResult]) => {
+    ]).then(([materialsResult, productsResult, promotionsResult, ordersResult, cancelledResult, logsResult]) => {
       setMaterials(materialsResult.status === "fulfilled" ? materialsResult.value.data : []);
       setProducts(productsResult.status === "fulfilled" ? productsResult.value.data : []);
+      setPromotions(promotionsResult.status === "fulfilled" ? promotionsResult.value : []);
       setTodayOrders(ordersResult.status === "fulfilled" ? ordersResult.value.data : []);
       setCancelledOrders(cancelledResult.status === "fulfilled" ? cancelledResult.value.data : []);
       setAuditLogs(logsResult.status === "fulfilled" ? logsResult.value.logs : []);
@@ -659,7 +663,7 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
 
   const displayName = user.fullName?.trim() || "Admin Demo";
   const displayRole = user.roleName?.trim() || "admin";
-  const notificationScopeKey = `${user.id || displayName}:${displayRole}`.toLowerCase();
+  const notificationScopeKey = "system-shared";
   const notificationItems = useMemo<NotificationItem[]>(() => {
     const roleName = user.roleName?.toLowerCase() || "";
     const canManageBackOffice = ["admin", "manager"].includes(roleName);
@@ -739,6 +743,26 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
       });
     });
 
+    promotions
+      .filter((promotion) => promotion.isActive)
+      .sort(
+        (left, right) =>
+          new Date(right.updatedAt || right.createdAt).getTime() -
+          new Date(left.updatedAt || left.createdAt).getTime()
+      )
+      .slice(0, 5)
+      .forEach((promotion) => {
+        items.push({
+          id: `promotion-${promotion.id}-${promotion.updatedAt}`,
+          title: getPromotionNotificationTitle(promotion),
+          description: getPromotionNotificationDescription(promotion),
+          icon: "redeem",
+          tone: "bg-orange-50 text-[#f97316]",
+          timeLabel: new Date(promotion.updatedAt || promotion.createdAt).toLocaleString("vi-VN"),
+          path: canManageBackOffice ? "/promotions" : "/pos",
+        });
+      });
+
     if (["staff", "cashier"].includes(roleName)) {
       return items;
     }
@@ -756,8 +780,6 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
     const securityLogs = auditLogs.filter((log) =>
       textIncludesAny(`${log.actionType} ${log.description}`, ["dang_nhap", "đăng nhập", "login", "bao_mat", "bảo mật", "bat thuong", "bất thường"])
     );
-    const promotionLogs = auditLogs.filter((log) => log.actionType === "SUA_KHUYEN_MAI");
-
     if (cancelledOrders.length < 0) {
       items.push({
         id: "cancelled-invoices",
@@ -778,18 +800,6 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
         path: "/invoices",
       });
     }
-
-    promotionLogs.slice(0, 5).forEach((log) => {
-      items.push({
-        id: `promotion-log-${log.id}`,
-        title: getPromotionLogTitle(log),
-        description: log.description || "Có cập nhật mới trong menu khuyến mãi.",
-        icon: "redeem",
-        tone: "bg-orange-50 text-[#f97316]",
-        timeLabel: new Date(log.timestamp).toLocaleString("vi-VN"),
-        path: "/promotions",
-      });
-    });
 
     if (systemErrors.length > 0) {
       items.push({
@@ -825,7 +835,7 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
     }
 
     return items;
-  }, [auditLogs, cancelledOrders, hasActiveShift, materials, products, todayOrders, user.roleName]);
+  }, [auditLogs, cancelledOrders, hasActiveShift, materials, products, promotions, todayOrders, user.roleName]);
   const handleLogout = async () => {
     try {
       await createAuditLog({

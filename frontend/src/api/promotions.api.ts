@@ -2,8 +2,10 @@ import { apiData } from "./api-client";
 
 export type Promotion = {
   id: string;
-  productId: string;
+  promotionScope: "product" | "combo";
+  productId: string | null;
   productName: string;
+  requiredItems: PromotionRequiredItem[];
   code: string;
   name: string;
   discountType: "percent" | "fixed";
@@ -15,8 +17,16 @@ export type Promotion = {
   updatedAt: string;
 };
 
-export type PromotionFormData = {
+export type PromotionRequiredItem = {
   productId: string;
+  productName: string;
+  quantity: number;
+};
+
+export type PromotionFormData = {
+  promotionScope: "product" | "combo";
+  productId: string | null;
+  requiredItems: Array<{ productId: string; quantity: number }>;
   code: string;
   name: string;
   discountType: "percent" | "fixed";
@@ -28,7 +38,9 @@ export type PromotionFormData = {
 
 function toPromotionPayload(data: PromotionFormData) {
   return {
+    promotionScope: data.promotionScope,
     productId: data.productId,
+    requiredItems: data.requiredItems,
     code: data.code,
     name: data.name,
     discountType: data.discountType,

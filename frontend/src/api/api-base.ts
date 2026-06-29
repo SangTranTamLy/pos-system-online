@@ -1,4 +1,4 @@
-const DEFAULT_API_BASE_URL = "https://pos-system-online.onrender.com/api";
+const DEFAULT_API_BASE_URL = "http://localhost:5000/api";
 
 function normalizeApiBaseUrl(value?: string) {
   const rawBaseUrl = (value || DEFAULT_API_BASE_URL).trim();

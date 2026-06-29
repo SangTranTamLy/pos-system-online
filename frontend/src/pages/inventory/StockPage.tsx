@@ -576,9 +576,11 @@ export function StockPage() {
   async function handleSaveMaterial(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
+    const materialSku =
+      String(formData.get("sku") || "").trim() || editingMaterial?.sku || undefined;
     const payload = {
       name: String(formData.get("name") || "").trim(),
-      sku: String(formData.get("sku") || "").trim() || undefined,
+      sku: materialSku,
       category: String(formData.get("category") || "Khác").trim(),
       unit: String(formData.get("unit") || "").trim(),
       importPrice: Number(formData.get("importPrice") || 0),
@@ -1577,7 +1579,7 @@ export function StockPage() {
                     type="text"
                     placeholder="VD: NL-CAFE"
                     defaultValue={editingMaterial?.sku || ""}
-                    disabled={!!editingMaterial}
+                    readOnly={!!editingMaterial}
                     className={inputClass}
                   />
                 </div>

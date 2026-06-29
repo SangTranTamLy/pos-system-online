@@ -3,6 +3,7 @@ import type { RowDataPacket } from "mysql2/promise";
 import { db } from "../config/database";
 import {
   calculateBestPosPromotion,
+  getPromotionCodeFailureMessage,
   type PosPromotionLine,
 } from "../repositories/promotions.repository";
 import { ApiError } from "../utils/apiError";
@@ -95,7 +96,16 @@ export async function previewPromotionController(req: Request, res: Response) {
     );
 
     if (code && !appliedPromotion) {
-      throw new ApiError(400, "Mã khuyến mãi không hợp lệ hoặc không phù hợp với đơn hàng.");
+      const failureMessage = await getPromotionCodeFailureMessage(
+        connection,
+        lines,
+        code
+      );
+      throw new ApiError(
+        400,
+        failureMessage ??
+          "Mã khuyến mãi không hợp lệ hoặc không phù hợp với đơn hàng."
+      );
     }
 
     const discountAmount = appliedPromotion?.discountAmount ?? 0;

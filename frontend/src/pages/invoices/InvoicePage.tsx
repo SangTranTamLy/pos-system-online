@@ -689,18 +689,6 @@ function InvoicePage() {
 
   return (
     <AdminLayout title="Hóa đơn" subtitle="Quản lý hóa đơn, lọc giao dịch và xử lý hủy theo quyền.">
-      <section className="mb-8 flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <p className="mb-2 text-xs font-bold uppercase tracking-widest text-[#f97316]">Quản lý hóa đơn</p>
-          <h1 className="font-['Outfit',sans-serif] text-3xl font-extrabold text-[#0b1c30]">
-            Danh sách hóa đơn
-          </h1>
-          <p className="mt-2 max-w-3xl text-sm text-slate-500">
-            Xem chi tiết, lọc theo ngày/nhân viên/khách hàng và hủy hóa đơn theo quyền quản trị.
-          </p>
-        </div>
-      </section>
-
       <section className="grid grid-cols-1 gap-6 2xl:grid-cols-[1fr_430px]">
         <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
           <FilterBar

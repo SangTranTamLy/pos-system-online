@@ -65,10 +65,19 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#039;");
 }
 
+function getPromotionDisplayName(order: PosOrderResult) {
+  if (!order.appliedPromotion) return "Khuyến mãi";
+
+  return `${order.appliedPromotion.name}${
+    order.appliedPromotion.code ? ` (${order.appliedPromotion.code})` : ""
+  }`;
+}
+
 function buildReceiptHtml(order: PosOrderResult, employeeName: string) {
   const orderCode = `#HD${order.id.slice(0, 10)}`;
   const createdAt = new Date().toLocaleString("vi-VN", { hour12: false });
   const paymentLabel = getPaymentMethodLabel(order.payment.paymentMethod);
+  const promotionDisplayName = getPromotionDisplayName(order);
   const detailRows = order.details
     .map(
       (detail) => `
@@ -275,6 +284,14 @@ function buildReceiptHtml(order: PosOrderResult, employeeName: string) {
               <span class="muted">Tạm tính:</span>
               <span class="value">${formatCurrency(order.totalAmount)}</span>
             </div>
+            ${
+              order.discountAmount > 0
+                ? `<div class="row">
+                    <span class="muted">${escapeHtml(promotionDisplayName)}:</span>
+                    <span class="value">-${formatCurrency(order.discountAmount)}</span>
+                  </div>`
+                : ""
+            }
             <div class="row total">
               <span>Tổng cộng:</span>
               <span class="primary">${formatCurrency(order.finalAmount)}</span>
@@ -332,6 +349,8 @@ function printReceipt(order: PosOrderResult, employeeName: string) {
 }
 
 function ReceiptPreview({ order, employeeName }: { order: PosOrderResult; employeeName: string }) {
+  const promotionDisplayName = getPromotionDisplayName(order);
+
   return (
     <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
       <div className="mb-8 text-center">
@@ -393,6 +412,16 @@ function ReceiptPreview({ order, employeeName }: { order: PosOrderResult; employ
           <span className="text-slate-500">Tạm tính:</span>
           <span className="font-semibold text-[#0b1c30]">{formatCurrency(order.totalAmount)}</span>
         </div>
+        {order.discountAmount > 0 ? (
+          <div className="flex justify-between gap-4">
+            <span className="min-w-0 truncate text-slate-500">
+              {promotionDisplayName}
+            </span>
+            <span className="font-semibold text-emerald-600">
+              -{formatCurrency(order.discountAmount)}
+            </span>
+          </div>
+        ) : null}
         <div className="flex justify-between text-xl font-extrabold">
           <span className="uppercase text-[#0b1c30]">Tổng cộng:</span>
           <span className="text-[#f97316]">{formatCurrency(order.finalAmount)}</span>
