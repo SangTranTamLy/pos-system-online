@@ -133,7 +133,7 @@ export default function PaymentConfirmModal({
               disabled={isProcessing}
               className="rounded-xl border border-slate-200 bg-white px-6 py-3 font-extrabold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Kiem tra lai
+              Kiểm tra lại
             </button>
             <button
               type="button"
