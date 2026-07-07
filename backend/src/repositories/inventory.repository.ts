@@ -769,7 +769,7 @@ export async function createStockAdjustmentTransaction(
         ]
       );
     } catch (logErr) {
-      console.error("Error creating audit log for stock adjust:", logErr);
+      console.error("Lỗi tạo nhật ký kiểm tra cho việc điều chỉnh tồn kho:", logErr);
     }
 
     return {

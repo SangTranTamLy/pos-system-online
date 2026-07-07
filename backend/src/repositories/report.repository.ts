@@ -118,6 +118,182 @@ function getDateConditions(tableAlias: string, startDate?: string, endDate?: str
     params
   };
 }
+// AI báo cáo doanh thu theo giờ
+export async function getAiHourlyRevenue(startDate: string, endDate: string) {
+  const [rows] = await db.execute<RowDataPacket[]>(
+    `
+    SELECT
+      HOUR(o.created_at) AS hour,
+      COUNT(o.id) AS ordersCount,
+      COALESCE(SUM(o.final_amount), 0) AS revenue
+    FROM orders o
+    WHERE o.status = 'completed'
+      AND DATE(o.created_at) >= ?
+      AND DATE(o.created_at) <= ?
+    GROUP BY HOUR(o.created_at)
+    ORDER BY hour ASC
+    `,
+    [startDate, endDate]
+  );
+
+  return rows.map((row) => ({
+    hour: Number(row.hour),
+    label: `${String(row.hour).padStart(2, "0")}:00-${String(Number(row.hour) + 1).padStart(2, "0")}:00`,
+    ordersCount: Number(row.ordersCount),
+    revenue: Number(row.revenue),
+  }));
+}
+//Sản phẩm bán ra
+export async function getAiSoldProducts(startDate: string, endDate: string) {
+  const [rows] = await db.execute<RowDataPacket[]>(
+    `
+    SELECT
+      p.id,
+      p.name,
+      p.stock_quantity AS stockQuantity,
+      p.is_tracked_stock AS isTrackedStock,
+      COALESCE(SUM(od.quantity), 0) AS soldQuantity,
+      COALESCE(SUM(od.line_total), 0) AS revenue
+    FROM order_details od
+    JOIN orders o ON o.id = od.order_id
+    JOIN products p ON p.id = od.product_id
+    WHERE o.status = 'completed'
+      AND DATE(o.created_at) >= ?
+      AND DATE(o.created_at) <= ?
+    GROUP BY p.id, p.name, p.stock_quantity, p.is_tracked_stock
+    ORDER BY soldQuantity DESC
+    LIMIT 10
+    `,
+    [startDate, endDate]
+  );
+
+  return rows.map((row) => ({
+    productId: row.id,
+    name: row.name,
+    soldQuantity: Number(row.soldQuantity),
+    revenue: Number(row.revenue),
+    stockQuantity: row.stockQuantity === null ? null : Number(row.stockQuantity),
+    isTrackedStock: Boolean(row.isTrackedStock),
+  }));
+}
+//Sản phẩm bán chậm
+export async function getAiSlowProducts(startDate: string, endDate: string) {
+  const [rows] = await db.execute<RowDataPacket[]>(
+    `
+    SELECT
+      p.id,
+      p.name,
+      COALESCE(SUM(od.quantity), 0) AS soldQuantity,
+      p.stock_quantity AS stockQuantity
+    FROM products p
+    LEFT JOIN order_details od ON od.product_id = p.id
+    LEFT JOIN orders o ON o.id = od.order_id
+      AND o.status = 'completed'
+      AND DATE(o.created_at) >= ?
+      AND DATE(o.created_at) <= ?
+    WHERE p.status = 'active'
+    GROUP BY p.id, p.name, p.stock_quantity
+    ORDER BY soldQuantity ASC, p.name ASC
+    LIMIT 10
+    `,
+    [startDate, endDate]
+  );
+
+  return rows.map((row) => ({
+    productId: row.id,
+    name: row.name,
+    soldQuantity: Number(row.soldQuantity),
+    stockQuantity: row.stockQuantity === null ? null : Number(row.stockQuantity),
+  }));
+}
+// Thanh toán theo phương thức
+export async function getAiPaymentSummary(startDate: string, endDate: string) {
+  const [rows] = await db.execute<RowDataPacket[]>(
+    `
+    SELECT
+      p.payment_method AS method,
+      COUNT(DISTINCT p.order_id) AS ordersCount,
+      COALESCE(SUM(p.amount), 0) AS amount
+    FROM payments p
+    JOIN orders o ON o.id = p.order_id
+    WHERE o.status = 'completed'
+      AND p.payment_status = 'paid'
+      AND DATE(o.created_at) >= ?
+      AND DATE(o.created_at) <= ?
+    GROUP BY p.payment_method
+    `,
+    [startDate, endDate]
+  );
+
+  return rows.map((row) => ({
+    method: row.method,
+    ordersCount: Number(row.ordersCount),
+    amount: Number(row.amount),
+  }));
+}
+// Đơn hủy/sửa bất thường
+export async function getAiCancelledOrders(startDate: string, endDate: string) {
+  const [rows] = await db.execute<RowDataPacket[]>(
+    `
+    SELECT
+      id,
+      final_amount AS finalAmount,
+      cancel_reason AS cancelReason,
+      cancelled_at AS cancelledAt
+    FROM orders
+    WHERE status = 'cancelled'
+      AND DATE(cancelled_at) >= ?
+      AND DATE(cancelled_at) <= ?
+    ORDER BY cancelled_at DESC
+    LIMIT 10
+    `,
+    [startDate, endDate]
+  );
+
+  return rows.map((row) => ({
+    orderId: row.id,
+    finalAmount: Number(row.finalAmount || 0),
+    cancelReason: row.cancelReason,
+    cancelledAt: row.cancelledAt,
+  }));
+}
+//Lệch ca nghi vấn
+export async function getAiShiftVarianceHistory(startDate: string, endDate: string) {
+  const [rows] = await db.execute<RowDataPacket[]>(
+    `
+    SELECT
+      s.id AS shiftId,
+      u.full_name AS userName,
+      s.opening_cash AS openingCash,
+      s.total_sales_cash AS totalSalesCash,
+      s.actual_closing_cash AS actualClosingCash,
+      (s.opening_cash + s.total_sales_cash) AS expectedCash,
+      s.variance AS variance,
+      s.actual_start_time AS openedAt,
+      s.actual_end_time AS closedAt
+    FROM shifts s
+    LEFT JOIN users u ON s.user_id = u.id
+    WHERE s.status = 'CLOSED'
+      AND DATE(s.actual_end_time) >= ?
+      AND DATE(s.actual_end_time) <= ?
+    ORDER BY s.actual_end_time DESC
+    LIMIT 10
+    `,
+    [startDate, endDate]
+  );
+
+  return rows.map((row) => ({
+    shiftId: row.shiftId,
+    userName: row.userName,
+    openingCash: Number(row.openingCash || 0),
+    totalSalesCash: Number(row.totalSalesCash || 0),
+    actualClosingCash: Number(row.actualClosingCash || 0),
+    expectedCash: Number(row.expectedCash || 0),
+    variance: Number(row.variance || 0),
+    openedAt: row.openedAt,
+    closedAt: row.closedAt,
+  }));
+}// AI phân tích
 
 // 1. Báo cáo tài chính: Tổng quan
 export async function getFinancialSummary(

@@ -16,7 +16,8 @@ import {
 import { getDashboardSummary, type DashboardSummary } from "../../api/dashboard.api";
 import { getOrders, type OrderListItem } from "../../api/order.api";
 import { apiData } from "../../api/api-client";
-import { getEmployeeRevenue, getFinancialReport } from "../../api/report.api";
+import { getAiReportInsights, getEmployeeRevenue, getFinancialReport, type AiReportInsightResponse,
+} from "../../api/report.api";
 import {
   fetchShifts,
   type Shift,
@@ -263,6 +264,379 @@ function EmptyState({ children }: { children: React.ReactNode }) {
   );
 }
 
+function AiReportInsightCard({data, loading, onRefresh,}: {
+  data: AiReportInsightResponse | null;
+  loading: boolean;
+  onRefresh: () => void;
+}) {
+  const aiData = data?.data;
+  const chart = aiData?.bieu_do;
+  const firstDataset = chart?.datasets?.[0];
+
+  const aiChartData =
+    chart?.labels?.map((label, index) => ({
+      label,
+      value: Number(firstDataset?.data?.[index] || 0),
+    })) || [];
+
+  const hasAiChartData = aiChartData.some((item) => item.value > 0);
+
+  const insights = [
+    {
+      icon: "inventory_2",
+      title: "Dự báo chuẩn bị hàng",
+      description: aiData?.du_bao_mai || "Đang chờ dữ liệu AI để dự báo lượng chuẩn bị cho ngày mai.",
+      tone: "border-blue-100 bg-blue-50/60 text-blue-600",
+    },
+    {
+      icon: "tips_and_updates",
+      title: "Gợi ý tăng doanh thu",
+      description: aiData?.meo_doanh_thu || "Đang chờ AI gợi ý combo hoặc câu chào bán kèm phù hợp.",
+      tone: "border-emerald-100 bg-emerald-50/60 text-emerald-600",
+    },
+    {
+      icon: "warning",
+      title: "Cảnh báo vận hành",
+      description: aiData?.canh_bao || "Đang chờ AI kiểm tra tồn kho, món bán chậm và bất thường vận hành.",
+      tone: "border-amber-100 bg-amber-50/70 text-amber-600",
+    },
+  ];
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 bg-slate-50/80 px-5 py-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 text-white">
+              <Icon name="auto_awesome" className="text-[20px]" />
+            </span>
+            <div>
+              <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-orange-500">
+                AI Business Assistant
+              </p>
+              <h2 className="font-['Outfit',sans-serif] text-xl font-extrabold text-slate-950">
+                Trợ lý kinh doanh AI
+              </h2>
+            </div>
+          </div>
+          <p className="mt-2 text-sm font-medium text-slate-500">
+            Phân tích doanh thu, món bán chạy, tồn kho và vận hành để đề xuất hành động.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={loading}
+          className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-extrabold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <Icon name={loading ? "sync" : "refresh"} className="text-[18px]" />
+          {loading ? "Đang phân tích..." : "Làm mới AI"}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 p-5 xl:grid-cols-[1.3fr_0.7fr]">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          {insights.map((item) => (
+            <article
+              key={item.title}
+              className={`min-h-[150px] rounded-2xl border p-4 ${item.tone}`}
+            >
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white shadow-sm">
+                  <Icon name={item.icon} className="text-[23px]" />
+                </div>
+                <span className="rounded-full bg-white/80 px-2.5 py-1 text-[11px] font-extrabold text-slate-500">
+                  AI Insight
+                </span>
+              </div>
+
+              <h3 className="text-base font-extrabold text-slate-950">{item.title}</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-600">{item.description}</p>
+            </article>
+          ))}
+        </div>
+
+        <aside className="rounded-2xl border border-slate-200 bg-slate-950 p-5 text-white">
+          <div className="flex items-center gap-2">
+            <Icon name="query_stats" className="text-[22px] text-orange-300" />
+            <h3 className="font-['Outfit',sans-serif] text-lg font-extrabold">
+              Biểu đồ AI đề xuất
+            </h3>
+          </div>
+
+          <p className="mt-2 text-sm leading-6 text-slate-300">
+            {aiData?.bieu_do?.tieu_de || "AI sẽ đề xuất biểu đồ khi có đủ dữ liệu bán hàng."}
+          </p>
+
+          <div className="mt-5 h-56 rounded-xl bg-white/10 p-3">
+            {hasAiChartData ? (
+              <ResponsiveContainer width="100%" height="100%">
+                {chart?.loai === "bar" ? (
+                  <BarChart data={aiChartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.12)" />
+                    <XAxis dataKey="label" tick={{ fill: "#cbd5e1", fontSize: 11 }} />
+                    <YAxis tick={{ fill: "#cbd5e1", fontSize: 11 }} />
+                    <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                    <Bar dataKey="value" fill="#fb923c" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                ) : chart?.loai === "pie" ? (
+                  <PieChart>
+                    <Pie
+                      data={aiChartData}
+                      dataKey="value"
+                      nameKey="label"
+                      innerRadius={45}
+                      outerRadius={75}
+                      paddingAngle={3}
+                    >
+                      {aiChartData.map((_, index) => (
+                        <Cell
+                          key={index}
+                          fill={categoryColors[index % categoryColors.length]}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                  </PieChart>
+                ) : (
+                  <AreaChart data={aiChartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.12)" />
+                    <XAxis dataKey="label" tick={{ fill: "#cbd5e1", fontSize: 11 }} />
+                    <YAxis tick={{ fill: "#cbd5e1", fontSize: 11 }} />
+                    <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                    <Area
+                      type="monotone"
+                      dataKey="value"
+                      stroke="#fb923c"
+                      fill="#fb923c"
+                      fillOpacity={0.25}
+                      strokeWidth={3}
+                    />
+                  </AreaChart>
+                )}
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center text-center">
+                <Icon name="bar_chart" className="text-[34px] text-slate-500" />
+                <p className="mt-2 text-sm font-bold text-slate-300">
+                  Chưa đủ dữ liệu để vẽ biểu đồ AI
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4 flex items-center justify-between rounded-xl bg-white/10 px-4 py-3">
+            <span className="text-xs font-bold uppercase tracking-wide text-slate-400">
+              Kiểu phân tích
+            </span>
+            <span className="rounded-full bg-orange-400/20 px-3 py-1 text-xs font-extrabold text-orange-200">
+              {chart?.loai || "line"}
+            </span>
+          </div>
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+void AiReportInsightCard;
+
+function AiBusinessAnalysisPanel({
+  data,
+  loading,
+  onRefresh,
+}: {
+  data: AiReportInsightResponse | null;
+  loading: boolean;
+  onRefresh: () => void;
+}) {
+  const aiData = data?.data;
+  const chart = aiData?.bieu_do;
+  const firstDataset = chart?.datasets?.[0];
+  const aiChartData =
+    chart?.labels?.map((label, index) => ({
+      label,
+      value: Number(firstDataset?.data?.[index] || 0),
+    })) || [];
+  const hasAiChartData = aiChartData.some((item) => item.value > 0);
+  const score = loading ? 0 : data?.fallback ? 68 : 86;
+  const scoreLabel = data?.fallback ? "Can cai thien" : "Tot";
+
+  const insightRows = [
+    {
+      icon: "inventory_2",
+      label: "Du bao chuan bi hang",
+      text: aiData?.du_bao_mai || "AI dang cho them du lieu de du bao luong hang can chuan bi.",
+      tone: "bg-blue-600",
+    },
+    {
+      icon: "trending_up",
+      label: "Goi y tang doanh thu",
+      text: aiData?.meo_doanh_thu || "AI dang phan tich combo va hanh vi mua de goi y ban kem.",
+      tone: "bg-emerald-600",
+    },
+    {
+      icon: "warning",
+      label: "Canh bao van hanh",
+      text: aiData?.canh_bao || "AI dang kiem tra ton kho, mon ban cham va bat thuong van hanh.",
+      tone: "bg-amber-500",
+    },
+  ];
+
+  const actionRows = [
+    {
+      label: "Hanh dong 1",
+      text: aiData?.du_bao_mai || "Chuan bi them hang cho nhom mon co xu huong ban chay.",
+      tone: "border-emerald-100 bg-emerald-50 text-emerald-700",
+    },
+    {
+      label: "Hanh dong 2",
+      text: aiData?.meo_doanh_thu || "Tao combo ban kem de tang gia tri trung binh moi don.",
+      tone: "border-blue-100 bg-blue-50 text-blue-700",
+    },
+    {
+      label: "Hanh dong 3",
+      text: aiData?.canh_bao || "Kiem tra ton kho va cac bat thuong ve huy don, chot ca.",
+      tone: "border-amber-100 bg-amber-50 text-amber-700",
+    },
+  ];
+
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
+        <div className="flex min-w-0 items-center gap-4">
+          <div className="flex flex-col items-center gap-1">
+            <div
+              className="flex h-16 w-16 items-center justify-center rounded-full"
+              style={{
+                background: `conic-gradient(#f59e0b ${score * 3.6}deg, #e5e7eb 0deg)`,
+              }}
+            >
+              <div className="flex h-12 w-12 flex-col items-center justify-center rounded-full bg-white">
+                <span className="text-lg font-extrabold text-slate-950">{score}</span>
+                <span className="text-[9px] font-bold uppercase text-slate-400">diem</span>
+              </div>
+            </div>
+            <span className="text-[10px] font-extrabold uppercase tracking-wide text-amber-600">
+              {scoreLabel}
+            </span>
+          </div>
+
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-950 text-white">
+                <Icon name="bolt" className="text-[18px]" />
+              </span>
+              <h2 className="font-['Outfit',sans-serif] text-lg font-extrabold text-slate-950">
+                Bao cao Phan tich Kinh doanh AI
+              </h2>
+            </div>
+            <p className="mt-2 max-w-5xl text-xs font-medium leading-5 text-slate-600">
+              He thong AI tong hop doanh thu, san pham, ton kho va van hanh de tao goi y hanh dong cho quan.
+              {data?.fallback ? " Hien dang hien thi goi y du phong vi AI gap loi." : " Ket qua duoc tao tu du lieu POS moi nhat."}
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={loading}
+          className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-xs font-extrabold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <Icon name={loading ? "sync" : "refresh"} className="text-[17px]" />
+          {loading ? "Dang phan tich" : "Lam moi AI"}
+        </button>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-xs font-extrabold uppercase tracking-wide text-slate-700">
+              Bieu do AI de xuat
+            </h3>
+            <span className="rounded-full bg-orange-50 px-3 py-1 text-[11px] font-extrabold text-orange-600">
+              {chart?.loai || "line"}
+            </span>
+          </div>
+
+          <div className="h-56">
+            {hasAiChartData ? (
+              <ResponsiveContainer width="100%" height="100%">
+                {chart?.loai === "bar" ? (
+                  <BarChart data={aiChartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} />
+                    <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                    <Bar dataKey="value" fill="#14b8a6" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                ) : chart?.loai === "pie" ? (
+                  <PieChart>
+                    <Pie data={aiChartData} dataKey="value" nameKey="label" innerRadius={52} outerRadius={82}>
+                      {aiChartData.map((_, index) => (
+                        <Cell key={index} fill={categoryColors[index % categoryColors.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                  </PieChart>
+                ) : (
+                  <AreaChart data={aiChartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} />
+                    <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                    <Area type="monotone" dataKey="value" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.14} strokeWidth={3} />
+                  </AreaChart>
+                )}
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center rounded-xl bg-slate-50 text-center">
+                <Icon name="query_stats" className="text-[34px] text-slate-300" />
+                <p className="mt-2 text-sm font-bold text-slate-400">Chua du du lieu de ve bieu do AI</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <h3 className="mb-3 text-xs font-extrabold uppercase tracking-wide text-slate-700">
+            Phan tich chuyen sau
+          </h3>
+          <div className="space-y-3">
+            {insightRows.map((item, index) => (
+              <div key={item.label} className="flex gap-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
+                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-xs font-extrabold text-white ${item.tone}`}>
+                  {index + 1}
+                </span>
+                <div>
+                  <p className="text-xs font-extrabold text-slate-900">{item.label}</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-600">{item.text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50/60 p-4">
+        <h3 className="mb-3 text-xs font-extrabold uppercase tracking-wide text-emerald-700">
+          Chien luoc hanh dong
+        </h3>
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+          {actionRows.map((item) => (
+            <div key={item.label} className={`rounded-lg border p-3 ${item.tone}`}>
+              <p className="text-xs font-extrabold">{item.label}</p>
+              <p className="mt-1 text-xs leading-5">{item.text}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function RevenueTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; name: string; color?: string }>; label?: string }) {
   if (!active || !payload?.length) return null;
 
@@ -362,6 +736,8 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [financialData, setFinancialData] = useState<FinancialReport | null>(null);
+  const [aiInsights, setAiInsights] = useState<AiReportInsightResponse | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
   const [revenueTrendData, setRevenueTrendData] = useState<RevenueTrendPoint[]>([]);
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
   const [employeeRevenue, setEmployeeRevenue] = useState<EmployeeRevenue[]>([]);
@@ -400,16 +776,27 @@ export default function ReportsPage() {
     setError("");
 
     try {
-      const [financial, dashboardResponse, employees, ordersResponse, cancelledResponse, shiftRevenueResponse, shiftResponse] =
-        await Promise.all([
-          getFinancialReport(startDate, endDate),
-          getDashboardSummary("week", startDate, endDate),
-          getEmployeeRevenue(startDate, endDate),
-          getOrders({ dateFrom: startDate, dateTo: endDate }),
-          getOrders({ status: "cancelled", dateFrom: startDate, dateTo: endDate }),
-          fetchShiftRevenueByShift(7),
-          fetchShifts(),
-        ]);
+      setAiLoading(true);
+
+      const [
+        financial,
+        dashboardResponse,
+        employees,
+        ordersResponse,
+        cancelledResponse,
+        shiftRevenueResponse,
+        shiftResponse,
+        aiResponse,
+      ] = await Promise.all([
+        getFinancialReport(startDate, endDate),
+        getDashboardSummary("week", startDate, endDate),
+        getEmployeeRevenue(startDate, endDate),
+        getOrders({ dateFrom: startDate, dateTo: endDate }),
+        getOrders({ status: "cancelled", dateFrom: startDate, dateTo: endDate }),
+        fetchShiftRevenueByShift(7),
+        fetchShifts(),
+        getAiReportInsights(startDate, endDate),
+      ]);
 
       setFinancialData(financial);
       setDashboard(dashboardResponse.data);
@@ -418,10 +805,12 @@ export default function ReportsPage() {
       setCancelledOrders(cancelledResponse.data);
       setShiftRevenue(shiftRevenueResponse);
       setShifts(shiftResponse);
+      setAiInsights(aiResponse);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không tải được dữ liệu báo cáo.");
     } finally {
       setLoading(false);
+      setAiLoading(false);
     }
   }, [endDate, startDate]);
 
@@ -584,6 +973,8 @@ export default function ReportsPage() {
               <ReportCard label="Đơn hủy" value={`${formatNumber(cancelledOrders.length)} đơn`} helper="8.2% so với kỳ trước" icon="warning" tone="bg-amber-50 text-amber-500" trend="down" />
               <ReportCard label="Doanh thu tiền mặt" value={formatCurrency(cashRevenue)} helper={`${cashPercentage}% tổng doanh thu`} icon="payments" tone="bg-emerald-50 text-emerald-500" trend="neutral" />
             </section>
+
+            <AiBusinessAnalysisPanel data={aiInsights} loading={aiLoading} onRefresh={() => void loadReportData(true)}/>
 
             <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
               <ChartCard

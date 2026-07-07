@@ -114,7 +114,7 @@ export default function PaymentConfirmModal({
                 <span className="text-[#f97316]">{formatCurrency(finalAmount)}</span>
               </div>
               <div className="flex justify-between gap-4 text-sm text-slate-600">
-                <span>Phuong thuc</span>
+                <span>Phuow</span>
                 <span className="font-extrabold text-[#0b1c30]">
                   {getPaymentMethodLabel(paymentMethod)}
                 </span>

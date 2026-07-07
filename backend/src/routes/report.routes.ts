@@ -5,7 +5,9 @@ import {
   getInventoryValuationController,
   getEmployeePerformanceController,
   getComparisonReportController,
-  getCustomerRetentionController
+  getCustomerRetentionController,
+  getAiInsightsContextController,
+  getAiReportInsightsController
 } from "../controllers/report.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
 import { asyncHandler } from "../utils/asyncHandler";
@@ -20,5 +22,7 @@ reportRouter.get("/inventory-value", asyncHandler(getInventoryValuationControlle
 reportRouter.get("/employee-performance", asyncHandler(getEmployeePerformanceController));
 reportRouter.get("/comparison", asyncHandler(getComparisonReportController));
 reportRouter.get("/customer-retention", asyncHandler(getCustomerRetentionController));
+reportRouter.get("/ai-insights-context", asyncHandler(getAiInsightsContextController));
+reportRouter.get("/ai-insights", asyncHandler(getAiReportInsightsController));
 
 export default reportRouter;

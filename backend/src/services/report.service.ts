@@ -8,9 +8,16 @@ import {
   getInventoryValuationByCategory,
   getEmployeePerformance,
   getRevenueByPeriod,
-  getCustomerRetention
+  getCustomerRetention,
+  getAiHourlyRevenue,
+  getAiSoldProducts,
+  getAiSlowProducts,
+  getAiPaymentSummary,
+  getAiCancelledOrders,
+  getAiShiftVarianceHistory,
 } from "../repositories/report.repository";
-import { getTopProducts } from "../repositories/dashboard.repository";
+import { AI_REPORT_SYSTEM_PROMPT } from "../prompts/report-ai.prompt";
+import { getTopProducts, getLowStockItems } from "../repositories/dashboard.repository";
 import type { ComparisonPoint } from "../types/report.types";
 
 export async function getEmployeeRevenueService(
@@ -28,7 +35,147 @@ export async function getEmployeeRevenueService(
   // Cashier or Staff
   return getRevenueByEmployeeId(userId, startDate, endDate);
 }
+// 6. Service báo cáo AI
+function getVietnameseWeekday(dateText: string) {
+  const date = new Date(`${dateText}T00:00:00`);
+  return new Intl.DateTimeFormat("vi-VN", { weekday: "long" }).format(date);
+}
 
+export async function getAiInsightsContextService(startDate: string, endDate: string) {
+  const [
+    hourlyRevenue,
+    soldProducts,
+    slowProducts,
+    paymentSummary,
+    cancelledOrders,
+    lowStockItems,
+    shiftVarianceHistory,
+  ] = await Promise.all([
+    getAiHourlyRevenue(startDate, endDate),
+    getAiSoldProducts(startDate, endDate),
+    getAiSlowProducts(startDate, endDate),
+    getAiPaymentSummary(startDate, endDate),
+    getAiCancelledOrders(startDate, endDate),
+    getLowStockItems(),
+    getAiShiftVarianceHistory(startDate, endDate),
+  ]);
+
+  return {
+    reportDate: startDate,
+    weekday: getVietnameseWeekday(startDate),
+    range: {
+      startDate,
+      endDate,
+    },
+    hourlyRevenue,
+    soldProducts,
+    slowProducts,
+    paymentSummary,
+    cancelledOrders,
+    lowStockItems,
+    shiftVarianceHistory,
+  };
+}
+// hàm gọi AI
+function extractJsonFromAiText(text: string) {
+  const cleaned = text
+    .replace(/```json/g, "")
+    .replace(/```/g, "")
+    .trim();
+
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+
+  if (start === -1 || end === -1) {
+    throw new Error("AI không trả về JSON hợp lệ");
+  }
+
+  const jsonText = cleaned.slice(start, end + 1);
+  return JSON.parse(jsonText);
+}
+const fallbackAiData = {
+  du_bao_mai: "Chưa đủ dữ liệu để dự báo chính xác cho ngày mai.",
+  meo_doanh_thu: "Có thể gợi ý combo dựa trên món bán chạy khi có thêm dữ liệu.",
+  canh_bao: "Chưa phát hiện bất thường đáng chú ý.",
+  bieu_do: {
+    tieu_de: "Dữ liệu bán hàng",
+    loai: "line",
+    labels: [],
+    datasets: [
+      {
+        label: "Doanh thu",
+        data: [],
+      },
+    ],
+  },
+};
+export async function getAiReportInsightsService(startDate: string, endDate: string) {
+  const context = await getAiInsightsContextService(startDate, endDate);
+
+  const apiKey = process.env.AI_API_KEY;
+  const apiUrl = process.env.AI_API_URL;
+  const model = process.env.AI_MODEL || "Qwen/Qwen2.5-14B-Instruct";
+
+  if (!apiKey || !apiUrl) {
+    return {
+      success: false,
+      fallback: true,
+      data: null,
+      message: "Chưa cấu hình API AI",
+      context,
+    };
+  }
+
+  try {
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.3,
+        messages: [
+          {
+            role: "system",
+            content: AI_REPORT_SYSTEM_PROMPT,
+          },
+          {
+            role: "user",
+            content: JSON.stringify(context),
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`AI API error: ${response.status} - ${errorText}`);
+    }
+
+    const result: any = await response.json();
+    const text = result.choices?.[0]?.message?.content || "{}";
+    const aiData = extractJsonFromAiText(text);
+
+    return {
+      success: true,
+      fallback: false,
+      data: aiData,
+      context,
+    };
+  } catch (error) {
+    console.error("Lỗi gọi AI báo cáo:", error);
+
+    return {
+      success: false,
+      fallback: true,
+      data: fallbackAiData,
+      message: "AI lỗi, hệ thống đang hiển thị gợi ý mặc định",
+      context,
+    };
+  }
+}
 // 1. Service báo cáo tài chính
 export async function getFinancialReportService(startDate?: string, endDate?: string) {
   const summary = await getFinancialSummary(startDate, endDate);
