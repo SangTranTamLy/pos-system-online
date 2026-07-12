@@ -318,7 +318,7 @@ export default function ShiftsPage() {
   const selectedShiftDigitalRevenue = useMemo(
     () =>
       completedShiftOrders
-        .filter((order) => order.paymentMethod === "qr" || order.paymentMethod === "card")
+        .filter((order) => order.paymentMethod === "qr")
         .reduce((sum, order) => sum + Number(order.finalAmount || 0), 0),
     [completedShiftOrders]
   );
@@ -751,7 +751,7 @@ export default function ShiftsPage() {
                     <tbody>
                       {[
                         ["Tiền mặt", selectedShiftCashRevenue],
-                        ["Chuyển khoản / QR / Thẻ", selectedShiftDigitalRevenue],
+                        ["Chuyển khoản / QR", selectedShiftDigitalRevenue],
                         ["Đầu ca", selectedShift.openingCash || 0],
                         ["Tiền chốt thực tế", selectedShift.actualClosingCash || 0],
                       ].map(([label, amount]) => (

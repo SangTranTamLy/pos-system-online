@@ -1,6 +1,6 @@
 import { Icon } from "../../layouts/AdminLayout";
 
-type PosPaymentMethod = "cash" | "qr" | "card";
+type PosPaymentMethod = "cash" | "qr";
 
 type CartItem = {
   product: {
@@ -32,7 +32,6 @@ function formatCurrency(value: number) {
 
 function getPaymentMethodLabel(method: PosPaymentMethod) {
   if (method === "qr") return "Chuyển khoản";
-  if (method === "card") return "Thẻ ngân hàng";
   return "Tiền mặt";
 }
 

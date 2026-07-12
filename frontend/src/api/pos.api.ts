@@ -1,6 +1,6 @@
 import { apiRequest } from "./api-client";
 
-export type PosPaymentMethod = "cash" | "qr" | "card";
+export type PosPaymentMethod = "cash" | "qr";
 
 export type CreatePosOrderPayload = {
   customerId?: string | null;

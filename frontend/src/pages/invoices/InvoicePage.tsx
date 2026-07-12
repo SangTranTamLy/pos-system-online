@@ -45,7 +45,6 @@ const orderStatusClasses: Record<OrderStatus, string> = {
 const paymentMethodLabels: Record<PaymentMethod, string> = {
   cash: "Tiền mặt",
   qr: "QR",
-  card: "Thẻ",
 };
 
 const paymentStatusLabels: Record<PaymentStatus, string> = {

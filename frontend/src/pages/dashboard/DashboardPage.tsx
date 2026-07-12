@@ -43,14 +43,12 @@ const toneClasses: Record<StatTone, string> = {
 const paymentMethodLabels: Record<string, string> = {
   cash: "Tiền mặt",
   qr: "QR / Ví điện tử",
-  card: "Thẻ ngân hàng",
   transfer: "Chuyển khoản",
 };
 
 const paymentMethodColors: Record<string, string> = {
   cash: "#3b82f6",
   qr: "#22c55e",
-  card: "#8b5cf6",
   transfer: "#fb923c",
 };
 
@@ -89,6 +87,16 @@ function formatWeekdayDate(value: string) {
   }).format(date);
 
   return `${weekday} • ${dateLabel}`;
+}
+
+function formatDateLabel(value: string) {
+  const date = new Date(`${value}T00:00:00`);
+
+  return new Intl.DateTimeFormat("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
 }
 
 function DashboardCard({ children, className = "" }: { children: ReactNode; className?: string }) {
@@ -160,7 +168,7 @@ function DashboardPage() {
   const [employeeRevenue, setEmployeeRevenue] = useState<EmployeeRevenue[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
-  const [reportDate] = useState(getTodayInputValue);
+  const [reportDate, setReportDate] = useState(getTodayInputValue);
 
   useEffect(() => {
     let isActive = true;
@@ -211,6 +219,9 @@ function DashboardPage() {
   const recentOrders = dashboard?.recentOrders ?? [];
   const totalRevenue = stats?.todayRevenue ?? 0;
   const totalOrders = stats?.todayOrders ?? 0;
+  const todayInputValue = getTodayInputValue();
+  const isToday = reportDate === todayInputValue;
+  const reportDateLabel = formatDateLabel(reportDate);
 
   const paymentChartData = paymentMethods
     .filter((item) => item.revenue > 0 || item.ordersCount > 0)
@@ -254,16 +265,16 @@ function DashboardPage() {
     }));
   const statCards: StatCard[] = [
     {
-      label: "Doanh thu hôm nay",
+      label: isToday ? "Doanh thu hôm nay" : "Doanh thu ngày chọn",
       value: formatCurrency(totalRevenue),
-      helper: "15.2% so với hôm qua",
+      helper: isToday ? "Theo dữ liệu hôm nay" : `Theo ngày ${reportDateLabel}`,
       icon: "wallet",
       tone: "orange",
     },
     {
-      label: "Đơn hàng hôm nay",
+      label: isToday ? "Đơn hàng hôm nay" : "Đơn hàng ngày chọn",
       value: `${totalOrders}`,
-      helper: "8.7% so với hôm qua",
+      helper: isToday ? "Theo dữ liệu hôm nay" : `Theo ngày ${reportDateLabel}`,
       icon: "shopping_bag",
       tone: "green",
     },
@@ -305,7 +316,11 @@ function DashboardPage() {
   return (
     <AdminLayout
       title="Tổng quan"
-      subtitle="Theo dõi doanh thu, đơn hàng và hoạt động kinh doanh hôm nay"
+      subtitle={
+        isToday
+          ? "Theo dõi doanh thu, đơn hàng và hoạt động kinh doanh hôm nay"
+          : `Theo dõi doanh thu, đơn hàng và hoạt động kinh doanh ngày ${reportDateLabel}`
+      }
     >
       <div className="min-h-full w-full space-y-6 overflow-x-hidden bg-[#f8fafc] font-['Inter',sans-serif]">
         {errorMessage ? (
@@ -313,6 +328,39 @@ function DashboardPage() {
             {errorMessage}
           </div>
         ) : null}
+
+        <section className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-['Outfit',sans-serif] text-base font-bold text-slate-900">
+              Dữ liệu tổng quan
+            </p>
+            <p className="mt-1 text-sm font-medium text-slate-500">
+              Đang xem dữ liệu ngày {reportDateLabel}
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700">
+              <Icon name="calendar_month" className="text-[20px] text-[#f97316]" />
+              <input
+                type="date"
+                value={reportDate}
+                onChange={(event) => setReportDate(event.target.value)}
+                className="bg-transparent font-bold text-slate-900 outline-none"
+              />
+            </label>
+
+            {!isToday ? (
+              <button
+                type="button"
+                onClick={() => setReportDate(todayInputValue)}
+                className="rounded-xl bg-[#f97316] px-4 py-2 text-sm font-extrabold text-white shadow-sm transition hover:bg-orange-600"
+              >
+                Hôm nay
+              </button>
+            ) : null}
+          </div>
+        </section>
 
         <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
           {statCards.map((card) => (
@@ -446,7 +494,7 @@ function DashboardPage() {
                 </button>
               </div>
             ) : (
-              <EmptyState>Chưa có đơn hàng hôm nay</EmptyState>
+              <EmptyState>Chưa có đơn hàng trong ngày này</EmptyState>
             )}
           </DashboardCard>
 
@@ -601,7 +649,7 @@ function DashboardPage() {
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-bold text-slate-900">Đơn hàng hủy nhiều</p>
-                  <p className="mt-0.5 text-xs text-slate-500">{cancelledOrders} đơn hàng đã bị hủy hôm nay</p>
+                  <p className="mt-0.5 text-xs text-slate-500">{cancelledOrders} đơn hàng đã bị hủy trong ngày này</p>
                 </div>
                 <button type="button" onClick={() => navigate("/invoices")} className="whitespace-nowrap text-xs font-bold text-[#f97316] hover:underline">
                   Xem chi tiết
@@ -613,7 +661,7 @@ function DashboardPage() {
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-bold text-slate-900">Hiệu suất nhân viên</p>
-                  <p className="mt-0.5 text-xs text-slate-500">{topEmployees.length} nhân viên có doanh thu hôm nay</p>
+                  <p className="mt-0.5 text-xs text-slate-500">{topEmployees.length} nhân viên có doanh thu trong ngày này</p>
                 </div>
                 <button type="button" onClick={() => navigate("/reports")} className="whitespace-nowrap text-xs font-bold text-[#f97316] hover:underline">
                   Xem chi tiết

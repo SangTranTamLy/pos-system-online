@@ -46,7 +46,6 @@ const paymentMethods: Array<{
 }> = [
     { value: "cash", label: "Tiền mặt", icon: "payments" },
     { value: "qr", label: "QR", icon: "qr_code" },
-    { value: "card", label: "The", icon: "credit_card" },
   ];
 
 function formatCurrency(value: number) {
@@ -1398,7 +1397,7 @@ function PosPage() {
 
               <label className="block space-y-2">
                 <span className="text-sm font-bold text-[#0b1c30]">Thanh toán</span>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   {paymentMethods.map((method) => {
                     const isSelected = paymentMethod === method.value;
 

@@ -70,7 +70,7 @@ const FIELD_LABELS: Record<string, string> = {
   openingCash: "Tiền đầu ca",
   actualClosingCash: "Tiền mặt chốt ca",
   totalSalesCash: "Doanh thu tiền mặt",
-  totalSalesQr: "Doanh thu QR / thẻ",
+  totalSalesQr: "Doanh thu QR",
   totalSales: "Doanh thu ca",
   variance: "Chênh lệch",
 };

@@ -1,5 +1,5 @@
 export type OrderStatus = "completed" | "cancelled" | "refunded";
-export type PaymentMethod = "cash" | "qr" | "card";
+export type PaymentMethod = "cash" | "qr";
 export type PaymentStatus = "pending" | "paid" | "failed" | "refunded";
 
 export type CancelOrderBody = {

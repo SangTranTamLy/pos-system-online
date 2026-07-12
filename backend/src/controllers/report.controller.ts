@@ -1,40 +1,49 @@
 import type { Request, Response } from "express";
-import { 
+import {
+  getAiInsightsContextService,
+  getAiReportInsightsService,
+  getComparisonReportService,
+  getCustomerRetentionService,
+  getEmployeePerformanceService,
   getEmployeeRevenueService,
   getFinancialReportService,
   getInventoryValuationService,
-  getEmployeePerformanceService,
-  getComparisonReportService,
-  getCustomerRetentionService,
-  getAiInsightsContextService,
-  getAiReportInsightsService
 } from "../services/report.service";
-import { ApiError } from "../utils/apiError";
 import type { AuthUser } from "../types/auth.types";
+import { ApiError } from "../utils/apiError";
 
-// Helper kiểm tra quyền Admin hoặc Manager
 function checkAdminOrManager(user: AuthUser | undefined) {
   if (!user) {
-    throw new ApiError(401, "Chưa được xác thực");
+    throw new ApiError(401, "Chua duoc xac thuc");
   }
+
   const role = user.roleName.trim().toUpperCase();
   if (role !== "ADMIN" && role !== "MANAGER") {
-    throw new ApiError(403, "Bạn không có quyền truy cập báo cáo này");
+    throw new ApiError(403, "Bạn không có quyến truy cập vào báo cáo này.");
   }
 }
-// 6. Controller báo cáo AI
+
+function getDateRange(req: Request) {
+  return {
+    startDate: typeof req.query.startDate === "string" ? req.query.startDate.trim() : undefined,
+    endDate: typeof req.query.endDate === "string" ? req.query.endDate.trim() : undefined,
+  };
+}
+
+function requireDateRange(startDate?: string, endDate?: string) {
+  if (!startDate || !endDate) {
+    throw new ApiError(400, "Vui lòng cung cấp đầy đủ ngày bắt đầu và ngày kết thúc");
+  }
+}
+
 export async function getAiInsightsContextController(req: Request, res: Response) {
   const user = (req as any).user as AuthUser | undefined;
   checkAdminOrManager(user);
 
-  const startDate = typeof req.query.startDate === "string" ? req.query.startDate.trim() : undefined;
-  const endDate = typeof req.query.endDate === "string" ? req.query.endDate.trim() : undefined;
+  const { startDate, endDate } = getDateRange(req);
+  requireDateRange(startDate, endDate);
 
-  if (!startDate || !endDate) {
-    throw new ApiError(400, "Vui lòng cung cấp đầy đủ ngày bắt đầu và ngày kết thúc");
-  }
-
-  const data = await getAiInsightsContextService(startDate, endDate);
+  const data = await getAiInsightsContextService(startDate!, endDate!);
 
   return res.json({
     success: true,
@@ -42,56 +51,44 @@ export async function getAiInsightsContextController(req: Request, res: Response
     data,
   });
 }
+
 export async function getAiReportInsightsController(req: Request, res: Response) {
   const user = (req as any).user as AuthUser | undefined;
   checkAdminOrManager(user);
 
-  const startDate = typeof req.query.startDate === "string" ? req.query.startDate.trim() : undefined;
-  const endDate = typeof req.query.endDate === "string" ? req.query.endDate.trim() : undefined;
+  const { startDate, endDate } = getDateRange(req);
+  requireDateRange(startDate, endDate);
 
-  if (!startDate || !endDate) {
-    throw new ApiError(400, "Vui lòng cung cấp đầy đủ ngày bắt đầu và ngày kết thúc");
-  }
-
-  const result = await getAiReportInsightsService(startDate, endDate);
+  const result = await getAiReportInsightsService(startDate!, endDate!, user?.id);
 
   return res.json({
     success: true,
-    message: "Lấy gợi ý AI báo cáo thành công",
+    message: "Lấy gợi ý báo cáo từ AI thành công",
     data: result,
   });
 }
+
 export async function getEmployeeRevenueController(req: Request, res: Response) {
   const user = (req as any).user as AuthUser | undefined;
   if (!user) {
     throw new ApiError(401, "Chưa được xác thực");
   }
 
-  const startDate = typeof req.query.startDate === "string" ? req.query.startDate.trim() : undefined;
-  const endDate = typeof req.query.endDate === "string" ? req.query.endDate.trim() : undefined;
-
-  const revenueData = await getEmployeeRevenueService(
-    user.roleName,
-    user.id,
-    startDate,
-    endDate
-  );
+  const { startDate, endDate } = getDateRange(req);
+  const data = await getEmployeeRevenueService(user.roleName, user.id, startDate, endDate);
 
   return res.json({
     success: true,
     message: "Lấy báo cáo doanh thu thành công",
-    data: revenueData,
+    data,
   });
 }
 
-// 1. Controller báo cáo tài chính (Doanh thu - Vốn - Lợi nhuận)
 export async function getFinancialReportController(req: Request, res: Response) {
   const user = (req as any).user as AuthUser | undefined;
   checkAdminOrManager(user);
 
-  const startDate = typeof req.query.startDate === "string" ? req.query.startDate.trim() : undefined;
-  const endDate = typeof req.query.endDate === "string" ? req.query.endDate.trim() : undefined;
-
+  const { startDate, endDate } = getDateRange(req);
   const data = await getFinancialReportService(startDate, endDate);
 
   return res.json({
@@ -101,7 +98,6 @@ export async function getFinancialReportController(req: Request, res: Response) 
   });
 }
 
-// 2. Controller báo cáo tồn kho & giá trị kho
 export async function getInventoryValuationController(req: Request, res: Response) {
   const user = (req as any).user as AuthUser | undefined;
   checkAdminOrManager(user);
@@ -110,19 +106,16 @@ export async function getInventoryValuationController(req: Request, res: Respons
 
   return res.json({
     success: true,
-    message: "Lấy báo cáo giá trị kho thành công",
+    message: "Lấy báo cáo tồn kho thành công",
     data,
   });
 }
 
-// 3. Controller báo cáo hiệu suất nhân viên
 export async function getEmployeePerformanceController(req: Request, res: Response) {
   const user = (req as any).user as AuthUser | undefined;
   checkAdminOrManager(user);
 
-  const startDate = typeof req.query.startDate === "string" ? req.query.startDate.trim() : undefined;
-  const endDate = typeof req.query.endDate === "string" ? req.query.endDate.trim() : undefined;
-
+  const { startDate, endDate } = getDateRange(req);
   const data = await getEmployeePerformanceService(startDate, endDate);
 
   return res.json({
@@ -132,19 +125,14 @@ export async function getEmployeePerformanceController(req: Request, res: Respon
   });
 }
 
-// 4. Controller báo cáo so sánh & tăng trưởng
 export async function getComparisonReportController(req: Request, res: Response) {
   const user = (req as any).user as AuthUser | undefined;
   checkAdminOrManager(user);
 
-  const startDate = typeof req.query.startDate === "string" ? req.query.startDate.trim() : undefined;
-  const endDate = typeof req.query.endDate === "string" ? req.query.endDate.trim() : undefined;
+  const { startDate, endDate } = getDateRange(req);
+  requireDateRange(startDate, endDate);
 
-  if (!startDate || !endDate) {
-    throw new ApiError(400, "Vui lòng cung cấp đầy đủ startDate và endDate");
-  }
-
-  const data = await getComparisonReportService(startDate, endDate);
+  const data = await getComparisonReportService(startDate!, endDate!);
 
   return res.json({
     success: true,
@@ -153,19 +141,16 @@ export async function getComparisonReportController(req: Request, res: Response)
   });
 }
 
-// 5. Controller báo cáo khách hàng thân thiết
 export async function getCustomerRetentionController(req: Request, res: Response) {
   const user = (req as any).user as AuthUser | undefined;
   checkAdminOrManager(user);
 
-  const startDate = typeof req.query.startDate === "string" ? req.query.startDate.trim() : undefined;
-  const endDate = typeof req.query.endDate === "string" ? req.query.endDate.trim() : undefined;
-
+  const { startDate, endDate } = getDateRange(req);
   const data = await getCustomerRetentionService(startDate, endDate);
 
   return res.json({
     success: true,
-    message: "Lấy báo cáo khách hàng thân thiết thành công",
+    message: "Lấy báo cáo giữ chân khách hàng thành công",
     data,
   });
 }

@@ -177,6 +177,52 @@ export async function getAiSoldProducts(startDate: string, endDate: string) {
   }));
 }
 //Sản phẩm bán chậm
+export async function getAiCategoryRevenue(startDate: string, endDate: string) {
+  const [rows] = await db.execute<RowDataPacket[]>(
+    `
+    SELECT
+      c.id AS categoryId,
+      c.name AS categoryName,
+      COALESCE(SUM(od.quantity), 0) AS soldQuantity,
+      COALESCE(
+        SUM(
+          od.line_total *
+          CASE
+            WHEN o.total_amount > 0 THEN o.final_amount / o.total_amount
+            ELSE 1
+          END
+        ),
+        0
+      ) AS revenue
+    FROM order_details od
+    JOIN orders o ON o.id = od.order_id
+    JOIN products p ON p.id = od.product_id
+    JOIN categories c ON c.id = p.category_id
+    WHERE o.status = 'completed'
+      AND DATE(o.created_at) >= ?
+      AND DATE(o.created_at) <= ?
+    GROUP BY c.id, c.name
+    ORDER BY revenue DESC
+    LIMIT 10
+    `,
+    [startDate, endDate]
+  );
+
+  const data = rows.map((row) => ({
+    categoryId: String(row.categoryId),
+    categoryName: String(row.categoryName),
+    soldQuantity: Number(row.soldQuantity),
+    revenue: Number(row.revenue),
+    percentage: 0,
+  }));
+
+  const totalRevenue = data.reduce((sum, item) => sum + item.revenue, 0);
+  return data.map((item) => ({
+    ...item,
+    percentage: totalRevenue > 0 ? Number(((item.revenue / totalRevenue) * 100).toFixed(1)) : 0,
+  }));
+}
+
 export async function getAiSlowProducts(startDate: string, endDate: string) {
   const [rows] = await db.execute<RowDataPacket[]>(
     `

@@ -8,7 +8,7 @@ import type {
 } from "../types/pos.types";
 import { ApiError } from "../utils/apiError";
 
-const allowedPaymentMethods: PosPaymentMethod[] = ["cash", "qr", "card"];
+const allowedPaymentMethods: PosPaymentMethod[] = ["cash", "qr"];
 
 function canSellWithoutShift(roleName?: string) {
   const role = (roleName || "").trim().toLowerCase();

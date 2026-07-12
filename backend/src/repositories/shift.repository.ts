@@ -205,7 +205,7 @@ export const calculateShiftSales = async (
   
   for (const row of rows) {
     if (row.payment_method === 'cash') totalCash += parseFloat(row.total);
-    if (row.payment_method === 'qr' || row.payment_method === 'card') totalQr += parseFloat(row.total);
+    if (row.payment_method === 'qr') totalQr += parseFloat(row.total);
   }
   
   return { totalCash, totalQr };

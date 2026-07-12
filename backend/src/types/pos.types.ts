@@ -1,4 +1,4 @@
-export type PosPaymentMethod = "cash" | "qr" | "card";
+export type PosPaymentMethod = "cash" | "qr";
 
 export type CreatePosOrderItemBody = {
   productId?: string;

@@ -2,7 +2,6 @@ import type { PosOrderResult, PosPaymentMethod } from "../../api/pos.api";
 import { Icon } from "../../layouts/AdminLayout";
 import cashImage from "../../assets/tien.jpg";
 import qrImage from "../../assets/qr.png";
-import cardImage from "../../assets/the.png";
 
 type ReceiptModalProps = {
   order: PosOrderResult;
@@ -22,20 +21,12 @@ function getPaymentMethodLabel(method: PosPaymentMethod) {
     return "Chuyển khoản";
   }
 
-  if (method === "card") {
-    return "Thẻ ngân hàng";
-  }
-
   return "Tiền mặt";
 }
 
 function getPaymentMethodImage(method: PosPaymentMethod) {
   if (method === "qr") {
     return qrImage;
-  }
-
-  if (method === "card") {
-    return cardImage;
   }
 
   return cashImage;
