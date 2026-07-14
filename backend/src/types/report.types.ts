@@ -23,6 +23,7 @@ export interface TopProductReportData {
 
 
 export interface FinancialTrendPoint {
+  date: string;
   label: string; // e.g., "20/06" hoặc "Tháng 06"
   revenue: number;
   cogs: number;

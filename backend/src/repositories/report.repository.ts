@@ -153,7 +153,16 @@ export async function getAiSoldProducts(startDate: string, endDate: string) {
       p.stock_quantity AS stockQuantity,
       p.is_tracked_stock AS isTrackedStock,
       COALESCE(SUM(od.quantity), 0) AS soldQuantity,
-      COALESCE(SUM(od.line_total), 0) AS revenue
+      COALESCE(
+        SUM(
+          od.line_total *
+          CASE
+            WHEN o.total_amount > 0 THEN o.final_amount / o.total_amount
+            ELSE 1
+          END
+        ),
+        0
+      ) AS revenue
     FROM order_details od
     JOIN orders o ON o.id = od.order_id
     JOIN products p ON p.id = od.product_id
@@ -162,7 +171,6 @@ export async function getAiSoldProducts(startDate: string, endDate: string) {
       AND DATE(o.created_at) <= ?
     GROUP BY p.id, p.name, p.stock_quantity, p.is_tracked_stock
     ORDER BY soldQuantity DESC
-    LIMIT 10
     `,
     [startDate, endDate]
   );
@@ -229,16 +237,21 @@ export async function getAiSlowProducts(startDate: string, endDate: string) {
     SELECT
       p.id,
       p.name,
-      COALESCE(SUM(od.quantity), 0) AS soldQuantity,
+      COALESCE(sales.soldQuantity, 0) AS soldQuantity,
       p.stock_quantity AS stockQuantity
     FROM products p
-    LEFT JOIN order_details od ON od.product_id = p.id
-    LEFT JOIN orders o ON o.id = od.order_id
-      AND o.status = 'completed'
-      AND DATE(o.created_at) >= ?
-      AND DATE(o.created_at) <= ?
+    LEFT JOIN (
+      SELECT
+        od.product_id,
+        SUM(od.quantity) AS soldQuantity
+      FROM order_details od
+      JOIN orders o ON o.id = od.order_id
+      WHERE o.status = 'completed'
+        AND DATE(o.created_at) >= ?
+        AND DATE(o.created_at) <= ?
+      GROUP BY od.product_id
+    ) sales ON sales.product_id = p.id
     WHERE p.status = 'active'
-    GROUP BY p.id, p.name, p.stock_quantity
     ORDER BY soldQuantity ASC, p.name ASC
     LIMIT 10
     `,
@@ -285,62 +298,33 @@ export async function getAiCancelledOrders(startDate: string, endDate: string) {
       id,
       final_amount AS finalAmount,
       cancel_reason AS cancelReason,
-      cancelled_at AS cancelledAt
+      created_at AS createdAt,
+      COALESCE(cancelled_at, updated_at, created_at) AS cancelledAt
     FROM orders
     WHERE status = 'cancelled'
-      AND DATE(cancelled_at) >= ?
-      AND DATE(cancelled_at) <= ?
-    ORDER BY cancelled_at DESC
-    LIMIT 10
+      AND (
+        (
+          DATE(COALESCE(cancelled_at, updated_at, created_at)) >= ?
+          AND DATE(COALESCE(cancelled_at, updated_at, created_at)) <= ?
+        )
+        OR (
+          DATE(created_at) >= ?
+          AND DATE(created_at) <= ?
+        )
+      )
+    ORDER BY COALESCE(cancelled_at, updated_at, created_at) DESC
     `,
-    [startDate, endDate]
+    [startDate, endDate, startDate, endDate]
   );
 
   return rows.map((row) => ({
     orderId: row.id,
     finalAmount: Number(row.finalAmount || 0),
     cancelReason: row.cancelReason,
+    createdAt: row.createdAt,
     cancelledAt: row.cancelledAt,
   }));
 }
-//Lệch ca nghi vấn
-export async function getAiShiftVarianceHistory(startDate: string, endDate: string) {
-  const [rows] = await db.execute<RowDataPacket[]>(
-    `
-    SELECT
-      s.id AS shiftId,
-      u.full_name AS userName,
-      s.opening_cash AS openingCash,
-      s.total_sales_cash AS totalSalesCash,
-      s.actual_closing_cash AS actualClosingCash,
-      (s.opening_cash + s.total_sales_cash) AS expectedCash,
-      s.variance AS variance,
-      s.actual_start_time AS openedAt,
-      s.actual_end_time AS closedAt
-    FROM shifts s
-    LEFT JOIN users u ON s.user_id = u.id
-    WHERE s.status = 'CLOSED'
-      AND DATE(s.actual_end_time) >= ?
-      AND DATE(s.actual_end_time) <= ?
-    ORDER BY s.actual_end_time DESC
-    LIMIT 10
-    `,
-    [startDate, endDate]
-  );
-
-  return rows.map((row) => ({
-    shiftId: row.shiftId,
-    userName: row.userName,
-    openingCash: Number(row.openingCash || 0),
-    totalSalesCash: Number(row.totalSalesCash || 0),
-    actualClosingCash: Number(row.actualClosingCash || 0),
-    expectedCash: Number(row.expectedCash || 0),
-    variance: Number(row.variance || 0),
-    openedAt: row.openedAt,
-    closedAt: row.closedAt,
-  }));
-}// AI phân tích
-
 // 1. Báo cáo tài chính: Tổng quan
 export async function getFinancialSummary(
   startDate?: string,
@@ -393,8 +377,8 @@ export async function getFinancialTrend(
   const [rows] = await db.execute<RowDataPacket[]>(
     `
     SELECT 
+      DATE_FORMAT(o.created_at, '%Y-%m-%d') AS date,
       DATE_FORMAT(o.created_at, '%d/%m') AS label,
-      DATE(o.created_at) as order_date,
       COALESCE(SUM(o.final_amount), 0) AS revenue,
       COALESCE(SUM(cogs_query.order_cogs), 0) AS cogs
     FROM orders o
@@ -405,8 +389,10 @@ export async function getFinancialTrend(
       GROUP BY od.order_id
     ) cogs_query ON o.id = cogs_query.order_id
     WHERE o.status = 'completed' ${clause}
-    GROUP BY DATE(o.created_at), DATE_FORMAT(o.created_at, '%d/%m')
-    ORDER BY order_date ASC
+    GROUP BY
+      DATE_FORMAT(o.created_at, '%Y-%m-%d'),
+      DATE_FORMAT(o.created_at, '%d/%m')
+    ORDER BY DATE_FORMAT(o.created_at, '%Y-%m-%d') ASC
     `,
     params
   );
@@ -415,10 +401,11 @@ export async function getFinancialTrend(
     const revenue = Number(row.revenue);
     const cogs = Number(row.cogs);
     return {
-      label: row.label,
+      date: String(row.date),
+      label: String(row.label),
       revenue,
       cogs,
-      profit: revenue - cogs
+      profit: revenue - cogs,
     };
   });
 }

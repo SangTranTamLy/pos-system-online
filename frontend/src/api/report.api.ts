@@ -43,7 +43,6 @@ export type AiReportTables = {
   categories_table?: AiReportTable;
   inventory_table?: AiReportTable;
   sales_table?: AiReportTable;
-  shift_table?: AiReportTable;
   payment_table?: AiReportTable;
   employee_table?: AiReportTable;
 };
@@ -196,12 +195,13 @@ export function getCustomerRetention(
 }
 
 export function getAiReportInsights(
-  startDate?: string,
-  endDate?: string
+  startDate: string,
+  endDate: string
 ): Promise<AiReportInsightResponse> {
   return apiData<AiReportInsightResponse>({
-    method: "GET",
-    url: `/reports/ai-insights${buildDateQuery(startDate, endDate)}`,
+    method: "POST",
+    url: "/reports/ai-insights",
+    data: { startDate, endDate },
     timeout: 60_000,
   });
 }

@@ -23,6 +23,6 @@ reportRouter.get("/employee-performance", asyncHandler(getEmployeePerformanceCon
 reportRouter.get("/comparison", asyncHandler(getComparisonReportController));
 reportRouter.get("/customer-retention", asyncHandler(getCustomerRetentionController));
 reportRouter.get("/ai-insights-context", asyncHandler(getAiInsightsContextController));
-reportRouter.get("/ai-insights", asyncHandler(getAiReportInsightsController));
+reportRouter.post("/ai-insights",asyncHandler(getAiReportInsightsController));
 
 export default reportRouter;

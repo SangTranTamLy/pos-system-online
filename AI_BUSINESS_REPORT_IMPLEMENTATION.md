@@ -107,7 +107,6 @@ Trong `report_tables`, AI có thể trả bảng:
 
 - `inventory_table`: bảng tồn kho cần chú ý.
 - `sales_table`: bảng sản phẩm bán ra.
-- `shift_table`: bảng ca làm và chênh lệch.
 - `payment_table`: bảng phương thức thanh toán.
 
 ## File frontend

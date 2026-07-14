@@ -24,9 +24,17 @@ function checkAdminOrManager(user: AuthUser | undefined) {
 }
 
 function getDateRange(req: Request) {
+  const source = req.method === "POST" ? req.body : req.query;
+
   return {
-    startDate: typeof req.query.startDate === "string" ? req.query.startDate.trim() : undefined,
-    endDate: typeof req.query.endDate === "string" ? req.query.endDate.trim() : undefined,
+    startDate:
+      typeof source.startDate === "string"
+        ? source.startDate.trim()
+        : undefined,
+    endDate:
+      typeof source.endDate === "string"
+        ? source.endDate.trim()
+        : undefined,
   };
 }
 
@@ -52,18 +60,32 @@ export async function getAiInsightsContextController(req: Request, res: Response
   });
 }
 
-export async function getAiReportInsightsController(req: Request, res: Response) {
+export async function getAiReportInsightsController(
+  req: Request,
+  res: Response
+) {
+  res.setHeader(
+    "Cache-Control",
+    "no-store, no-cache, must-revalidate, proxy-revalidate"
+  );
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+
   const user = (req as any).user as AuthUser | undefined;
   checkAdminOrManager(user);
 
   const { startDate, endDate } = getDateRange(req);
   requireDateRange(startDate, endDate);
 
-  const result = await getAiReportInsightsService(startDate!, endDate!, user?.id);
+  const result = await getAiReportInsightsService(
+    startDate!,
+    endDate!,
+    user?.id
+  );
 
   return res.json({
-    success: true,
-    message: "Lấy gợi ý báo cáo từ AI thành công",
+    success: result.success,
+    message: result.message || "Hoàn tất phân tích báo cáo",
     data: result,
   });
 }

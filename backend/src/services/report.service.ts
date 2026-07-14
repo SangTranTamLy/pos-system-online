@@ -9,6 +9,7 @@
   getEmployeePerformance,
   getRevenueByPeriod,
   getCustomerRetention,
+  getAiCancelledOrders,
 } from "../repositories/report.repository";
 import { saveAiReportLog } from "../repositories/ai-report-log.repository";
 import { AI_REPORT_SYSTEM_PROMPT } from "../prompts/report-ai.prompt";
@@ -91,28 +92,11 @@ const fallbackAiData = {
 
 const AI_REPORT_RESPONSE_SCHEMA = {
   type: "OBJECT",
+  required: ["summary", "phan_tich_chuyen_sau", "action_plan"],
   properties: {
-    meta: {
-      type: "OBJECT",
-      properties: {
-        assistant_name: { type: "STRING" },
-        role: { type: "STRING" },
-        period: {
-          type: "OBJECT",
-          properties: {
-            from: { type: "STRING" },
-            to: { type: "STRING" },
-          },
-        },
-        confidence: { type: "STRING" },
-        score: { type: "NUMBER" },
-        confidence_note: { type: "STRING" },
-        status: { type: "STRING" },
-        data_status: { type: "STRING" },
-      },
-    },
     summary: {
       type: "OBJECT",
+      required: ["main_insight", "revenue_text", "orders_text", "best_selling_product", "best_shift"],
       properties: {
         main_insight: { type: "STRING" },
         revenue_text: { type: "STRING" },
@@ -123,8 +107,11 @@ const AI_REPORT_RESPONSE_SCHEMA = {
     },
     phan_tich_chuyen_sau: {
       type: "ARRAY",
+      minItems: 5,
+      maxItems: 5,
       items: {
         type: "OBJECT",
+        required: ["thu_tu", "loai", "tieu_de", "noi_dung", "muc_do"],
         properties: {
           thu_tu: { type: "NUMBER" },
           loai: { type: "STRING" },
@@ -136,25 +123,16 @@ const AI_REPORT_RESPONSE_SCHEMA = {
     },
     action_plan: {
       type: "ARRAY",
+      minItems: 5,
+      maxItems: 5,
       items: {
         type: "OBJECT",
+        required: ["priority", "action", "reason", "expected_result"],
         properties: {
           priority: { type: "STRING" },
           action: { type: "STRING" },
           reason: { type: "STRING" },
           expected_result: { type: "STRING" },
-        },
-      },
-    },
-    warnings: {
-      type: "ARRAY",
-      items: {
-        type: "OBJECT",
-        properties: {
-          type: { type: "STRING" },
-          level: { type: "STRING" },
-          message: { type: "STRING" },
-          suggestion: { type: "STRING" },
         },
       },
     },
@@ -176,37 +154,122 @@ function formatPercent(value: unknown) {
   return `${prefix}${numberValue.toFixed(1)}%`;
 }
 
-function limitRecords<T>(items: T[] | undefined, limit: number) {
-  return Array.isArray(items) ? items.slice(0, limit) : [];
-}
+function buildWarningSignals(context: AiBusinessContext) {
+  const metrics = context.businessMetrics;
+  const trend = getRecordArray(context.trend).map((item) => ({
+    label: String(item.label || item.date || ""),
+    revenue: toNumber(item.revenue),
+  }));
+  const cancelledOrders = getRecordArray(context.cancelledOrders);
+  const previousCancelledOrders = getRecordArray(context.previousCancelledOrders);
+  const lowStockItems = getRecordArray(context.lowStockItems);
+  const slowProducts = getRecordArray(context.slowProducts);
+  const soldProducts = getRecordArray(context.soldProducts);
 
+  let largestDailyDropPercent: number | null = null;
+  let largestDailyDropFrom = "";
+  let largestDailyDropTo = "";
+
+  for (let index = 1; index < trend.length; index += 1) {
+    const previous = trend[index - 1];
+    const current = trend[index];
+    if (previous.revenue > 0 && current.revenue < previous.revenue) {
+      const dropPercent = ((previous.revenue - current.revenue) / previous.revenue) * 100;
+      if (largestDailyDropPercent === null || dropPercent > largestDailyDropPercent) {
+        largestDailyDropPercent = Number(dropPercent.toFixed(1));
+        largestDailyDropFrom = previous.label;
+        largestDailyDropTo = current.label;
+      }
+    }
+  }
+
+  const currentCancelRate = metrics.totalOrders > 0 ? (cancelledOrders.length / metrics.totalOrders) * 100 : 0;
+  const previousCancelRate = metrics.previousTotalOrders > 0
+    ? (previousCancelledOrders.length / metrics.previousTotalOrders) * 100
+    : null;
+  const topRevenueProduct = [...soldProducts].sort((a, b) => toNumber(b.revenue) - toNumber(a.revenue))[0];
+  const topRevenueShare = metrics.totalRevenue > 0 && topRevenueProduct
+    ? Number(((toNumber(topRevenueProduct.revenue) / metrics.totalRevenue) * 100).toFixed(1))
+    : 0;
+
+  return {
+    abnormalRevenueDrop: {
+      currentRevenue: metrics.totalRevenue,
+      previousRevenue: metrics.previousTotalRevenue,
+      revenueGrowthPercent: metrics.revenueGrowthPercent,
+      largestDailyDropPercent,
+      largestDailyDropFrom,
+      largestDailyDropTo,
+      shouldWarn: (metrics.revenueGrowthPercent !== null && metrics.revenueGrowthPercent <= -20)
+        || (largestDailyDropPercent !== null && largestDailyDropPercent >= 35),
+    },
+    cancelledOrdersIncrease: {
+      currentCount: cancelledOrders.length,
+      previousCount: previousCancelledOrders.length,
+      currentRate: Number(currentCancelRate.toFixed(1)),
+      previousRate: previousCancelRate === null ? null : Number(previousCancelRate.toFixed(1)),
+      shouldWarn: currentCancelRate >= 2 || (previousCancelledOrders.length > 0 && cancelledOrders.length > previousCancelledOrders.length),
+    },
+    lowStock: {
+      count: lowStockItems.length,
+      items: lowStockItems.slice(0, 6).map((item) => ({
+        name: String(item.name || ""),
+        stockQuantity: toNumber(item.stockQuantity),
+        minStock: toNumber(item.minStock),
+        unit: String(item.unit || ""),
+      })),
+      shouldWarn: lowStockItems.length > 0,
+    },
+    slowOrDependentProducts: {
+      slowProductCount: slowProducts.length,
+      slowProducts: slowProducts.slice(0, 5).map((item) => ({
+        name: String(item.name || ""),
+        soldQuantity: toNumber(item.soldQuantity),
+        stockQuantity: item.stockQuantity === null ? null : toNumber(item.stockQuantity),
+      })),
+      topRevenueProduct: topRevenueProduct
+        ? {
+            name: String(topRevenueProduct.name || ""),
+            revenue: toNumber(topRevenueProduct.revenue),
+            sharePercent: topRevenueShare,
+          }
+        : null,
+      shouldWarn: slowProducts.length > 0 || topRevenueShare >= 45,
+    },
+  };
+}
 function buildAiPromptContext(context: AiBusinessContext) {
+  const soldProducts = getRecordArray(context.soldProducts);
+  const topByQuantity = [...soldProducts]
+    .sort((a, b) => toNumber(b.soldQuantity) - toNumber(a.soldQuantity))
+    .slice(0, 10);
+  const topByRevenue = [...soldProducts]
+    .sort((a, b) => toNumber(b.revenue) - toNumber(a.revenue))
+    .slice(0, 10);
+  const relevantProducts = Array.from(
+    new Map(
+      [...topByQuantity, ...topByRevenue].map((item) => [String(item.productId || item.name || ""), item])
+    ).values()
+  );
+
   return {
     period: context.period,
     businessMetrics: context.businessMetrics,
     dataQuality: context.dataQuality,
-    advancedAnalysis: {
-      overview: context.advancedAnalysis.overview,
-      revenueTrend: context.advancedAnalysis.revenueTrend,
-      changeReasons: limitRecords(context.advancedAnalysis.changeReasons, 4),
-      productAnalysis: context.advancedAnalysis.productAnalysis,
-      buyingBehavior: context.advancedAnalysis.buyingBehavior,
-      anomalies: limitRecords(context.advancedAnalysis.anomalies, 4),
-      limitations: limitRecords(context.advancedAnalysis.limitations, 4),
+    revenueData: {
+      daily: context.trend,
+      hourly: context.hourlyRevenue,
     },
-    chartData: {
-      dailyRevenue: limitRecords(context.trend, 7),
-      categoryRevenue: limitRecords(context.categoryRevenue, 7),
-      topProductsByRevenue: limitRecords(context.soldProducts, 5),
-      paymentSummary: limitRecords(context.paymentSummary, 4),
+    productData: {
+      soldProducts: relevantProducts,
+      slowProducts: context.slowProducts,
+      categoryRevenue: context.categoryRevenue,
     },
     operatingData: {
-      hourlyRevenue: limitRecords(context.hourlyRevenue, 8),
-      slowProducts: limitRecords(context.slowProducts, 5),
-      lowStockItems: limitRecords(context.lowStockItems, 6),
-      cancelledOrders: limitRecords(context.cancelledOrders, 5),
-      shiftVarianceHistory: limitRecords(context.shiftVarianceHistory, 5),
+      paymentSummary: context.paymentSummary,
+      lowStockItems: context.lowStockItems,
     },
+    warningSignals: buildWarningSignals(context),
   };
 }
 
@@ -222,78 +285,11 @@ function normalizePaymentMethod(method: unknown) {
   return value || "unknown";
 }
 
-function buildFallbackAdvancedAnalysis(context: AiBusinessContext) {
-  const metrics = context.businessMetrics;
-  const product = context.advancedAnalysis.productAnalysis;
-  const trend = context.advancedAnalysis.revenueTrend;
-  const behavior = context.advancedAnalysis.buyingBehavior;
-  const lowStockItems = getRecordArray(context.lowStockItems);
-  const slowProducts = getRecordArray(context.slowProducts);
-  const cancelledOrders = getRecordArray(context.cancelledOrders);
-  const growthText = metrics.revenueGrowthPercent === null
-    ? "chưa có dữ liệu kỳ trước để so sánh"
-    : `${metrics.revenueGrowthPercent >= 0 ? "tăng" : "giảm"} ${formatPercent(Math.abs(metrics.revenueGrowthPercent))} so với kỳ trước`;
-  const highestText = trend.highestDay ? `cao nhất ${trend.highestDay.label} với ${formatVnd(trend.highestDay.revenue)}` : "chưa có ngày cao nhất";
-  const lowestText = trend.lowestDay ? `thấp nhất ${trend.lowestDay.label} với ${formatVnd(trend.lowestDay.revenue)}` : "chưa có ngày thấp nhất";
-  const topQuantity = product.topByQuantity;
-  const topRevenue = product.topByRevenue;
-  const slowest = product.slowestProduct;
-  const cancelRate = metrics.totalOrders > 0 ? (cancelledOrders.length / metrics.totalOrders) * 100 : 0;
-
-  return [
-    {
-      thu_tu: 1,
-      loai: "xu_huong_doanh_thu",
-      tieu_de: "Xu hướng doanh thu",
-      noi_dung: `Doanh thu đạt ${formatVnd(metrics.totalRevenue)}, ${growthText}; ${highestText}, ${lowestText}.`,
-      muc_do: metrics.revenueGrowthPercent !== null && metrics.revenueGrowthPercent < 0 ? "warning" : "positive",
-    },
-    {
-      thu_tu: 2,
-      loai: "nguyen_nhan_bien_dong",
-      tieu_de: "Nguyên nhân tăng hoặc giảm",
-      noi_dung: `Kỳ này có ${metrics.totalOrders} đơn, AOV ${formatVnd(metrics.averageOrderValue)}; biến động chủ yếu cần đối chiếu số đơn và AOV.`,
-      muc_do: "neutral",
-    },
-    {
-      thu_tu: 3,
-      loai: "san_pham",
-      tieu_de: "Phân tích sản phẩm",
-      noi_dung: topQuantity || topRevenue
-        ? `${topQuantity?.name || "Món bán nhiều"} bán nhiều nhất; ${topRevenue?.name || "món doanh thu cao"} tạo doanh thu cao nhất.`
-        : "Chưa có dữ liệu sản phẩm bán ra để phân tích.",
-      muc_do: "neutral",
-    },
-    {
-      thu_tu: 4,
-      loai: "hanh_vi_mua",
-      tieu_de: "Khách hàng và hành vi mua",
-      noi_dung: `AOV đạt ${formatVnd(metrics.averageOrderValue)}. ${behavior.paymentNote}`,
-      muc_do: "neutral",
-    },
-    {
-      thu_tu: 5,
-      loai: "rui_ro_co_hoi",
-      tieu_de: "Rủi ro và cơ hội",
-      noi_dung: lowStockItems.length
-        ? `${lowStockItems.length} mặt hàng tồn thấp; cơ hội là ghép combo từ món bán tốt để tăng giá trị hóa đơn.`
-        : slowest
-          ? `${slowest.name} bán chậm; có thể thử combo với món bán tốt để cải thiện doanh thu.`
-          : cancelledOrders.length && cancelRate >= 2
-            ? `Đơn hủy chiếm ${formatPercent(cancelRate)}; cần kiểm tra thao tác và lý do hủy trong ca cao điểm.`
-            : "Chưa phát hiện rủi ro lớn; có thể tiếp tục tối ưu combo để tăng giá trị hóa đơn.",
-      muc_do: lowStockItems.length || cancelRate >= 2 ? "warning" : "neutral",
-    },
-  ];
-}
-
-function buildFallbackActionPlan(context: AiBusinessContext) {
+function buildBasicSystemActions(context: AiBusinessContext) {
   const soldProducts = getRecordArray(context.soldProducts);
   const lowStockItems = getRecordArray(context.lowStockItems);
-  const shiftVarianceHistory = getRecordArray(context.shiftVarianceHistory);
   const topProductName = soldProducts[0] ? String(soldProducts[0].name || "món bán chạy") : "món bán chạy";
   const lowStockName = lowStockItems[0] ? String(lowStockItems[0].name || "mặt hàng tồn thấp") : "mặt hàng tồn thấp";
-  const hasVariance = shiftVarianceHistory.some((item) => Math.abs(toNumber(item.variance)) > 0);
 
   return [
     {
@@ -315,10 +311,10 @@ function buildFallbackActionPlan(context: AiBusinessContext) {
       expected_result: "Hạn chế gián đoạn bán hàng.",
     },
     {
-      priority: hasVariance ? "cao" : "trung_binh",
-      action: "Đối chiếu tiền mặt khi chốt ca.",
-      reason: hasVariance ? "Có ca phát sinh sai lệch." : "Cần kiểm soát dòng tiền.",
-      expected_result: "Giảm sai lệch cuối ca.",
+      priority: "trung_binh",
+      action: "Theo dõi đơn hủy và lý do hủy mỗi ngày.",
+      reason: "Đơn hủy ảnh hưởng trực tiếp đến doanh thu.",
+      expected_result: "Giảm thao tác sai và thất thoát.",
     },
     {
       priority: "thap",
@@ -331,51 +327,84 @@ function buildFallbackActionPlan(context: AiBusinessContext) {
 
 function buildWarnings(context: AiBusinessContext) {
   const metrics = context.businessMetrics;
-  const lowStockItems = getRecordArray(context.lowStockItems);
-  const cancelledOrders = getRecordArray(context.cancelledOrders);
-  const shiftVarianceHistory = getRecordArray(context.shiftVarianceHistory);
-  const cancelRate = metrics.totalOrders > 0 ? (cancelledOrders.length / metrics.totalOrders) * 100 : 0;
-  const maxVariance = shiftVarianceHistory.reduce((max, item) => Math.max(max, Math.abs(toNumber(item.variance))), 0);
-  const warnings = [];
+  const signals = buildWarningSignals(context);
+  const warnings: Array<{ type: string; level: "cao" | "trung_binh" | "thap"; message: string; suggestion: string }> = [];
 
-  if (lowStockItems.length) {
-    const names = lowStockItems.slice(0, 4).map((item) => String(item.name || "")).filter(Boolean).join(", ");
-    warnings.push({
-      type: "ton_kho",
-      level: lowStockItems.length >= 5 ? "cao" : "trung_binh",
-      message: `${lowStockItems.length} mặt hàng tồn thấp${names ? `: ${names}` : ""}.`,
-      suggestion: "Kiểm tra tồn thực tế và nhập bổ sung trước ca bán tiếp theo.",
-    });
-  }
-
-  if (cancelledOrders.length && cancelRate >= 2) {
+  if (signals.abnormalRevenueDrop.shouldWarn) {
+    const revenueGrowthPercent = metrics.revenueGrowthPercent;
+    const hasPeriodDrop = revenueGrowthPercent !== null && revenueGrowthPercent <= -20;
+    const growthText = hasPeriodDrop
+      ? `giảm ${Math.abs(revenueGrowthPercent).toFixed(1)}% so với kỳ trước`
+      : signals.abnormalRevenueDrop.largestDailyDropPercent !== null
+        ? `giảm ${signals.abnormalRevenueDrop.largestDailyDropPercent}% giữa ${signals.abnormalRevenueDrop.largestDailyDropFrom} và ${signals.abnormalRevenueDrop.largestDailyDropTo}`
+        : "biến động mạnh trong kỳ";
     warnings.push({
       type: "doanh_thu",
-      level: cancelRate >= 5 ? "cao" : "trung_binh",
-      message: `${cancelledOrders.length} đơn bị hủy, chiếm ${formatPercent(cancelRate)} tổng đơn.`,
-      suggestion: "Kiểm tra lý do hủy và khung giờ phát sinh hủy đơn.",
+      level: hasPeriodDrop && revenueGrowthPercent <= -40 ? "cao" : "trung_binh",
+      message: `Doanh thu có dấu hiệu bất thường: ${growthText}.`,
+      suggestion: "Đối chiếu số đơn, AOV, món chủ lực và khung giờ doanh thu thấp.",
     });
   }
 
-  if (maxVariance > 0) {
+  if (signals.cancelledOrdersIncrease.shouldWarn) {
     warnings.push({
-      type: "ca_lam",
-      level: maxVariance >= 50000 ? "cao" : "trung_binh",
-      message: `Sai lệch tiền mặt cao nhất ${formatVnd(maxVariance)} trong ca đã chốt.`,
-      suggestion: "Đối chiếu tiền đầu ca, tiền mặt bán hàng và tiền thực tế.",
+      type: "don_huy",
+      level: signals.cancelledOrdersIncrease.currentRate >= 5 ? "cao" : "trung_binh",
+      message: `${signals.cancelledOrdersIncrease.currentCount} đơn hủy, kỳ trước ${signals.cancelledOrdersIncrease.previousCount} đơn, tỷ lệ ${signals.cancelledOrdersIncrease.currentRate}%.`,
+      suggestion: "Kiểm tra lý do hủy đơn và thao tác POS trong khung giờ phát sinh.",
+    });
+  }
+
+  if (signals.lowStock.shouldWarn) {
+    const names = signals.lowStock.items.map((item) => item.name).filter(Boolean).slice(0, 4).join(", ");
+    warnings.push({
+      type: "ton_kho",
+      level: signals.lowStock.count >= 5 ? "cao" : "trung_binh",
+      message: `${signals.lowStock.count} mặt hàng tồn thấp${names ? `: ${names}` : ""}.`,
+      suggestion: "Bổ sung trước ca bán tiếp theo để tránh gián đoạn bán hàng.",
+    });
+  }
+
+  if (signals.slowOrDependentProducts.shouldWarn) {
+    const topProduct = signals.slowOrDependentProducts.topRevenueProduct;
+    const slowProduct = signals.slowOrDependentProducts.slowProducts[0];
+    warnings.push({
+      type: "san_pham",
+      level: topProduct && topProduct.sharePercent >= 60 ? "cao" : "trung_binh",
+      message: topProduct && topProduct.sharePercent >= 45
+        ? `${topProduct.name} chiếm ${topProduct.sharePercent}% doanh thu, có dấu hiệu phụ thuộc món bán chạy.`
+        : `${slowProduct?.name || "Một số món"} bán chậm trong khoảng báo cáo.`,
+      suggestion: "Theo dõi nhu cầu, tồn kho và thử combo với món bán tốt.",
     });
   }
 
   return warnings.length
-    ? warnings.slice(0, 4)
+    ? warnings.slice(0, 5)
     : [
         {
           type: "khac",
           level: "thap",
           message: "Chưa phát hiện cảnh báo lớn trong khoảng dữ liệu đang xem.",
-          suggestion: "Tiếp tục theo dõi doanh thu, tồn kho và sai lệch ca.",
+          suggestion: "Tiếp tục theo dõi doanh thu, tồn kho, đơn hủy và sản phẩm bán chậm.",
         },
       ];
+}
+
+function buildMetaFromContext(context: AiBusinessContext) {
+  const score = Math.max(0, Math.min(toNumber(context.dataQuality.coverageScore), 100));
+
+  return {
+    ...fallbackAiData.meta,
+    period: {
+      from: context.period.startDate,
+      to: context.period.endDate,
+    },
+    confidence: context.dataQuality.confidence,
+    score,
+    status: score >= 85 ? "tot" : score >= 65 ? "on_dinh" : "can_cai_thien",
+    data_status: context.dataQuality.status,
+    confidence_note: score < 65 ? context.dataQuality.note : "",
+  };
 }
 
 function buildSmartFallbackAiData(context: AiBusinessContext) {
@@ -383,48 +412,20 @@ function buildSmartFallbackAiData(context: AiBusinessContext) {
   const soldProducts = getRecordArray(context.soldProducts);
   const paymentSummary = getRecordArray(context.paymentSummary);
   const lowStockItems = getRecordArray(context.lowStockItems);
-  const shiftVarianceHistory = getRecordArray(context.shiftVarianceHistory);
   const categoryRevenue = getRecordArray(context.categoryRevenue);
-  const topProduct = soldProducts[0];
-  const topProductName = topProduct ? String(topProduct.name || "sản phẩm bán chạy") : "chưa có dữ liệu";
-  const confidenceScore = Math.max(0, Math.min(toNumber(context.dataQuality.score), 100));
-  const confidence = context.dataQuality.confidence;
-  const hasOrders = metrics.totalOrders > 0;
-  const growthText = metrics.revenueGrowthPercent === null
-    ? "chưa có dữ liệu kỳ trước để so sánh"
-    : `${metrics.revenueGrowthPercent >= 0 ? "tăng" : "giảm"} ${formatPercent(Math.abs(metrics.revenueGrowthPercent))} so với kỳ trước`;
-  const revenueText = hasOrders
-    ? `Báo cáo hệ thống ghi nhận ${formatVnd(metrics.totalRevenue)} từ ${metrics.totalOrders} đơn, ${growthText}.`
-    : "Chưa có đơn hoàn thành trong khoảng báo cáo.";
+  const mainInsight = metrics.totalOrders > 0
+    ? `Hệ thống ghi nhận ${formatVnd(metrics.totalRevenue)} từ ${metrics.totalOrders} đơn.`
+    : "Hệ thống chưa ghi nhận đơn hoàn thành trong khoảng báo cáo.";
 
   return {
     ...fallbackAiData,
     fallback: true,
-    meta: {
-      ...fallbackAiData.meta,
-      period: {
-        from: context.period.startDate,
-        to: context.period.endDate,
-      },
-      confidence,
-      score: confidenceScore,
-      status: confidenceScore >= 85 ? "tot" : confidenceScore >= 65 ? "on_dinh" : "can_cai_thien",
-      data_status: context.dataQuality.status,
-      confidence_note: "AI chưa khả dụng. Đây là báo cáo dự phòng từ dữ liệu SQL của hệ thống.",
-    },
+    meta: buildMetaFromContext(context),
     summary: {
-      main_insight: revenueText,
-      revenue_text: revenueText,
-      orders_text: hasOrders
-        ? `Tổng ${metrics.totalOrders} đơn, AOV ${formatVnd(metrics.averageOrderValue)}.`
-        : "Chưa có đơn hàng hoàn thành trong khoảng lọc.",
-      best_selling_product: topProduct
-        ? `${topProductName}: ${toNumber(topProduct.soldQuantity)} lượt bán, doanh thu ${formatVnd(topProduct.revenue)}.`
-        : "Chưa có dữ liệu sản phẩm bán ra.",
-      best_shift: "Báo cáo dự phòng không kết luận ca hiệu quả nhất khi AI chưa khả dụng.",
+      main_insight: mainInsight,
     },
-    phan_tich_chuyen_sau: buildFallbackAdvancedAnalysis(context),
-    action_plan: buildFallbackActionPlan(context),
+    phan_tich_chuyen_sau: [],
+    action_plan: buildBasicSystemActions(context),
     warnings: buildWarnings(context),
     report_tables: {
       inventory_table: {
@@ -442,7 +443,7 @@ function buildSmartFallbackAiData(context: AiBusinessContext) {
       sales_table: {
         title: "Bảng sản phẩm bán ra",
         columns: ["Sản phẩm", "Số lượng bán", "Doanh thu", "Tồn hiện tại", "Quản lý kho"],
-        rows: soldProducts.map((item) => [
+        rows: soldProducts.slice(0, 10).map((item) => [
           String(item.name || ""),
           toNumber(item.soldQuantity),
           toNumber(item.revenue),
@@ -464,18 +465,6 @@ function buildSmartFallbackAiData(context: AiBusinessContext) {
           ? "Lấy từ orders/order_details/products/categories."
           : "Chưa có doanh thu theo danh mục trong khoảng lọc.",
       },
-      shift_table: {
-        title: "Bảng ca làm và sai lệch tiền mặt",
-        columns: ["Nhân viên", "Tiền đầu ca", "Tiền mặt bán hàng", "Tiền mặt thực tế", "Sai lệch"],
-        rows: shiftVarianceHistory.map((item) => [
-          String(item.userName || item.fullName || ""),
-          toNumber(item.openingCash),
-          toNumber(item.totalSalesCash),
-          toNumber(item.actualClosingCash),
-          toNumber(item.variance),
-        ]),
-        validation_note: shiftVarianceHistory.length ? "Lấy từ shifts đã đóng ca." : "Chưa có dữ liệu ca đã đóng.",
-      },
       payment_table: {
         title: "Bảng phương thức thanh toán",
         columns: ["Phương thức", "Số đơn", "Số tiền"],
@@ -491,69 +480,54 @@ function buildSmartFallbackAiData(context: AiBusinessContext) {
   };
 }
 
-function ensureAdvancedAnalysis(value: any, fallback: ReturnType<typeof buildFallbackAdvancedAnalysis>) {
+function normalizeAdvancedAnalysis(value: any) {
   const input = Array.isArray(value) ? value : [];
-  return fallback.map((fallbackItem) => {
-    const matched = input.find((item) => item?.loai === fallbackItem.loai || Number(item?.thu_tu) === fallbackItem.thu_tu);
-    return matched?.noi_dung
-      ? { ...fallbackItem, ...matched, thu_tu: fallbackItem.thu_tu, loai: fallbackItem.loai, tieu_de: matched.tieu_de || fallbackItem.tieu_de }
-      : fallbackItem;
-  });
-}
-
-function ensureActionPlan(value: any, fallback: ReturnType<typeof buildFallbackActionPlan>) {
-  const input = Array.isArray(value) ? value : [];
-  return fallback.map((fallbackItem, index) => {
-    const matched = input[index];
-    return matched?.action
-      ? {
-          ...fallbackItem,
-          ...matched,
-          priority: ["cao", "trung_binh", "thap"].includes(String(matched.priority)) ? matched.priority : fallbackItem.priority,
-        }
-      : fallbackItem;
-  });
-}
-
-function normalizeWarnings(value: any, fallback: ReturnType<typeof buildWarnings>) {
-  const input = Array.isArray(value) ? value : [];
-  const validWarnings = input
-    .filter((item) => item?.message || item?.suggestion)
-    .map((item) => ({
-      type: String(item.type || "khac"),
-      level: ["cao", "trung_binh", "thap"].includes(String(item.level)) ? item.level : "thap",
-      message: String(item.message || "Chưa đủ dữ liệu để cảnh báo."),
-      suggestion: String(item.suggestion || "Tiếp tục theo dõi dữ liệu vận hành."),
+  return input
+    .filter((item) => item?.noi_dung)
+    .slice(0, 5)
+    .map((item, index) => ({
+      thu_tu: index + 1,
+      loai: String(item.loai || "khac"),
+      tieu_de: String(item.tieu_de || "Nhận định"),
+      noi_dung: String(item.noi_dung),
+      muc_do: ["positive", "neutral", "warning", "critical"].includes(String(item.muc_do))
+        ? item.muc_do
+        : "neutral",
     }));
-  return validWarnings.length ? validWarnings.slice(0, 4) : fallback;
+}
+
+function normalizeActionPlan(value: any) {
+  const input = Array.isArray(value) ? value : [];
+  return input
+    .filter((item) => item?.action)
+    .slice(0, 5)
+    .map((item) => ({
+      priority: ["cao", "trung_binh", "thap"].includes(String(item.priority)) ? item.priority : "trung_binh",
+      action: String(item.action),
+      reason: String(item.reason || ""),
+      expected_result: String(item.expected_result || ""),
+    }));
 }
 
 function normalizeAiReportData(rawData: any, context: AiBusinessContext) {
   const fallbackData = buildSmartFallbackAiData(context);
   const input = rawData && typeof rawData === "object" ? rawData : {};
-  const score = Math.max(0, Math.min(toNumber(context.dataQuality.score), 100));
-  const confidence = context.dataQuality.confidence;
+  const summaryInput = input.summary && typeof input.summary === "object" ? input.summary : {};
 
   return {
     ...fallbackData,
     fallback: false,
-    meta: {
-      ...fallbackData.meta,
-      ...(input.meta || {}),
-      period: fallbackData.meta.period,
-      confidence,
-      score,
-      status: score >= 85 ? "tot" : score >= 65 ? "on_dinh" : "can_cai_thien",
-      data_status: context.dataQuality.status,
-      confidence_note: score < 65 ? context.dataQuality.note : "",
-    },
+    meta: buildMetaFromContext(context),
     summary: {
-      ...fallbackData.summary,
-      ...(input.summary || {}),
+      main_insight: String(summaryInput.main_insight || fallbackData.summary.main_insight),
+      revenue_text: String(summaryInput.revenue_text || ""),
+      orders_text: String(summaryInput.orders_text || ""),
+      best_selling_product: String(summaryInput.best_selling_product || ""),
+      best_shift: String(summaryInput.best_shift || ""),
     },
-    phan_tich_chuyen_sau: ensureAdvancedAnalysis(input.phan_tich_chuyen_sau, fallbackData.phan_tich_chuyen_sau),
-    action_plan: ensureActionPlan(input.action_plan, fallbackData.action_plan),
-    warnings: normalizeWarnings(input.warnings, fallbackData.warnings),
+    phan_tich_chuyen_sau: normalizeAdvancedAnalysis(input.phan_tich_chuyen_sau),
+    action_plan: normalizeActionPlan(input.action_plan),
+    warnings: buildWarnings(context),
     report_tables: fallbackData.report_tables,
     chart_suggestions: fallbackData.chart_suggestions || [],
   };
@@ -590,7 +564,10 @@ export async function getAiReportInsightsService(startDate: string, endDate: str
   const apiKey = process.env.AI_API_KEY;
   const apiUrl = process.env.AI_API_URL || "https://generativelanguage.googleapis.com/v1beta/models";
   const model = process.env.AI_MODEL || "gemini-3.1-flash-lite";
-  const maxOutputTokens = Number(process.env.AI_MAX_TOKENS || 8192);
+  const configuredMaxOutputTokens = Number(process.env.AI_MAX_TOKENS || 8192);
+  const maxOutputTokens = Number.isFinite(configuredMaxOutputTokens)
+    ? Math.max(4096, Math.min(configuredMaxOutputTokens, 32768))
+    : 8192;
 
   if (!apiKey || !apiUrl) {
     const fallbackData = buildSmartFallbackAiData(context);
@@ -635,6 +612,10 @@ export async function getAiReportInsightsService(startDate: string, endDate: str
           temperature: 0.1,
           topP: 0.8,
           maxOutputTokens,
+          thinkingConfig: {
+            thinkingBudget: 256,
+            includeThoughts: false,
+          },
           responseMimeType: "application/json",
           responseSchema: AI_REPORT_RESPONSE_SCHEMA,
         },
@@ -649,7 +630,12 @@ export async function getAiReportInsightsService(startDate: string, endDate: str
     const result: any = await response.json();
     const finishReason = result?.candidates?.[0]?.finishReason;
     if (finishReason && finishReason !== "STOP") {
-      throw new Error(`Gemini dừng trước khi hoàn tất JSON: ${finishReason}`);
+      const usage = result?.usageMetadata || {};
+      throw new Error(
+        `Gemini dừng trước khi hoàn tất JSON: ${finishReason} `
+        + `(prompt=${usage.promptTokenCount || 0}, output=${usage.candidatesTokenCount || 0}, `
+        + `thinking=${usage.thoughtsTokenCount || 0}, total=${usage.totalTokenCount || 0})`
+      );
     }
 
     const text = extractTextFromGeminiResult(result);
@@ -694,10 +680,37 @@ export async function getAiReportInsightsService(startDate: string, endDate: str
   }
 }
 // 1. Service báo cáo tài chính
+function calculateGrowthPercent(current: number, previous: number) {
+  return previous > 0 ? Number((((current - previous) / previous) * 100).toFixed(1)) : null;
+}
+
+function getPreviousDateRange(startDate: string, endDate: string) {
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
+  const days = Math.floor((end.getTime() - start.getTime()) / 86_400_000) + 1;
+  const previousEnd = new Date(start);
+  previousEnd.setDate(previousEnd.getDate() - 1);
+  const previousStart = new Date(previousEnd);
+  previousStart.setDate(previousStart.getDate() - days + 1);
+  const format = (date: Date) => [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+
+  return { startDate: format(previousStart), endDate: format(previousEnd) };
+}
+
 export async function getFinancialReportService(startDate?: string, endDate?: string) {
-  const summary = await getFinancialSummary(startDate, endDate);
-  const trend = await getFinancialTrend(startDate, endDate);
-  const topProductsRaw = await getTopProducts(startDate, endDate);
+  const previousRange = startDate && endDate ? getPreviousDateRange(startDate, endDate) : null;
+  const [summary, trend, topProductsRaw, previousSummary, currentCancelledOrders, previousCancelledOrders] = await Promise.all([
+    getFinancialSummary(startDate, endDate),
+    getFinancialTrend(startDate, endDate),
+    getTopProducts(startDate, endDate),
+    previousRange ? getFinancialSummary(previousRange.startDate, previousRange.endDate) : null,
+    startDate && endDate ? getAiCancelledOrders(startDate, endDate) : [],
+    previousRange ? getAiCancelledOrders(previousRange.startDate, previousRange.endDate) : [],
+  ]);
   
   const topProducts = topProductsRaw.map((item) => ({
     name: String(item.name),
@@ -705,7 +718,23 @@ export async function getFinancialReportService(startDate?: string, endDate?: st
     revenue: Number(item.revenue ?? 0),
   }));
 
-  return { summary, trend, topProducts };
+  return {
+    summary,
+    trend,
+    topProducts,
+    revenueGrowthPercent: previousSummary
+      ? calculateGrowthPercent(summary.totalRevenue, previousSummary.totalRevenue)
+      : null,
+    ordersGrowthPercent: previousSummary
+      ? calculateGrowthPercent(summary.totalOrders, previousSummary.totalOrders)
+      : null,
+    averageOrderValueGrowthPercent: previousSummary
+      ? calculateGrowthPercent(summary.averageOrderValue, previousSummary.averageOrderValue)
+      : null,
+    cancelledOrdersGrowthPercent: previousRange
+      ? calculateGrowthPercent(currentCancelledOrders.length, previousCancelledOrders.length)
+      : null,
+  };
 }
 
 // 2. Service báo cáo tồn kho và giá trị kho
@@ -799,18 +828,6 @@ export async function getComparisonReportService(startDate: string, endDate: str
 export async function getCustomerRetentionService(startDate?: string, endDate?: string) {
   return getCustomerRetention(startDate, endDate);
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

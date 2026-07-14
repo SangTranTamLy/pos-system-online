@@ -3,7 +3,7 @@ import { db } from "../config/database";
 
 type AiReportLogContext = {
   dataQuality: {
-    score: number;
+    coverageScore: number;
     confidence: string;
   };
   [key: string]: unknown;
@@ -43,7 +43,7 @@ export async function saveAiReportLog(input: SaveAiReportLogInput) {
       id,
       input.startDate,
       input.endDate,
-      input.context.dataQuality.score,
+      input.context.dataQuality.coverageScore,
       input.context.dataQuality.confidence,
       JSON.stringify(input.context),
       JSON.stringify(input.aiResult),

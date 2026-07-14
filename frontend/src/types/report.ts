@@ -32,6 +32,10 @@ export interface FinancialReport {
   summary: FinancialReportData;
   trend: FinancialTrendPoint[];
   topProducts: TopProductReportData[];
+  revenueGrowthPercent: number | null;
+  ordersGrowthPercent: number | null;
+  averageOrderValueGrowthPercent: number | null;
+  cancelledOrdersGrowthPercent: number | null;
 }
 
 export interface ProductValuation {

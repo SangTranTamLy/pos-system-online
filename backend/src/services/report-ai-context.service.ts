@@ -1,18 +1,18 @@
-﻿import {
+import {
   getAiCancelledOrders,
   getAiCategoryRevenue,
   getAiHourlyRevenue,
   getAiPaymentSummary,
-  getAiShiftVarianceHistory,
   getAiSlowProducts,
   getAiSoldProducts,
   getFinancialSummary,
   getFinancialTrend,
 } from "../repositories/report.repository";
 import { getLowStockItems } from "../repositories/dashboard.repository";
+import type { FinancialTrendPoint } from "../types/report.types";
 
 export type AiDataQuality = {
-  score: number;
+  coverageScore: number;
   confidence: "cao" | "trung_binh" | "thap";
   status: "du_du_lieu_co_ban" | "thieu_du_lieu";
   missing: string[];
@@ -56,7 +56,7 @@ export type AiAdvancedAnalysis = {
     note: string;
   };
   anomalies: Array<{
-    type: "revenue" | "cancelled_orders" | "cash_variance" | "inventory" | "product" | "data";
+    type: "revenue" | "cancelled_orders" | "inventory" | "product" | "data";
     severity: "low" | "medium" | "high";
     title: string;
     description: string;
@@ -96,30 +96,52 @@ export type AiBusinessContext = {
   slowProducts: Awaited<ReturnType<typeof getAiSlowProducts>>;
   paymentSummary: Awaited<ReturnType<typeof getAiPaymentSummary>>;
   cancelledOrders: Awaited<ReturnType<typeof getAiCancelledOrders>>;
+  previousCancelledOrders: Awaited<ReturnType<typeof getAiCancelledOrders>>;
   lowStockItems: Awaited<ReturnType<typeof getLowStockItems>>;
-  shiftVarianceHistory: Awaited<ReturnType<typeof getAiShiftVarianceHistory>>;
   advancedAnalysis: AiAdvancedAnalysis;
-};
-
-const AI_ANALYSIS_THRESHOLDS = {
-  revenueDropMediumPercent: 20,
-  revenueDropHighPercent: 40,
-  cancelRateMediumPercent: 5,
-  cancelRateHighPercent: 10,
-  cashVarianceMedium: 10000,
-  cashVarianceHigh: 50000,
 };
 
 function getVietnameseWeekday(dateText: string) {
   const date = new Date(`${dateText}T00:00:00`);
   return new Intl.DateTimeFormat("vi-VN", { weekday: "long" }).format(date);
 }
-
 function formatDateInput(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function fillMissingRevenueDays(
+  startDate: string,
+  endDate: string,
+  points: FinancialTrendPoint[]
+): FinancialTrendPoint[] {
+  const pointsByDate = new Map(points.map((item) => [item.date, item]));
+  const result: FinancialTrendPoint[] = [];
+  const current = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
+
+  while (current <= end) {
+    const date = formatDateInput(current);
+
+    result.push(
+      pointsByDate.get(date) || {
+        date,
+        label: new Intl.DateTimeFormat("vi-VN", {
+          day: "2-digit",
+          month: "2-digit",
+        }).format(current),
+        revenue: 0,
+        cogs: 0,
+        profit: 0,
+      }
+    );
+
+    current.setDate(current.getDate() + 1);
+  }
+
+  return result;
 }
 
 function getPreviousPeriod(startDate: string, endDate: string) {
@@ -140,6 +162,21 @@ function getPreviousPeriod(startDate: string, endDate: string) {
     startDate: formatDateInput(previousStart),
     endDate: formatDateInput(previousEnd),
   };
+}
+
+async function getInventoryContext() {
+  try {
+    return {
+      available: true,
+      items: await getLowStockItems(),
+    };
+  } catch (error) {
+    console.warn("Không thể lấy dữ liệu tồn kho cho AI context:", error);
+    return {
+      available: false,
+      items: [] as Awaited<ReturnType<typeof getLowStockItems>>,
+    };
+  }
 }
 
 function toNumber(value: unknown) {
@@ -185,69 +222,58 @@ function buildDataQuality(input: {
   hourlyRevenueCount: number;
   soldProductsCount: number;
   paymentSummaryCount: number;
-  lowStockItemsCount: number;
-  shiftVarianceCount: number;
+  inventoryQueryAvailable: boolean;
   categoryRevenueCount: number;
 }): AiDataQuality {
-  let score = 100;
+  let score = 0;
   const missing: string[] = [];
 
-  if (input.totalOrders <= 0) {
-    score -= 35;
-    missing.push("orders");
-  }
+  if (input.totalOrders >= 100) score += 20;
+  else if (input.totalOrders >= 30) score += 15;
+  else if (input.totalOrders > 0) score += 8;
+  else missing.push("orders");
 
-  if (input.previousTotalOrders <= 0) {
-    score -= 12;
-    missing.push("previous_period");
-  }
+  if (input.previousTotalOrders >= 30) score += 12;
+  else if (input.previousTotalOrders > 0) score += 7;
+  else missing.push("previous_period");
 
-  if (input.trendCount <= 0) {
-    score -= 14;
-    missing.push("daily_revenue_trend");
-  }
+  if (input.trendCount >= 14) score += 14;
+  else if (input.trendCount >= 7) score += 11;
+  else if (input.trendCount >= 3) score += 6;
+  else missing.push("daily_revenue_trend");
 
-  if (input.hourlyRevenueCount <= 0) {
-    score -= 8;
-    missing.push("hourly_revenue");
-  }
+  if (input.hourlyRevenueCount >= 8) score += 10;
+  else if (input.hourlyRevenueCount >= 3) score += 6;
+  else if (input.hourlyRevenueCount > 0) score += 3;
+  else missing.push("hourly_revenue");
 
-  if (input.soldProductsCount <= 0) {
-    score -= 14;
-    missing.push("sold_products");
-  }
+  if (input.soldProductsCount >= 8) score += 14;
+  else if (input.soldProductsCount >= 3) score += 10;
+  else if (input.soldProductsCount > 0) score += 5;
+  else missing.push("sold_products");
 
-  if (input.categoryRevenueCount <= 0) {
-    score -= 8;
-    missing.push("category_revenue");
-  }
+  if (input.categoryRevenueCount >= 3) score += 10;
+  else if (input.categoryRevenueCount > 0) score += 5;
+  else missing.push("category_revenue");
 
-  if (input.paymentSummaryCount <= 0) {
-    score -= 8;
-    missing.push("payment_summary");
-  }
+  if (input.paymentSummaryCount >= 2) score += 8;
+  else if (input.paymentSummaryCount > 0) score += 4;
+  else missing.push("payment_summary");
 
-  if (input.lowStockItemsCount <= 0) {
-    score -= 3;
-    missing.push("inventory_warning");
-  }
+  if (input.inventoryQueryAvailable) score += 6;
+  else missing.push("inventory_data");
 
-  if (input.shiftVarianceCount <= 0) {
-    score -= 3;
-    missing.push("shift_data");
-  }
-
-  const normalizedScore = Math.max(0, Math.min(score, 100));
+  const normalizedScore = Math.max(0, Math.min(Math.round(score), 95));
   const confidence =
     normalizedScore >= 85 ? "cao" : normalizedScore >= 65 ? "trung_binh" : "thap";
 
   return {
-    score: normalizedScore,
+    coverageScore: normalizedScore,
     confidence,
     status: input.totalOrders > 0 && input.soldProductsCount > 0 ? "du_du_lieu_co_ban" : "thieu_du_lieu",
     missing,
     note:
-      normalizedScore < 65
+      normalizedScore < 70
         ? "Đây là nhận định tham khảo do dữ liệu chưa đầy đủ."
         : "Dữ liệu đủ để phân tích ở mức cơ bản.",
   };
@@ -262,150 +288,119 @@ function buildAdvancedAnalysis(input: {
   slowProducts: Awaited<ReturnType<typeof getAiSlowProducts>>;
   paymentSummary: Awaited<ReturnType<typeof getAiPaymentSummary>>;
   cancelledOrders: Awaited<ReturnType<typeof getAiCancelledOrders>>;
+  previousCancelledOrders: Awaited<ReturnType<typeof getAiCancelledOrders>>;
   lowStockItems: Awaited<ReturnType<typeof getLowStockItems>>;
-  shiftVarianceHistory: Awaited<ReturnType<typeof getAiShiftVarianceHistory>>;
   revenueGrowthPercent: number | null;
   ordersGrowthPercent: number | null;
 }): AiAdvancedAnalysis {
-  const {
-    summary,
-    previousSummary,
-    trend,
-    soldProducts,
-    slowProducts,
-    paymentSummary,
-    cancelledOrders,
-    lowStockItems,
-    shiftVarianceHistory,
-    revenueGrowthPercent,
-    ordersGrowthPercent,
-  } = input;
-
-  const sortedTrend = trend.map((point) => ({
+  const trendPoints = input.trend.map((point) => ({
     label: String(point.label || ""),
     revenue: toNumber(point.revenue),
   }));
-  const highestDay = sortedTrend.length ? [...sortedTrend].sort((a, b) => b.revenue - a.revenue)[0] : null;
-  const lowestDay = sortedTrend.length ? [...sortedTrend].sort((a, b) => a.revenue - b.revenue)[0] : null;
-  const last7Revenue = sortedTrend.slice(-7).reduce((sum, point) => sum + point.revenue, 0);
-  const last30Revenue = sortedTrend.slice(-30).reduce((sum, point) => sum + point.revenue, 0);
-  const direction = getTrendDirection(sortedTrend);
+  const sortedTrend = [...trendPoints].sort((a, b) => b.revenue - a.revenue);
+  const highestDay = sortedTrend[0] || null;
+  const lowestDay = [...trendPoints].sort((a, b) => a.revenue - b.revenue)[0] || null;
+  const last7Revenue = trendPoints.slice(-7).reduce((sum, point) => sum + point.revenue, 0);
+  const last30Revenue = trendPoints.slice(-30).reduce((sum, point) => sum + point.revenue, 0);
+  const direction = getTrendDirection(trendPoints);
 
-  const topByQuantity = soldProducts.length
-    ? [...soldProducts].sort((a, b) => toNumber(b.soldQuantity) - toNumber(a.soldQuantity))[0]
+  const soldProducts = input.soldProducts.map((item) => ({
+    name: String(item.name || ""),
+    soldQuantity: toNumber(item.soldQuantity),
+    revenue: toNumber(item.revenue),
+  }));
+  const topByQuantity = [...soldProducts].sort((a, b) => b.soldQuantity - a.soldQuantity)[0] || null;
+  const topByRevenue = [...soldProducts].sort((a, b) => b.revenue - a.revenue)[0] || null;
+  const slowestRaw = input.slowProducts[0];
+  const slowestProduct = slowestRaw
+    ? {
+        name: String(slowestRaw.name || ""),
+        soldQuantity: toNumber(slowestRaw.soldQuantity),
+        stockQuantity: slowestRaw.stockQuantity === null ? null : toNumber(slowestRaw.stockQuantity),
+      }
     : null;
-  const topByRevenue = soldProducts.length
-    ? [...soldProducts].sort((a, b) => toNumber(b.revenue) - toNumber(a.revenue))[0]
-    : null;
-  const slowestProduct = slowProducts.length ? slowProducts[0] : null;
 
-  const cashPayment = paymentSummary.find((item) => String(item.method).toLowerCase() === "cash");
-  const qrPayment = paymentSummary.find((item) => String(item.method).toLowerCase() === "qr");
+  const cashPayment = input.paymentSummary.find((item) => String(item.method || "").toLowerCase() === "cash");
+  const qrPayment = input.paymentSummary.find((item) => String(item.method || "").toLowerCase() === "qr");
   const cashAmount = toNumber(cashPayment?.amount);
   const qrAmount = toNumber(qrPayment?.amount);
-  const dominantPaymentMethod =
-    cashAmount === 0 && qrAmount === 0 ? null : cashAmount >= qrAmount ? "cash" : "qr";
+  const dominantPaymentMethod = cashAmount > qrAmount ? "Tiền mặt" : qrAmount > cashAmount ? "QR" : null;
 
   const changeReasons: AiAdvancedAnalysis["changeReasons"] = [];
-  if (summary.totalOrders > 0 && previousSummary.totalOrders > 0 && revenueGrowthPercent !== null) {
-    const currentAov = summary.averageOrderValue;
-    const previousAov = previousSummary.averageOrderValue;
-    const aovGrowthPercent = previousAov > 0 ? ((currentAov - previousAov) / previousAov) * 100 : null;
-    const orderChangedMore =
-      ordersGrowthPercent !== null &&
-      aovGrowthPercent !== null &&
-      Math.abs(ordersGrowthPercent) >= Math.abs(aovGrowthPercent);
-
+  if (input.revenueGrowthPercent !== null) {
     changeReasons.push({
-      title: revenueGrowthPercent >= 0 ? "Doanh thu tăng so với kỳ trước" : "Doanh thu giảm so với kỳ trước",
-      description: orderChangedMore
-        ? `Biến động doanh thu chủ yếu đi theo số đơn: kỳ này ${summary.totalOrders} đơn, kỳ trước ${previousSummary.totalOrders} đơn. AOV hiện là ${formatVnd(currentAov)}.`
-        : `Biến động doanh thu chủ yếu nằm ở giá trị trung bình mỗi đơn: AOV hiện là ${formatVnd(currentAov)}, kỳ trước là ${formatVnd(previousAov)}.`,
-      recommendation:
-        revenueGrowthPercent >= 0
-          ? "Giữ nhóm món đang kéo doanh thu và thử bán kèm để tăng thêm AOV."
-          : "Kiểm tra lại số đơn, AOV và món bán chạy trong ca thấp để xác định điểm rơi doanh thu.",
-      level:
-        revenueGrowthPercent <= -AI_ANALYSIS_THRESHOLDS.revenueDropHighPercent
-          ? "high"
-          : Math.abs(revenueGrowthPercent) >= AI_ANALYSIS_THRESHOLDS.revenueDropMediumPercent
-            ? "medium"
-            : "low",
+      title: input.revenueGrowthPercent >= 0 ? "Doanh thu tăng" : "Doanh thu giảm",
+      description: `Doanh thu ${formatPercent(input.revenueGrowthPercent)} so với kỳ trước, số đơn ${formatPercent(input.ordersGrowthPercent)}.`,
+      recommendation: input.revenueGrowthPercent >= 0 ? "Giữ nhóm sản phẩm và khung giờ đang kéo doanh thu." : "Kiểm tra số đơn, AOV và món bán chậm trong kỳ.",
+      level: Math.abs(input.revenueGrowthPercent) >= 20 ? "high" : "medium",
     });
-  }
-
-  if (topByQuantity && topByRevenue) {
+  } else {
     changeReasons.push({
-      title:
-        topByQuantity.productId === topByRevenue.productId
-          ? "Một món đang dẫn cả số lượng và doanh thu"
-          : "Món bán nhiều và món tạo doanh thu cao không giống nhau",
-      description:
-        topByQuantity.productId === topByRevenue.productId
-          ? `${topByQuantity.name} bán ${topByQuantity.soldQuantity} lượt và tạo ${formatVnd(topByQuantity.revenue)} doanh thu.`
-          : `${topByQuantity.name} bán nhiều nhất (${topByQuantity.soldQuantity} lượt), trong khi ${topByRevenue.name} tạo doanh thu cao nhất (${formatVnd(topByRevenue.revenue)}).`,
-      recommendation: "Khi làm combo, ưu tiên ghép món bán nhiều với món có doanh thu tốt để tăng giá trị hóa đơn.",
-      level: "medium",
+      title: "Chưa có kỳ trước để so sánh",
+      description: "Không đủ dữ liệu kỳ trước để kết luận tăng hoặc giảm.",
+      recommendation: "Tiếp tục ghi nhận dữ liệu để so sánh ở kỳ tiếp theo.",
+      level: "low",
     });
   }
 
   const anomalies: AiAdvancedAnalysis["anomalies"] = [];
-  if (revenueGrowthPercent !== null && revenueGrowthPercent <= -AI_ANALYSIS_THRESHOLDS.revenueDropMediumPercent) {
+  if (input.revenueGrowthPercent !== null && input.revenueGrowthPercent <= -20) {
     anomalies.push({
       type: "revenue",
-      severity: revenueGrowthPercent <= -AI_ANALYSIS_THRESHOLDS.revenueDropHighPercent ? "high" : "medium",
-      title: "Doanh thu giảm đáng chú ý",
-      description: `Doanh thu kỳ này ${formatPercent(revenueGrowthPercent)} so với kỳ trước.`,
-      recommendation: "So lại số đơn, AOV và khung giờ bán thấp để biết giảm do ít khách hay do khách mua ít hơn.",
+      severity: input.revenueGrowthPercent <= -40 ? "high" : "medium",
+      title: "Doanh thu giảm mạnh",
+      description: `Doanh thu giảm ${Math.abs(input.revenueGrowthPercent).toFixed(1)}% so với kỳ trước.`,
+      recommendation: "Kiểm tra ca bán thấp, món chủ lực và tình trạng tồn kho.",
     });
   }
 
-  const cancelRate = summary.totalOrders > 0 ? (cancelledOrders.length / summary.totalOrders) * 100 : 0;
-  if (cancelRate >= AI_ANALYSIS_THRESHOLDS.cancelRateMediumPercent) {
+  const cancelRate = input.summary.totalOrders > 0 ? (input.cancelledOrders.length / input.summary.totalOrders) * 100 : 0;
+  if (cancelRate >= 2) {
     anomalies.push({
       type: "cancelled_orders",
-      severity: cancelRate >= AI_ANALYSIS_THRESHOLDS.cancelRateHighPercent ? "high" : "medium",
-      title: "Tỷ lệ đơn hủy cao",
-      description: `${cancelledOrders.length} đơn bị hủy, tương đương ${cancelRate.toFixed(1)}% tổng số đơn trong kỳ.`,
-      recommendation: "Kiểm tra lý do hủy đơn, khung giờ hủy và thao tác vận hành để loại trừ lỗi.",
+      severity: cancelRate >= 5 ? "high" : "medium",
+      title: "Tỷ lệ đơn hủy cần theo dõi",
+      description: `${input.cancelledOrders.length} đơn bị hủy, tương đương ${cancelRate.toFixed(1)}% tổng đơn.`,
+      recommendation: "Kiểm tra lý do hủy đơn và thao tác POS trong các khung giờ phát sinh.",
     });
   }
 
-  const varianceShift = [...shiftVarianceHistory].sort(
-    (a, b) => Math.abs(toNumber(b.variance)) - Math.abs(toNumber(a.variance))
-  )[0];
-  if (varianceShift && Math.abs(toNumber(varianceShift.variance)) >= AI_ANALYSIS_THRESHOLDS.cashVarianceMedium) {
-    anomalies.push({
-      type: "cash_variance",
-      severity:
-        Math.abs(toNumber(varianceShift.variance)) >= AI_ANALYSIS_THRESHOLDS.cashVarianceHigh ? "high" : "medium",
-      title: "Có ca lệch tiền mặt",
-      description: `Ca của ${varianceShift.userName || "nhân viên"} lệch ${formatVnd(varianceShift.variance)} khi chốt ca.`,
-      recommendation: "Đối chiếu tiền đầu ca, tiền mặt bán hàng và tiền thực tế trước khi xác nhận chốt ca.",
-    });
-  }
-
-  if (lowStockItems.length > 0) {
+  if (input.lowStockItems.length > 0) {
+    const names = input.lowStockItems.slice(0, 3).map((item) => item.name).join(", ");
     anomalies.push({
       type: "inventory",
-      severity: lowStockItems.length >= 5 ? "high" : "medium",
+      severity: input.lowStockItems.length >= 5 ? "high" : "medium",
       title: "Tồn kho thấp",
-      description: `${lowStockItems.length} mặt hàng đang dưới ngưỡng tồn kho, nổi bật là ${lowStockItems[0].name}.`,
-      recommendation: "Bổ sung hàng trước ca bán tiếp theo, nhất là nếu mặt hàng liên quan nhóm đang bán tốt.",
+      description: `${input.lowStockItems.length} mặt hàng dưới ngưỡng tồn kho, nổi bật: ${names}.`,
+      recommendation: "Bổ sung nguyên liệu trước ca bán tiếp theo để tránh mất đơn.",
     });
   }
+
+  const topRevenueShare = input.summary.totalRevenue > 0 && topByRevenue ? (topByRevenue.revenue / input.summary.totalRevenue) * 100 : 0;
+  if (slowestProduct || topRevenueShare >= 45) {
+    anomalies.push({
+      type: "product",
+      severity: topRevenueShare >= 60 ? "high" : "medium",
+      title: topRevenueShare >= 45 ? "Doanh thu phụ thuộc món bán chạy" : "Có món bán chậm cần theo dõi",
+      description: topRevenueShare >= 45 && topByRevenue
+        ? `${topByRevenue.name} đóng góp ${topRevenueShare.toFixed(1)}% doanh thu trong kỳ.`
+        : `${slowestProduct?.name || "Một số món"} bán chậm trong khoảng lọc.`,
+      recommendation: "Theo dõi tồn kho, vị trí hiển thị và thử combo với món bán tốt.",
+    });
+  }
+
+  const limitations: string[] = [];
+  if (!input.paymentSummary.length) limitations.push("Thiếu dữ liệu thanh toán.");
+  if (!input.cancelledOrders.length) limitations.push("Không ghi nhận đơn hủy trong khoảng lọc.");
 
   return {
     overview: {
-      totalRevenue: summary.totalRevenue,
-      totalOrders: summary.totalOrders,
-      averageOrderValue: summary.averageOrderValue,
-      revenueGrowthPercent,
-      ordersGrowthPercent,
-      summary:
-        revenueGrowthPercent === null
-          ? `Doanh thu kỳ này đạt ${formatVnd(summary.totalRevenue)} từ ${summary.totalOrders} đơn. Chưa đủ dữ liệu kỳ trước để kết luận tăng giảm.`
-          : `Doanh thu kỳ này đạt ${formatVnd(summary.totalRevenue)}, ${revenueGrowthPercent >= 0 ? "tăng" : "giảm"} ${formatPercent(Math.abs(revenueGrowthPercent))} so với kỳ trước.`,
+      totalRevenue: input.summary.totalRevenue,
+      totalOrders: input.summary.totalOrders,
+      averageOrderValue: input.summary.averageOrderValue,
+      revenueGrowthPercent: input.revenueGrowthPercent,
+      ordersGrowthPercent: input.ordersGrowthPercent,
+      summary: `Doanh thu kỳ này đạt ${formatVnd(input.summary.totalRevenue)}, ${formatPercent(input.revenueGrowthPercent)} so với kỳ trước.`,
     },
     revenueTrend: {
       direction,
@@ -413,97 +408,83 @@ function buildAdvancedAnalysis(input: {
       lowestDay,
       last7Revenue,
       last30Revenue,
-      note:
-        direction === "volatile"
-          ? "Doanh thu đang biến động mạnh giữa các ngày, cần xem thêm theo ca và món bán chính."
-          : direction === "increasing"
-            ? "Doanh thu có xu hướng tăng trong các điểm dữ liệu gần đây."
-            : direction === "decreasing"
-              ? "Doanh thu có xu hướng giảm trong các điểm dữ liệu gần đây."
-              : direction === "stable"
-                ? "Doanh thu tương đối ổn định trong khoảng dữ liệu đang xem."
-                : "Chưa đủ điểm dữ liệu để đọc xu hướng doanh thu.",
+      note: highestDay && lowestDay
+        ? `Ngày cao nhất là ${highestDay.label} với ${formatVnd(highestDay.revenue)}, thấp nhất là ${lowestDay.label} với ${formatVnd(lowestDay.revenue)}.`
+        : "Chưa đủ dữ liệu doanh thu theo ngày.",
     },
     changeReasons,
     productAnalysis: {
-      topByQuantity: topByQuantity
-        ? { name: topByQuantity.name, soldQuantity: topByQuantity.soldQuantity, revenue: topByQuantity.revenue }
-        : null,
-      topByRevenue: topByRevenue
-        ? { name: topByRevenue.name, soldQuantity: topByRevenue.soldQuantity, revenue: topByRevenue.revenue }
-        : null,
-      slowestProduct: slowestProduct
-        ? { name: slowestProduct.name, soldQuantity: slowestProduct.soldQuantity, stockQuantity: slowestProduct.stockQuantity }
-        : null,
-      note: topByQuantity
-        ? `${topByQuantity.name} là món bán nhiều nhất trong kỳ.`
-        : "Chưa có dữ liệu sản phẩm bán ra để phân tích.",
+      topByQuantity,
+      topByRevenue,
+      slowestProduct,
+      note: topByQuantity && topByRevenue
+        ? `${topByQuantity.name} bán nhiều nhất, còn ${topByRevenue.name} tạo doanh thu cao nhất.`
+        : "Chưa đủ dữ liệu sản phẩm để phân tích.",
     },
     buyingBehavior: {
-      paymentNote:
-        dominantPaymentMethod === "cash"
-          ? `Tiền mặt đang chiếm tỷ trọng cao hơn QR (${formatVnd(cashAmount)} so với ${formatVnd(qrAmount)}).`
-          : dominantPaymentMethod === "qr"
-            ? `QR đang chiếm tỷ trọng cao hơn tiền mặt (${formatVnd(qrAmount)} so với ${formatVnd(cashAmount)}).`
-            : "Chưa có dữ liệu thanh toán paid để phân tích hành vi thanh toán.",
+      paymentNote: dominantPaymentMethod
+        ? `${dominantPaymentMethod} là phương thức thanh toán chiếm ưu thế trong kỳ.`
+        : "Chưa có phương thức thanh toán chiếm ưu thế rõ ràng.",
       dominantPaymentMethod,
       cashAmount,
       qrAmount,
-      note: "Hệ thống hiện có dữ liệu phương thức thanh toán; chưa đủ dữ liệu combo mua kèm nếu không truy vấn theo cặp món.",
+      note: `AOV đạt ${formatVnd(input.summary.averageOrderValue)} trên mỗi hóa đơn.`,
     },
     anomalies,
-    limitations: [
-      "Chưa phân tích được combo mua kèm nếu chưa có truy vấn theo cặp sản phẩm trong order_details.",
-      "Chưa phân tích khách quay lại nếu đơn hàng không gắn customer_id.",
-    ],
+    limitations,
   };
 }
 
 export async function buildAiBusinessContext(startDate: string, endDate: string): Promise<AiBusinessContext> {
-  const previousPeriodRange = getPreviousPeriod(startDate, endDate);
+  const previousPeriod = getPreviousPeriod(startDate, endDate);
   const [
     summary,
     previousSummary,
-    trend,
-    previousTrend,
+    trendRows,
+    previousTrendRows,
     hourlyRevenue,
     categoryRevenue,
     soldProducts,
     slowProducts,
     paymentSummary,
     cancelledOrders,
-    lowStockItems,
-    shiftVarianceHistory,
+    previousCancelledOrders,
+    inventoryContext,
   ] = await Promise.all([
     getFinancialSummary(startDate, endDate),
-    getFinancialSummary(previousPeriodRange.startDate, previousPeriodRange.endDate),
+    getFinancialSummary(previousPeriod.startDate, previousPeriod.endDate),
     getFinancialTrend(startDate, endDate),
-    getFinancialTrend(previousPeriodRange.startDate, previousPeriodRange.endDate),
+    getFinancialTrend(previousPeriod.startDate, previousPeriod.endDate),
     getAiHourlyRevenue(startDate, endDate),
     getAiCategoryRevenue(startDate, endDate),
     getAiSoldProducts(startDate, endDate),
     getAiSlowProducts(startDate, endDate),
     getAiPaymentSummary(startDate, endDate),
     getAiCancelledOrders(startDate, endDate),
-    getLowStockItems(),
-    getAiShiftVarianceHistory(startDate, endDate),
+    getAiCancelledOrders(previousPeriod.startDate, previousPeriod.endDate),
+    getInventoryContext(),
   ]);
+
+  const lowStockItems = inventoryContext.items;
+  const trend = fillMissingRevenueDays(startDate, endDate, trendRows);
+  const previousTrend = fillMissingRevenueDays(
+    previousPeriod.startDate,
+    previousPeriod.endDate,
+    previousTrendRows
+  );
 
   const revenueGrowthPercent = getGrowthPercent(summary.totalRevenue, previousSummary.totalRevenue);
   const ordersGrowthPercent = getGrowthPercent(summary.totalOrders, previousSummary.totalOrders);
-
   const dataQuality = buildDataQuality({
     totalOrders: summary.totalOrders,
     previousTotalOrders: previousSummary.totalOrders,
-    trendCount: trend.length,
+    trendCount: trendRows.length,
     hourlyRevenueCount: hourlyRevenue.length,
-    categoryRevenueCount: categoryRevenue.length,
     soldProductsCount: soldProducts.length,
     paymentSummaryCount: paymentSummary.length,
-    lowStockItemsCount: lowStockItems.length,
-    shiftVarianceCount: shiftVarianceHistory.length,
+    inventoryQueryAvailable: inventoryContext.available,
+    categoryRevenueCount: categoryRevenue.length,
   });
-
   const advancedAnalysis = buildAdvancedAnalysis({
     summary,
     previousSummary,
@@ -513,8 +494,8 @@ export async function buildAiBusinessContext(startDate: string, endDate: string)
     slowProducts,
     paymentSummary,
     cancelledOrders,
+    previousCancelledOrders,
     lowStockItems,
-    shiftVarianceHistory,
     revenueGrowthPercent,
     ordersGrowthPercent,
   });
@@ -537,8 +518,8 @@ export async function buildAiBusinessContext(startDate: string, endDate: string)
       ordersGrowthPercent,
     },
     previousPeriod: {
-      startDate: previousPeriodRange.startDate,
-      endDate: previousPeriodRange.endDate,
+      startDate: previousPeriod.startDate,
+      endDate: previousPeriod.endDate,
       summary: previousSummary,
       trend: previousTrend,
     },
@@ -550,8 +531,8 @@ export async function buildAiBusinessContext(startDate: string, endDate: string)
     slowProducts,
     paymentSummary,
     cancelledOrders,
+    previousCancelledOrders,
     lowStockItems,
-    shiftVarianceHistory,
     advancedAnalysis,
   };
 }
