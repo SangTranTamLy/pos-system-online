@@ -4,8 +4,6 @@ export type PaymentStatus = "pending" | "paid" | "failed" | "refunded";
 
 export type CancelOrderBody = {
   reason?: string;
-  cancel_reason?: string;
-  cancelled_by?: string;
 };
 
 export type OrderListQuery = {
@@ -38,6 +36,11 @@ export type OrderDetailItem = {
   id: string;
   productId: string;
   productName: string;
+  variantId: string | null;
+  variantName: string | null;
+  modifierOptions: Array<{ id: string; name: string; priceDelta: number }>;
+  itemNote: string | null;
+  configurationSnapshot: Record<string, unknown> | null;
   quantity: number;
   unitPrice: number;
   lineTotal: number;

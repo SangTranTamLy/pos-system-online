@@ -4,6 +4,7 @@ import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 import { getEmployeeRevenue } from "../../api/report.api";
 import type { EmployeeRevenue } from "../../types/report";
 import EmployeeRevenueTable from "../../components/dashboard/EmployeeRevenueTable";
+import { useAppNotifications } from "../../components/common/AppNotificationsContext";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("vi-VN", {
@@ -17,7 +18,7 @@ function StaffDashboard() {
   const navigate = useNavigate();
   const [employeeRevenue, setEmployeeRevenue] = useState<EmployeeRevenue[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
+  const { notify } = useAppNotifications();
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
@@ -31,13 +32,14 @@ function StaffDashboard() {
       .then((data) => {
         if (isActive) {
           setEmployeeRevenue(data);
-          setErrorMessage("");
+
         }
       })
       .catch((err) => {
         if (isActive) {
-          setErrorMessage(
-            err instanceof Error ? err.message : "Không tải được dữ liệu cá nhân"
+          notify(
+            err instanceof Error ? err.message : "Không tải được dữ liệu cá nhân",
+            "error"
           );
         }
       })
@@ -65,11 +67,7 @@ function StaffDashboard() {
         </div>
       </section>
 
-      {errorMessage ? (
-        <div className="mb-6 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-600">
-          {errorMessage}
-        </div>
-      ) : null}
+
 
       <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">

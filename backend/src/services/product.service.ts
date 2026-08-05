@@ -66,16 +66,6 @@ function validateMoney(value: number | undefined, fieldName: string, required = 
   }
 }
 
-function validateQuantity(value: number | null | undefined) {
-  if (value === undefined || value === null) {
-    return;
-  }
-
-  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
-    throw new ApiError(400, "Số lượng tồn kho không hợp lệ.");
-  }
-}
-
 export async function getProductsService() {
   return findProducts();
 }
@@ -135,7 +125,6 @@ export async function createProductService(body: CreateProductBody, userId?: str
 
     validateMoney(body.salePrice, "Giá bán", true);
     validateMoney(body.importPrice, "Giá nhập");
-    validateQuantity(body.stockQuantity);
 
     const product = await createProduct({
       ...body,
@@ -143,7 +132,6 @@ export async function createProductService(body: CreateProductBody, userId?: str
       name: body.name.trim(),
       description: body.description?.trim() || null,
       imageUrl: body.imageUrl?.trim() || null,
-      isTrackedStock: Boolean(category.isTrackedStock),
       isAvailable: true,
     });
 
@@ -197,7 +185,6 @@ export async function updateProductService(
 
     validateMoney(body.salePrice, "Giá bán", true);
     validateMoney(body.importPrice, "Giá nhập");
-    validateQuantity(body.stockQuantity);
 
     const updatedProduct = await updateProductById(id, {
       ...body,
@@ -205,7 +192,6 @@ export async function updateProductService(
       name: body.name.trim(),
       description: body.description?.trim() || null,
       imageUrl: body.imageUrl?.trim() || null,
-      isTrackedStock: Boolean(category.isTrackedStock),
       isAvailable: body.isAvailable ?? currentProduct.isAvailable,
     });
 
@@ -270,7 +256,6 @@ export async function updateProductStatusService(
   const allowedStatuses: Product["status"][] = [
     "active",
     "paused",
-    "out_of_stock",
   ];
 
   if (!allowedStatuses.includes(body.status)) {
@@ -287,7 +272,6 @@ export async function updateProductStatusService(
     const statusLabels: Record<string, string> = {
       active: "Hoạt động",
       paused: "Tạm dừng",
-      out_of_stock: "Hết hàng",
     };
     void createAuditLog(
       userId,

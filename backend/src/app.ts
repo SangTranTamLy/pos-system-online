@@ -5,7 +5,6 @@ import path from "path";
 import morgan from "morgan";
 import jwt from "jsonwebtoken";
 import { db } from "./config/database";
-import { syncDatabaseSchema } from "./database/schema-sync";
 import apiRouter from "./routes";
 import {
   errorMiddleware,
@@ -16,7 +15,22 @@ dotenv.config();
 
 const app = express();
 
-app.use(cors());
+const corsOrigins = (process.env.CORS_ORIGINS || process.env.FRONTEND_URL || "http://localhost:5173")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  credentials: true,
+  origin(origin, callback) {
+    if (!origin || corsOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error("Origin không được phép truy cập API."));
+  },
+}));
 app.use(morgan("dev"));
 app.use(express.json({ limit: "10mb" }));
 
@@ -97,8 +111,6 @@ process.on("uncaughtException", (error) => {
   console.error("Uncaught Exception:", error);
 });
 
-syncDatabaseSchema().finally(() => {
-  app.listen(PORT, () => {
-    console.log(`Server đang chạy trên ${PORT}`);
-  });
+app.listen(PORT, () => {
+  console.log(`Server đang chạy trên ${PORT}`);
 });

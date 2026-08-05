@@ -124,8 +124,7 @@ export const openShiftForEmployee = async (
   userId: string,
   managerId: string,
   startTime: string,
-  endTime: string,
-  openingCash = 0
+  endTime: string
 ): Promise<Shift> => {
   const employee = await findUserById(userId);
   if (!employee || !employee.isActive) {
@@ -147,10 +146,6 @@ export const openShiftForEmployee = async (
     throw new ApiError(400, "Giờ kết thúc phải lớn hơn giờ bắt đầu");
   }
 
-  if (openingCash < 0) {
-    throw new ApiError(400, "Tiền đầu ca không được âm");
-  }
-
   const hasOpenShift = await shiftRepo.checkOpenShiftExists(userId);
   if (hasOpenShift) {
     throw new ApiError(409, "Nhân viên này đang có ca làm chưa kết thúc");
@@ -162,7 +157,7 @@ export const openShiftForEmployee = async (
   }
 
   const id = uuidv4();
-  await shiftRepo.createOpenShiftForEmployee(id, userId, start, end, managerId, openingCash);
+  await shiftRepo.createOpenShiftForEmployee(id, userId, start, end, managerId);
 
   const openedShift = await shiftRepo.findShiftById(id);
   if (!openedShift) throw new ApiError(500, "Không thể mở ca cho nhân viên");
@@ -171,7 +166,7 @@ export const openShiftForEmployee = async (
     managerId,
     "MO_CA",
     `Ca làm: ${openedShift.userName || "Nhân viên"}`,
-    `Quản lý mở ca trực tiếp cho nhân viên ${openedShift.userName || "Không rõ"}. Tiền đầu ca: ${openingCash.toLocaleString("vi-VN")}đ.`,
+    `Quản lý phê duyệt và mở ca trực tiếp cho nhân viên ${openedShift.userName || "Không rõ"}. Nhân viên sẽ nhập tiền đầu ca trước khi bán hàng.`,
     null,
     openedShift
   );
@@ -202,7 +197,7 @@ export const requestOpenShift = async (
   if (shift.status !== "APPROVED") throw new ApiError(400, "Chỉ có thể yêu cầu mở ca đã được duyệt");
   if (openingCash < 0) throw new ApiError(400, "Tiền mặt đầu ca không được âm");
 
-  const hasOpenShift = await shiftRepo.checkOpenShiftExists(shift.userId);
+  const hasOpenShift = await shiftRepo.checkOpenShiftExists(shift.userId, shift.id);
   if (hasOpenShift) {
     throw new ApiError(409, "Nhân viên này đang có ca làm chưa kết thúc");
   }
@@ -251,7 +246,7 @@ export const openShift = async (id: string, managerId: string): Promise<Shift> =
     throw new ApiError(400, "Chỉ có thể xác nhận mở ca đang yêu cầu mở");
   }
 
-  const hasOpenShift = await shiftRepo.checkOpenShiftExists(shift.userId);
+  const hasOpenShift = await shiftRepo.checkOpenShiftExists(shift.userId, shift.id);
   if (hasOpenShift) {
     throw new ApiError(409, "Nhân viên này đang có ca làm chưa kết thúc");
   }
@@ -312,23 +307,14 @@ export const closeShift = async (
   }
   if (actualClosingCash < 0) throw new ApiError(400, "Tiền mặt chốt ca không được âm");
 
-  const { totalCash, totalQr } = await shiftRepo.calculateShiftSales(id);
-  const totalSales = totalCash + totalQr;
-  const expectedCash = shift.openingCash + totalCash;
-  const variance = actualClosingCash - expectedCash;
-
-  await shiftRepo.updateShiftStatus(id, "CLOSED", {
-    closed_by: managerId,
-    actual_end_time: new Date(),
-    actual_closing_cash: actualClosingCash,
-    total_sales_cash: totalCash,
-    total_sales_qr: totalQr,
-    total_sales: totalSales,
-    variance,
-    closing_note: closingNote || null,
-  });
-
-  const updatedShift = (await shiftRepo.findShiftById(id))!;
+  const updatedShift = await shiftRepo.closeShiftTransaction(
+    id,
+    managerId,
+    actualClosingCash,
+    closingNote
+  );
+  const totalSales = updatedShift.totalSales;
+  const variance = updatedShift.variance;
   const direction = variance >= 0 ? "Thừa" : "Thiếu";
 
   void createAuditLog(

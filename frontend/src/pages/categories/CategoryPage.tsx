@@ -11,49 +11,20 @@ import {
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 import { useAppNotifications } from "../../components/common/AppNotificationsContext";
 
-type CategoryLogicType = "prepared" | "stock_returnable";
-type LogicFilter = "all" | CategoryLogicType;
 type ProductFilter = "all" | "has_products" | "empty";
-type NoticeState = {
-  type: "success" | "error";
-  message: string;
-};
+
 
 type CategoryFormState = {
   name: string;
   description: string;
   imageUrl: string;
-  logicType: CategoryLogicType;
 };
 
 const defaultFormState: CategoryFormState = {
   name: "",
   description: "",
   imageUrl: "",
-  logicType: "prepared",
 };
-
-function getCategoryLogicType(category: ApiCategory): CategoryLogicType {
-  return category.isTrackedStock ? "stock_returnable" : "prepared";
-}
-
-function getLogicMeta(logicType: CategoryLogicType) {
-  if (logicType === "stock_returnable") {
-    return {
-      label: "Hàng bán có số lượng",
-      description: "Dùng cho sản phẩm có sẵn như nước lon, nước chai hoặc hàng đóng gói.",
-      className: "bg-emerald-50 text-emerald-700 ring-emerald-100",
-      icon: "inventory_2",
-    };
-  }
-
-  return {
-    label: "Món pha chế / chế biến",
-    description: "Dùng cho món được pha chế hoặc chế biến sau khi khách đặt.",
-    className: "bg-orange-50 text-[#f97316] ring-orange-100",
-    icon: "local_cafe",
-  };
-}
 
 function StatCard({
   label,
@@ -84,11 +55,10 @@ function StatCard({
 }
 
 function CategoryPage() {
-  const { confirm: confirmAction } = useAppNotifications();
+  const { notify, confirm: confirmAction } = useAppNotifications();
   const navigate = useNavigate();
   const [categories, setCategories] = useState<ApiCategory[]>([]);
   const [search, setSearch] = useState("");
-  const [logicFilter, setLogicFilter] = useState<LogicFilter>("all");
   const [productFilter, setProductFilter] = useState<ProductFilter>("all");
   const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
@@ -96,23 +66,22 @@ function CategoryPage() {
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ApiCategory | null>(null);
   const [formState, setFormState] = useState<CategoryFormState>(defaultFormState);
-  const [notice, setNotice] = useState<NoticeState | null>(null);
+
 
   const pageSize = 8;
 
   const loadCategories = useCallback(async () => {
     try {
-      setNotice(null);
+
       const response = await getCategories();
       setCategories(response.data);
     } catch (error) {
-      setNotice({
-        type: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Không tải được danh sách danh mục.",
-      });
+      notify(
+        error instanceof Error
+          ? error.message
+          : "Không tải được danh sách danh mục.",
+        "error"
+      );
     } finally {
       setIsLoading(false);
     }
@@ -137,14 +106,7 @@ function CategoryPage() {
     return () => window.removeEventListener("keydown", handleEscape);
   }, [isModalOpen]);
 
-  useEffect(() => {
-    if (!notice) {
-      return undefined;
-    }
 
-    const timer = window.setTimeout(() => setNotice(null), 3500);
-    return () => window.clearTimeout(timer);
-  }, [notice]);
 
   const stats = useMemo(
     () => [
@@ -161,9 +123,9 @@ function CategoryPage() {
         tone: "bg-sky-50 text-sky-700",
       },
       {
-        label: "Có theo dõi số lượng",
-        value: String(categories.filter((category) => category.isTrackedStock).length),
-        icon: "inventory_2",
+        label: "Đang hoạt động",
+        value: String(categories.filter((category) => category.isActive).length),
+        icon: "check_circle",
         tone: "bg-emerald-50 text-emerald-700",
       },
       {
@@ -180,21 +142,19 @@ function CategoryPage() {
     const query = search.trim().toLowerCase();
 
     return categories.filter((category) => {
-      const logicType = getCategoryLogicType(category);
       const description = category.description ?? "";
       const matchesSearch =
         query.length === 0 ||
         category.name.toLowerCase().includes(query) ||
         description.toLowerCase().includes(query);
-      const matchesLogic = logicFilter === "all" || logicFilter === logicType;
       const matchesProduct =
         productFilter === "all" ||
         (productFilter === "has_products" && category.productCount > 0) ||
         (productFilter === "empty" && category.productCount === 0);
 
-      return matchesSearch && matchesLogic && matchesProduct;
+      return matchesSearch && matchesProduct;
     });
-  }, [categories, logicFilter, productFilter, search]);
+  }, [categories, productFilter, search]);
 
   const totalPages = Math.max(1, Math.ceil(filteredCategories.length / pageSize));
   const paginatedCategories = filteredCategories.slice(
@@ -204,7 +164,6 @@ function CategoryPage() {
 
   const resetFilters = () => {
     setSearch("");
-    setLogicFilter("all");
     setProductFilter("all");
     setPage(1);
   };
@@ -221,7 +180,6 @@ function CategoryPage() {
       name: category.name,
       description: category.description ?? "",
       imageUrl: category.imageUrl ?? "",
-      logicType: getCategoryLogicType(category),
     });
     setIsModalOpen(true);
   };
@@ -239,7 +197,6 @@ function CategoryPage() {
       name: formState.name.trim(),
       description: formState.description.trim() || null,
       imageUrl: formState.imageUrl.trim() || null,
-      isTrackedStock: formState.logicType === "stock_returnable",
     };
 
     try {
@@ -251,18 +208,15 @@ function CategoryPage() {
 
       await loadCategories();
       closeModal();
-      setNotice({
-        type: "success",
-        message: editingCategory
-          ? "Đã cập nhật danh mục."
-          : "Đã thêm danh mục mới.",
-      });
+      notify(
+        editingCategory ? "Đã cập nhật danh mục." : "Đã thêm danh mục mới.",
+        "success"
+      );
     } catch (error) {
-      setNotice({
-        type: "error",
-        message:
-          error instanceof Error ? error.message : "Không lưu được danh mục.",
-      });
+      notify(
+        error instanceof Error ? error.message : "Không lưu được danh mục.",
+        "error"
+      );
     }
   };
 
@@ -281,13 +235,12 @@ function CategoryPage() {
     try {
       await deleteCategory(category.id);
       await loadCategories();
-      setNotice({ type: "success", message: "Đã xóa danh mục." });
+      notify("Đã xóa danh mục.", "success");
     } catch (error) {
-      setNotice({
-        type: "error",
-        message:
-          error instanceof Error ? error.message : "Không xóa được danh mục.",
-      });
+      notify(
+        error instanceof Error ? error.message : "Không xóa được danh mục.",
+        "error"
+      );
     }
   };
 
@@ -307,13 +260,12 @@ function CategoryPage() {
         ...current,
         imageUrl: response.data.imageUrl,
       }));
-      setNotice({ type: "success", message: "Đã tải ảnh danh mục." });
+      notify("Đã tải ảnh danh mục.", "success");
     } catch (error) {
-      setNotice({
-        type: "error",
-        message:
-          error instanceof Error ? error.message : "Không tải được ảnh danh mục.",
-      });
+      notify(
+        error instanceof Error ? error.message : "Không tải được ảnh danh mục.",
+        "error"
+      );
     } finally {
       setIsUploadingImage(false);
     }
@@ -331,19 +283,7 @@ function CategoryPage() {
           ))}
         </section>
 
-        {notice ? (
-          <div
-            className={[
-              "flex items-start gap-3 border px-4 py-3 text-sm font-semibold",
-              notice.type === "success"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border-rose-200 bg-rose-50 text-rose-700",
-            ].join(" ")}
-          >
-            <Icon name={notice.type === "success" ? "check_circle" : "error"} />
-            <span>{notice.message}</span>
-          </div>
-        ) : null}
+
 
         <section className="border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 p-4">
@@ -364,19 +304,6 @@ function CategoryPage() {
                   className="h-11 w-full border border-slate-200 bg-white pl-10 pr-4 text-sm font-medium text-[#0b1c30] outline-none transition focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
                 />
               </div>
-
-              <select
-                value={logicFilter}
-                onChange={(event) => {
-                  setLogicFilter(event.target.value as LogicFilter);
-                  setPage(1);
-                }}
-                className="h-11 border border-slate-200 bg-white px-3 text-sm font-semibold text-[#0b1c30] outline-none transition focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
-              >
-                <option value="all">Tất cả cách bán hàng</option>
-                <option value="prepared">Món pha chế / chế biến</option>
-                <option value="stock_returnable">Hàng bán có số lượng</option>
-              </select>
 
               <select
                 value={productFilter}
@@ -412,11 +339,10 @@ function CategoryPage() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-left text-sm">
+            <table className="w-full min-w-[840px] text-left text-sm">
               <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-5 py-3">Danh mục</th>
-                  <th className="px-5 py-3">Cách bán hàng</th>
                   <th className="px-5 py-3 text-center">Số sản phẩm</th>
                   <th className="px-5 py-3">Ngày tạo</th>
                   <th className="px-5 py-3 text-right">Thao tác</th>
@@ -425,7 +351,7 @@ function CategoryPage() {
               <tbody className="divide-y divide-slate-200">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={5} className="px-5 py-10 text-center font-semibold text-slate-500">
+                    <td colSpan={4} className="px-5 py-10 text-center font-semibold text-slate-500">
                       Đang tải danh mục...
                     </td>
                   </tr>
@@ -433,7 +359,7 @@ function CategoryPage() {
 
                 {!isLoading && paginatedCategories.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-5 py-10 text-center font-semibold text-slate-500">
+                    <td colSpan={4} className="px-5 py-10 text-center font-semibold text-slate-500">
                       Không tìm thấy danh mục phù hợp.
                     </td>
                   </tr>
@@ -441,9 +367,6 @@ function CategoryPage() {
 
                 {!isLoading
                   ? paginatedCategories.map((category) => {
-                      const logicType = getCategoryLogicType(category);
-                      const logicMeta = getLogicMeta(logicType);
-
                       return (
                         <tr key={category.id} className="transition hover:bg-slate-50">
                           <td className="px-5 py-4">
@@ -468,14 +391,6 @@ function CategoryPage() {
                                 </p>
                               </div>
                             </div>
-                          </td>
-                          <td className="px-5 py-4">
-                            <span
-                              className={`inline-flex items-center gap-2 px-3 py-1 text-xs font-bold ring-1 ${logicMeta.className}`}
-                            >
-                              <Icon name={logicMeta.icon} className="text-[16px]" />
-                              {logicMeta.label}
-                            </span>
                           </td>
                           <td className="px-5 py-4 text-center font-extrabold text-[#0b1c30]">
                             {category.productCount}
@@ -563,34 +478,25 @@ function CategoryPage() {
       </div>
 
       {isModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b1c30]/45 p-4">
-          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto border border-slate-200 bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4">
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center bg-orange-50 text-[#f97316]">
-                  <Icon name="category" />
-                </span>
-                <div>
-                  <h3 className="text-lg font-extrabold text-[#0b1c30]">
-                    {editingCategory ? "Sửa danh mục" : "Thêm danh mục mới"}
-                  </h3>
-                  <p className="text-xs font-medium text-slate-500">
-                    Danh mục dùng để nhóm món bán và chọn cách quản lý phù hợp.
-                  </p>
-                </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b p-5">
+              <div>
+                <p className="text-xs font-black uppercase text-[#f97316]">
+                  {editingCategory ? "Cập nhật danh mục" : "Danh mục mới"}
+                </p>
+                <h3 className="text-xl font-black text-[#0b1c30]">
+                  {formState.name || "Tên danh mục chưa đặt"}
+                </h3>
               </div>
-              <button
-                type="button"
-                onClick={closeModal}
-                className="p-2 text-slate-500 transition hover:text-rose-600"
-                aria-label="Đóng form"
-              >
+              <button type="button" onClick={closeModal}>
                 <Icon name="close" />
               </button>
             </div>
-
-            <form className="space-y-5 p-6" onSubmit={handleSubmit}>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            
+            <div className="flex-1 overflow-y-auto p-5">
+              <form id="categoryForm" className="space-y-5" onSubmit={handleSubmit}>
+              <div className="grid grid-cols-1 gap-4">
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-wide text-slate-500">
                     Tên danh mục <span className="text-rose-600">*</span>
@@ -610,24 +516,6 @@ function CategoryPage() {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                    Cách bán hàng <span className="text-rose-600">*</span>
-                  </label>
-                  <select
-                    value={formState.logicType}
-                    onChange={(event) =>
-                      setFormState((current) => ({
-                        ...current,
-                        logicType: event.target.value as CategoryLogicType,
-                      }))
-                    }
-                    className="h-11 w-full border border-slate-200 bg-white px-3 text-sm font-semibold text-[#0b1c30] outline-none transition focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
-                  >
-                    <option value="prepared">Món pha chế / chế biến</option>
-                    <option value="stock_returnable">Hàng bán có số lượng</option>
-                  </select>
-                </div>
               </div>
 
               <div className="space-y-2">
@@ -664,7 +552,7 @@ function CategoryPage() {
                   <p className="text-xs font-medium text-slate-500">
                     {isUploadingImage
                       ? "Đang tải ảnh lên máy chủ..."
-                      : getLogicMeta(formState.logicType).description}
+                      : "Danh mục chỉ dùng để phân loại món; tồn kho được quản lý theo nguyên liệu trong công thức."}
                   </p>
                 </div>
 
@@ -681,22 +569,24 @@ function CategoryPage() {
                 </div>
               </div>
 
-              <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="inline-flex h-11 items-center justify-center border border-slate-300 bg-white px-6 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="inline-flex h-11 items-center justify-center bg-[#f97316] px-6 text-sm font-bold text-white transition hover:bg-[#ea580c]"
-                >
-                  {editingCategory ? "Lưu thay đổi" : "Thêm danh mục"}
-                </button>
-              </div>
-            </form>
+              </form>
+            </div>
+            <div className="flex justify-end gap-3 border-t p-4">
+              <button
+                type="button"
+                onClick={closeModal}
+                className="rounded-lg border px-5 py-2 font-bold text-slate-700"
+              >
+                Hủy
+              </button>
+              <button
+                type="submit"
+                form="categoryForm"
+                className="rounded-lg bg-[#f97316] px-5 py-2 font-bold text-white"
+              >
+                {editingCategory ? "Lưu thay đổi" : "Thêm danh mục"}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

@@ -9,12 +9,13 @@ import {
   getAiInsightsContextController,
   getAiReportInsightsController
 } from "../controllers/report.controller";
-import { authMiddleware } from "../middleware/auth.middleware";
+import { authMiddleware, requireRoles } from "../middleware/auth.middleware";
 import { asyncHandler } from "../utils/asyncHandler";
 
 const reportRouter = Router();
 
 reportRouter.use(authMiddleware);
+reportRouter.use(requireRoles(["ADMIN", "MANAGER"]));
 
 reportRouter.get("/employee-revenue", asyncHandler(getEmployeeRevenueController));
 reportRouter.get("/financial", asyncHandler(getFinancialReportController));

@@ -61,10 +61,11 @@ const DATABASE_TABLES = [
   "orders",
   "order_details",
   "payments",
-  "stock_transactions",
-  "waste_transactions",
+  "inventory_audits",
+  "inventory_audit_details",
   "shifts",
   "audit_logs",
+  "ai_report_logs",
   "settings"
 ];
 

@@ -24,7 +24,12 @@ export interface Material {
   name: string;
   sku: string;
   category: string;
+  /** Đơn vị tồn kho, kiểm kê và định mức công thức. */
   unit: string;
+  /** Đơn vị mua từ nhà cung cấp. */
+  purchaseUnit: string;
+  /** 1 purchaseUnit bằng bao nhiêu unit. */
+  purchaseToStockFactor: number;
   supplierId?: string | null;
   supplierName?: string | null;
   stockQuantity: number;
@@ -39,6 +44,8 @@ export interface CreateMaterialBody {
   sku?: string;
   category?: string;
   unit: string;
+  purchaseUnit?: string;
+  purchaseToStockFactor?: number;
   supplierId?: string | null;
   stockQuantity?: number;
   importPrice?: number;
@@ -82,8 +89,15 @@ export interface GoodsReceiptMaterialDetail {
   receiptId: string;
   materialId: string;
   materialName: string;
+  /** Đơn vị nhập tại thời điểm lập phiếu. */
+  purchaseUnit: string;
   unit: string;
+  /** Số đơn vị nhập. */
   quantity: number;
+  /** Hệ số quy đổi được chụp tại thời điểm nhập. */
+  conversionFactor: number;
+  /** Số lượng đã cộng vào tồn kho theo đơn vị tồn. */
+  stockQuantity: number;
   unitPrice: number;
   lineTotal: number;
 }
@@ -144,4 +158,3 @@ export interface UpdateInventoryAuditBody {
   note?: string | null;
   items: InventoryAuditDetailInput[];
 }
-

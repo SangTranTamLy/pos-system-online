@@ -3,7 +3,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { fetchShifts } from "../api/shifts.api";
 import { createAuditLog, getAuditLogs } from "../api/audit-log.api";
 import { fetchMaterials, type Material } from "../api/inventory.api";
-import { getProducts, type Product } from "../api/product.api";
 import { getOrders, type OrderListItem } from "../api/order.api";
 import { fetchPromotions, type Promotion } from "../api/promotions.api";
 import type { AuditLog } from "../types/audit-log";
@@ -535,7 +534,6 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
   const [hasActiveShift, setHasActiveShift] = useState(true);
   const [, setLayoutShifts] = useState<LayoutShift[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [todayOrders, setTodayOrders] = useState<OrderListItem[]>([]);
   const [cancelledOrders, setCancelledOrders] = useState<OrderListItem[]>([]);
@@ -567,7 +565,6 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
     if (!["admin", "manager", "staff", "cashier"].includes(roleName)) {
       void Promise.resolve().then(() => {
         setMaterials([]);
-        setProducts([]);
         setPromotions([]);
         setTodayOrders([]);
         setCancelledOrders([]);
@@ -577,10 +574,8 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
     }
 
     const today = formatLocalDateInput(new Date());
-
     void Promise.allSettled([
       fetchMaterials(),
-      getProducts(),
       canSeeSharedNotifications ? fetchPromotions() : Promise.resolve([]),
       canSeeAdminNotifications
         ? getOrders({ dateFrom: today, dateTo: today })
@@ -602,9 +597,8 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
             logs: [],
             total: 0,
           } as Awaited<ReturnType<typeof getAuditLogs>>),
-    ]).then(([materialsResult, productsResult, promotionsResult, ordersResult, cancelledResult, logsResult]) => {
+    ]).then(([materialsResult, promotionsResult, ordersResult, cancelledResult, logsResult]) => {
       setMaterials(materialsResult.status === "fulfilled" ? materialsResult.value.data : []);
-      setProducts(productsResult.status === "fulfilled" ? productsResult.value.data : []);
       setPromotions(promotionsResult.status === "fulfilled" ? promotionsResult.value : []);
       setTodayOrders(ordersResult.status === "fulfilled" ? ordersResult.value.data : []);
       setCancelledOrders(cancelledResult.status === "fulfilled" ? cancelledResult.value.data : []);
@@ -672,20 +666,10 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
     const lowMaterials = materials.filter((material) =>
       material.isActive && Number(material.stockQuantity) > 0 && Number(material.stockQuantity) <= 5
     );
-    const lowProducts = products.filter((product) =>
-      product.isTrackedStock && product.status !== "out_of_stock" && Number(product.stockQuantity || 0) > 0 && Number(product.stockQuantity || 0) <= 5
-    );
-    const outOfStockProducts = products.filter((product) =>
-      product.isTrackedStock && (product.status === "out_of_stock" || Number(product.stockQuantity || 0) <= 0)
-    );
-
-    if (lowMaterials.length + lowProducts.length > 0) {
+    if (lowMaterials.length > 0) {
       const lowStockNames = [
         ...lowMaterials.map((material) =>
           `${material.name} (${Number(material.stockQuantity || 0).toLocaleString("vi-VN")} ${material.unit})`
-        ),
-        ...lowProducts.map((product) =>
-          `${product.name} (${Number(product.stockQuantity || 0).toLocaleString("vi-VN")})`
         ),
       ];
       const lowStockSignature = getStockNotificationSignature([
@@ -694,40 +678,15 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
           stockQuantity: material.stockQuantity,
           updatedAt: material.updatedAt,
         })),
-        ...lowProducts.map((product) => ({
-          id: `product-${product.id}`,
-          stockQuantity: product.stockQuantity,
-          updatedAt: product.updatedAt,
-        })),
       ]);
 
       items.push({
         id: `low-stock-${lowStockSignature}`,
-        title: `${lowMaterials.length + lowProducts.length} mặt hàng tồn kho thấp`,
+        title: `${lowMaterials.length} nguyên liệu tồn kho thấp`,
         description: `Sắp hết: ${formatNotificationNameList(lowStockNames)}. Cần kiểm tra nhập thêm.`,
         icon: "warning",
         tone: "bg-amber-50 text-amber-600",
         path: canManageBackOffice ? "/stock" : "/pos",
-      });
-    }
-
-    if (outOfStockProducts.length > 0) {
-      const outOfStockNames = outOfStockProducts.map((product) => product.name);
-      const outOfStockSignature = getStockNotificationSignature(
-        outOfStockProducts.map((product) => ({
-          id: `product-${product.id}`,
-          stockQuantity: product.stockQuantity,
-          updatedAt: product.updatedAt,
-        }))
-      );
-
-      items.push({
-        id: `out-of-stock-products-${outOfStockSignature}`,
-        title: `${outOfStockProducts.length} sản phẩm hết hàng`,
-        description: `Hết hàng: ${formatNotificationNameList(outOfStockNames)}. Cần nhập thêm hoặc tạm ẩn khỏi POS.`,
-        icon: "inventory_2",
-        tone: "bg-red-50 text-red-600",
-        path: canManageBackOffice ? "/products" : "/pos",
       });
     }
 
@@ -780,7 +739,7 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
     const securityLogs = auditLogs.filter((log) =>
       textIncludesAny(`${log.actionType} ${log.description}`, ["dang_nhap", "đăng nhập", "login", "bao_mat", "bảo mật", "bat thuong", "bất thường"])
     );
-    if (cancelledOrders.length < 0) {
+    if (cancelledOrders.length > 0) {
       items.push({
         id: "cancelled-invoices",
         title: `${cancelledOrders.length} hóa đơn bị hủy hôm nay`,
@@ -835,7 +794,7 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
     }
 
     return items;
-  }, [auditLogs, cancelledOrders, hasActiveShift, materials, products, promotions, todayOrders, user.roleName]);
+  }, [auditLogs, cancelledOrders, materials, promotions, todayOrders, user.roleName]);
   const handleLogout = async () => {
     try {
       await createAuditLog({

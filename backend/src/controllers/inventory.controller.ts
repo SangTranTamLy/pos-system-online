@@ -12,7 +12,6 @@ import {
   findGoodsReceiptDetail,
   findGoodsReceiptMaterialDetail,
   createGoodsReceiptTransaction,
-  createStockAdjustmentTransaction,
   findAllInventoryAudits,
   findInventoryAuditById,
   createInventoryAudit,
@@ -342,35 +341,6 @@ export async function payGoodsReceiptDebtController(req: Request, res: Response)
   });
 }
 
-export async function createStockAdjustmentController(req: Request, res: Response) {
-  if (!req.user) {
-    throw new ApiError(401, "Phiên đăng nhập chưa được xác thực.");
-  }
-
-  const { productId, newQuantity, note } = req.body;
-
-  if (!productId || productId.trim() === "") {
-    throw new ApiError(400, "Vui lòng chọn sản phẩm cần điều chỉnh.");
-  }
-
-  if (typeof newQuantity !== "number" || newQuantity < 0) {
-    throw new ApiError(400, "Số lượng điều chỉnh không hợp lệ.");
-  }
-
-  const result = await createStockAdjustmentTransaction(
-    productId,
-    newQuantity,
-    note,
-    req.user.id
-  );
-
-  return res.status(200).json({
-    success: true,
-    message: "Đã điều chỉnh tồn kho.",
-    data: result,
-  });
-}
-
 export async function getInventoryAuditsController(req: Request, res: Response) {
   const data = await findAllInventoryAudits();
   return res.json({
@@ -460,4 +430,3 @@ export async function deleteInventoryAuditController(req: Request, res: Response
     message: "Đã xóa phiếu kiểm kê nháp.",
   });
 }
-

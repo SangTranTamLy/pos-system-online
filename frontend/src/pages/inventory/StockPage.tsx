@@ -28,12 +28,9 @@ type MaterialStatusFilter = "all" | "active" | "inactive" | "low_stock" | "out";
 type ReceiptItemDraft = {
   material: Material;
   quantity: number;
-  unitPrice: number;
+  unitPrice: string;
 };
-type NoticeState = {
-  type: "success" | "error";
-  message: string;
-};
+
 
 const inputClass =
   "h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-[#0b1c30] outline-none transition focus:border-[#f97316] focus:ring-2 focus:ring-orange-100";
@@ -55,6 +52,11 @@ function formatDateTime(value: string) {
   });
 }
 
+function formatCurrency(value: number) {
+  return `${Math.round(value).toLocaleString("vi-VN")}đ`;
+}
+
+
 function getReceiptCode(receipt: GoodsReceipt) {
   return `PN-${receipt.id.slice(0, 8).toUpperCase()}`;
 }
@@ -69,7 +71,10 @@ function getDisplayNote(note: string | null) {
 function getReceiptDetails(receipt: GoodsReceipt) {
   if (Array.isArray(receipt.materialDetails) && receipt.materialDetails.length > 0) {
     return receipt.materialDetails
-      .map((detail) => `${detail.materialName} x${detail.quantity} ${detail.unit}`)
+      .map(
+        (detail) =>
+          `${detail.materialName} x${detail.quantity} ${detail.purchaseUnit} → ${detail.stockQuantity} ${detail.unit}`
+      )
       .join(", ");
   }
   return getDisplayNote(receipt.note) || "Chưa có chi tiết";
@@ -126,41 +131,46 @@ function BackToStockButton({
   );
 }
 
-function StockActionHeader({
-  eyebrow,
-  title,
-  onBack,
-  accentClassName,
+function InventoryHistoryTabs({
+  active,
+  onSelect,
 }: {
-  eyebrow?: string;
-  title: string;
-  onBack: () => void;
-  accentClassName?: string;
+  active: "receipts" | "audits" | "suppliers";
+  onSelect: (tab: "receipts" | "audits" | "suppliers") => void;
 }) {
   return (
-    <div className="mb-5 flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        {eyebrow ? (
-          <p className={["text-xs font-extrabold uppercase tracking-wide", accentClassName || "text-[#f97316]"].join(" ")}>
-            {eyebrow}
-          </p>
-        ) : null}
-        <h1 className="text-2xl font-extrabold text-[#0b1c30]">{title}</h1>
-      </div>
-      <BackToStockButton
-        onClick={onBack}
-        accentClassName={
-          accentClassName === "text-purple-600"
-            ? "hover:border-purple-500 hover:text-purple-600"
-            : undefined
-        }
-      />
+    <div className="flex overflow-x-auto border-b border-slate-200">
+      {[
+        ["receipts", "Lịch sử nhập kho", "history"],
+        ["audits", "Lịch sử kiểm kê", "fact_check"],
+        ["suppliers", "Quản lý nhà cung cấp", "storefront"],
+      ].map(([value, label, icon]) => (
+        <button
+          key={value}
+          type="button"
+          onClick={() => onSelect(value as "receipts" | "audits" | "suppliers")}
+          className={`inline-flex shrink-0 items-center gap-2 border-b-2 px-5 py-3 text-sm font-extrabold transition ${
+            active === value
+              ? "border-[#f97316] text-[#f97316]"
+              : "border-transparent text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <Icon name={icon} className="text-[18px]" />
+          {label}
+        </button>
+      ))}
     </div>
   );
 }
 
+function getInventoryHistoryPath(tab: "receipts" | "audits" | "suppliers") {
+  if (tab === "audits") return "/stock/history/audits";
+  if (tab === "suppliers") return "/stock/history/suppliers";
+  return "/stock/history";
+}
+
 export function StockPage() {
-  const { confirm: confirmAction } = useAppNotifications();
+  const { notify, confirm: confirmAction } = useAppNotifications();
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname.split("/")[2] || "overview";
@@ -171,7 +181,7 @@ export function StockPage() {
   const [audits, setAudits] = useState<InventoryAudit[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [notice, setNotice] = useState<NoticeState | null>(null);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<MaterialStatusFilter>("all");
@@ -182,7 +192,8 @@ export function StockPage() {
   const [selectedReceipt, setSelectedReceipt] = useState<GoodsReceipt | null>(null);
   const [selectedAudit, setSelectedAudit] = useState<InventoryAudit | null>(null);
   const [receiptItems, setReceiptItems] = useState<ReceiptItemDraft[]>([]);
-  const [activeHistoryTab, setActiveHistoryTab] = useState<"receipts" | "suppliers">("receipts");
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [showAuditModal, setShowAuditModal] = useState(false);
   const [supplierFilter, setSupplierFilter] = useState<string>("all");
   const [receiptSearchQuery, setReceiptSearchQuery] = useState<string>("");
   const [formSupplierId, setFormSupplierId] = useState("");
@@ -193,7 +204,7 @@ export function StockPage() {
   const [auditItems, setAuditItems] = useState<Array<{
     material: Material;
     systemQuantity: number;
-    actualQuantity: number;
+    actualQuantity: number | string;
     note: string;
   }>>([]);
   const [auditNote, setAuditNote] = useState("");
@@ -202,7 +213,7 @@ export function StockPage() {
   const loadAllData = useCallback(async () => {
     try {
       setIsLoading(true);
-      setNotice(null);
+
       const [materialResponse, supplierResponse, receiptResponse, auditsResponse] = await Promise.all([
         fetchMaterials(),
         fetchSuppliers(),
@@ -215,13 +226,12 @@ export function StockPage() {
       setAudits(auditsResponse.data || []);
       setFormSupplierId((current) => current || supplierResponse.data[0]?.id || "");
     } catch (error) {
-      setNotice({
-        type: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Không tải được dữ liệu kho hàng.",
-      });
+      showNotice(
+        error instanceof Error
+          ? error.message
+          : "Không tải được dữ liệu kho hàng.",
+        "error"
+      );
     } finally {
       setIsLoading(false);
     }
@@ -283,6 +293,7 @@ export function StockPage() {
       supplierName: s.name,
       phone: s.phone,
       address: s.address || "---",
+      supplier: s,
     }));
   }, [suppliers]);
 
@@ -308,8 +319,13 @@ export function StockPage() {
     });
   }, [receipts, receiptSearchQuery, supplierFilter]);
 
-  function showNotice(message: string, type: NoticeState["type"] = "error") {
-    setNotice({ type, message });
+  const receiptTotal = useMemo(
+    () => receiptItems.reduce((total, item) => total + item.quantity * Number(item.unitPrice || 0), 0),
+    [receiptItems]
+  );
+
+  function showNotice(message: string, type: "success" | "error" = "error") {
+    notify(message, type);
   }
 
   function addMaterialToReceipt(material: Material) {
@@ -327,17 +343,26 @@ export function StockPage() {
         {
           material,
           quantity: 1,
-          unitPrice: Number(material.importPrice || 0),
+          // Giá nhập thay đổi theo từng phiếu; không suy đoán từ giá tồn hoặc hệ số quy đổi.
+          unitPrice: "",
         },
       ];
     });
     setMaterialSearch("");
   }
 
-  function updateReceiptItem(materialId: string, field: "quantity" | "unitPrice", value: number) {
+  function updateReceiptQuantity(materialId: string, value: number) {
     setReceiptItems((current) =>
       current.map((item) =>
-        item.material.id === materialId ? { ...item, [field]: Math.max(value, 0) } : item
+        item.material.id === materialId ? { ...item, quantity: Math.max(value, 0) } : item
+      )
+    );
+  }
+
+  function updateReceiptUnitPrice(materialId: string, value: string) {
+    setReceiptItems((current) =>
+      current.map((item) =>
+        item.material.id === materialId ? { ...item, unitPrice: value } : item
       )
     );
   }
@@ -359,7 +384,7 @@ export function StockPage() {
       return;
     }
     const invalidItem = receiptItems.find(
-      (item) => item.quantity <= 0 || item.unitPrice < 0
+      (item) => item.quantity <= 0 || Number(item.unitPrice) <= 0
     );
     if (invalidItem) {
       showNotice("Số lượng và giá nhập phải hợp lệ.");
@@ -374,12 +399,13 @@ export function StockPage() {
         materialItems: receiptItems.map((item) => ({
           materialId: item.material.id,
           quantity: item.quantity,
-          unitPrice: item.unitPrice,
+          unitPrice: Number(item.unitPrice),
         })),
       });
       resetReceiptForm();
       await loadAllData();
       showNotice("Đã tạo phiếu nhập kho.", "success");
+      setShowImportModal(false);
       navigate("/stock");
     } catch (error) {
       showNotice(error instanceof Error ? error.message : "Chưa tạo được phiếu nhập.");
@@ -392,12 +418,13 @@ export function StockPage() {
     setAuditItems((current) => {
       const existed = current.find((item) => item.material.id === material.id);
       if (existed) return current;
+      const factor = material.purchaseToStockFactor || 1;
       return [
         ...current,
         {
           material,
-          systemQuantity: Number(material.stockQuantity || 0),
-          actualQuantity: Number(material.stockQuantity || 0),
+          systemQuantity: Number(material.stockQuantity || 0) / factor,
+          actualQuantity: Number(material.stockQuantity || 0) / factor,
           note: "",
         },
       ];
@@ -415,9 +442,15 @@ export function StockPage() {
         if (item.material.id !== materialId) return item;
 
         if (field === "actualQuantity") {
+          let newValue = value;
+          if (typeof value === "string" && value !== "") {
+            if (Number(value) < 0) newValue = 0;
+          } else if (typeof value === "number") {
+            newValue = Math.max(value, 0);
+          }
           return {
             ...item,
-            actualQuantity: Math.max(Number(value || 0), 0),
+            actualQuantity: newValue,
           };
         }
 
@@ -437,17 +470,20 @@ export function StockPage() {
 
     try {
       setIsSubmitting(true);
-      setNotice(null);
+
 
       const payload = {
         status,
         note: auditNote.trim() || null,
-        items: auditItems.map((item) => ({
-          materialId: item.material.id,
-          systemQuantity: item.systemQuantity,
-          actualQuantity: item.actualQuantity,
-          note: item.note ? item.note.trim() : null,
-        })),
+        items: auditItems.map((item) => {
+          const factor = item.material.purchaseToStockFactor || 1;
+          return {
+            materialId: item.material.id,
+            systemQuantity: item.systemQuantity * factor,
+            actualQuantity: Number(item.actualQuantity || 0) * factor,
+            note: item.note ? item.note.trim() : null,
+          };
+        }),
       };
 
       if (editingAuditId) {
@@ -456,10 +492,10 @@ export function StockPage() {
         await createInventoryAudit(payload);
       }
 
-      setNotice({
-        type: "success",
-        message: status === "completed" ? "Đã hoàn thành và cân bằng kho." : "Đã lưu phiếu kiểm kê nháp.",
-      });
+      showNotice(
+        status === "completed" ? "Đã hoàn thành và cân bằng kho." : "Đã lưu phiếu kiểm kê nháp.",
+        "success"
+      );
 
       // Reset
       setAuditItems([]);
@@ -468,7 +504,8 @@ export function StockPage() {
       setMaterialSearch("");
 
       await loadAllData();
-      navigate("/stock/audit");
+      setShowAuditModal(false);
+      if (isAuditCreateMode) navigate("/stock/history/audits");
     } catch (error) {
       showNotice(error instanceof Error ? error.message : "Có lỗi xảy ra khi lưu phiếu kiểm kê.");
     } finally {
@@ -485,12 +522,9 @@ export function StockPage() {
     });
     if (!confirmed) return;
     try {
-      setNotice(null);
+
       await deleteInventoryAudit(id);
-      setNotice({
-        type: "success",
-        message: "Đã xóa bản nháp kiểm kê thành công.",
-      });
+      showNotice("Đã xóa bản nháp kiểm kê thành công.", "success");
       await loadAllData();
     } catch (error) {
       showNotice(error instanceof Error ? error.message : "Không xóa được phiếu kiểm kê.");
@@ -500,7 +534,7 @@ export function StockPage() {
   async function handleViewAuditDetails(auditId: string) {
     try {
       setIsLoading(true);
-      setNotice(null);
+
       const response = await fetchInventoryAuditById(auditId);
       if (response.success && response.data) {
         setSelectedAudit(response.data);
@@ -519,7 +553,7 @@ export function StockPage() {
   async function startEditingAudit(auditId: string) {
     try {
       setIsLoading(true);
-      setNotice(null);
+
       const response = await fetchInventoryAuditById(auditId);
       if (!response.success || !response.data) {
         showNotice("Không tìm thấy thông tin chi tiết phiếu kiểm kê.");
@@ -535,6 +569,7 @@ export function StockPage() {
 
       const items = (fullAudit.details || []).map((d) => {
         const mat = materials.find((m) => m.id === d.materialId);
+        const factor = mat ? (mat.purchaseToStockFactor || 1) : 1;
         return {
           material: mat || ({
             id: d.materialId,
@@ -542,20 +577,22 @@ export function StockPage() {
             sku: d.sku || "",
             category: d.category || "",
             unit: d.unit || "",
+            purchaseUnit: d.unit || "",
+            purchaseToStockFactor: 1,
             stockQuantity: d.systemQuantity,
             importPrice: 0,
             isActive: false,
             createdAt: "",
             updatedAt: "",
           } as Material),
-          systemQuantity: d.systemQuantity,
-          actualQuantity: d.actualQuantity,
+          systemQuantity: d.systemQuantity / factor,
+          actualQuantity: d.actualQuantity / factor,
           note: d.note || "",
         };
       });
 
       setAuditItems(items);
-      navigate("/stock/audit/create");
+      setShowAuditModal(true);
     } catch (error) {
       showNotice(
         error instanceof Error ? error.message : "Có lỗi xảy ra khi tải thông tin phiếu kiểm kê."
@@ -570,7 +607,8 @@ export function StockPage() {
     setAuditNote("");
     setEditingAuditId(null);
     setMaterialSearch("");
-    navigate("/stock/audit");
+    setShowAuditModal(false);
+    if (isAuditCreateMode) navigate("/stock/history/audits");
   }
 
   async function handleSaveMaterial(event: React.FormEvent<HTMLFormElement>) {
@@ -583,7 +621,8 @@ export function StockPage() {
       sku: materialSku,
       category: String(formData.get("category") || "Khác").trim(),
       unit: String(formData.get("unit") || "").trim(),
-      importPrice: Number(formData.get("importPrice") || 0),
+      purchaseUnit: String(formData.get("purchaseUnit") || "").trim(),
+      purchaseToStockFactor: Number(formData.get("purchaseToStockFactor") || 1),
       supplierId: String(formData.get("supplierId") || "") || null,
       isActive: String(formData.get("status") || "active") === "active",
     };
@@ -677,8 +716,17 @@ export function StockPage() {
   const isImportMode = currentPath === "import";
   const isAuditMode = currentPath === "audit";
   const isHistoryMode = currentPath === "history";
+  const isSupplierMode = currentPath === "suppliers";
   const subPath = location.pathname.split("/")[3] || "";
   const isAuditCreateMode = isAuditMode && subPath === "create";
+  const isAuditHistoryMode = isHistoryMode && subPath === "audits";
+  const isSupplierHistoryMode = isHistoryMode && subPath === "suppliers";
+
+  function closeImportModal() {
+    resetReceiptForm();
+    setShowImportModal(false);
+    if (isImportMode) navigate("/stock");
+  }
 
   return (
     <AdminLayout
@@ -686,26 +734,32 @@ export function StockPage() {
       subtitle="Theo dõi nhập xuất tồn, kiểm soát số lượng và cảnh báo tồn kho."
     >
       <div className="min-h-full w-full space-y-5 overflow-x-hidden bg-[#f8f9ff] font-['Inter',sans-serif]">
-        {notice ? (
-          <div
-            className={[
-              "rounded-lg border px-4 py-3 text-sm font-bold",
-              notice.type === "success"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border-rose-200 bg-rose-50 text-rose-700",
-            ].join(" ")}
-          >
-            {notice.message}
-          </div>
-        ) : null}
 
-        {isImportMode ? (
-          <form onSubmit={handleCreateReceiptSubmit} className="grid gap-6 xl:grid-cols-[1fr_360px]">
+
+        {isImportMode || showImportModal ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3 backdrop-blur-[2px] sm:p-6">
+          <form
+            onSubmit={handleCreateReceiptSubmit}
+            className="grid max-h-[92vh] w-full max-w-6xl gap-5 overflow-y-auto rounded-lg bg-[#f8f9ff] p-4 shadow-2xl xl:grid-cols-[minmax(0,1fr)_340px] sm:p-5"
+          >
             <section className="rounded-lg border border-slate-200 bg-white p-5">
-              <StockActionHeader
-                title="Lập phiếu nhập kho"
-                onBack={() => navigate("/stock")}
-              />
+              <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-4">
+                <div>
+                  <p className="text-xs font-extrabold uppercase tracking-wide text-[#f97316]">
+                    Nhập hàng
+                  </p>
+                  <h2 className="text-xl font-extrabold text-[#0b1c30]">Lập phiếu nhập kho</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeImportModal}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600"
+                  title="Đóng"
+                  aria-label="Đóng cửa sổ nhập kho"
+                >
+                  <Icon name="close" className="text-[20px]" />
+                </button>
+              </div>
 
               <div className="relative">
                 <Icon
@@ -744,15 +798,21 @@ export function StockPage() {
                   <thead className="bg-slate-50 text-xs font-extrabold uppercase text-slate-500">
                     <tr>
                       <th className="px-4 py-3">Hàng hóa</th>
-                      <th className="px-4 py-3">Số lượng</th>
-                        <th className="px-4 py-3" />
+                      <th className="w-32 px-4 py-3">SL nhập</th>
+                      <th className="w-44 px-4 py-3">Đơn giá / ĐVT nhập</th>
+                      <th className="w-44 px-4 py-3">Quy đổi về tồn</th>
+                      <th className="w-40 px-4 py-3 text-right">Thành tiền</th>
+                      <th className="w-12 px-4 py-3" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {receiptItems.map((item) => (
                       <tr key={item.material.id}>
                         <td className="px-4 py-3 font-extrabold text-[#0b1c30]">
-                          {item.material.name}
+                          <p>{item.material.name}</p>
+                          <p className="mt-1 text-xs font-semibold text-slate-400">
+                            Nhập theo {item.material.purchaseUnit}; tồn/công thức theo {item.material.unit}
+                          </p>
                         </td>
                         <td className="px-4 py-3">
                           <input
@@ -760,10 +820,31 @@ export function StockPage() {
                             min={1}
                             value={item.quantity}
                             onChange={(event) =>
-                              updateReceiptItem(item.material.id, "quantity", Number(event.target.value))
+                              updateReceiptQuantity(item.material.id, Number(event.target.value))
                             }
                             className={inputClass}
                           />
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            type="number"
+                            min={1}
+                            step={1}
+                            value={item.unitPrice}
+                            onChange={(event) =>
+                              updateReceiptUnitPrice(item.material.id, event.target.value)
+                            }
+                            placeholder="Nhập đơn giá"
+                            className={inputClass}
+                          />
+                        </td>
+                        <td className="px-4 py-3 text-sm font-bold text-slate-600">
+                          {item.quantity} {item.material.purchaseUnit} = {(
+                            item.quantity * item.material.purchaseToStockFactor
+                          ).toLocaleString("vi-VN")} {item.material.unit}
+                        </td>
+                        <td className="px-4 py-3 text-right font-extrabold text-[#0b1c30]">
+                          {formatCurrency(item.quantity * Number(item.unitPrice || 0))}
                         </td>
                         <td className="px-4 py-3 text-right">
                           <button
@@ -782,7 +863,7 @@ export function StockPage() {
                     ))}
                     {receiptItems.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="px-4 py-10 text-center text-sm font-bold text-slate-400">
+                        <td colSpan={6} className="px-4 py-10 text-center text-sm font-bold text-slate-400">
                           Chưa chọn hàng hóa nhập kho.
                         </td>
                       </tr>
@@ -823,6 +904,12 @@ export function StockPage() {
                       className="w-full rounded-lg border border-slate-200 p-3 text-sm font-semibold outline-none focus:border-[#f97316]"
                     />
                   </div>
+                  <div className="border-t border-slate-100 pt-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-xs font-extrabold uppercase text-slate-500">Tổng tiền nhập</span>
+                      <span className="text-lg font-extrabold text-[#f97316]">{formatCurrency(receiptTotal)}</span>
+                    </div>
+                  </div>
                 </div>
               </section>
               <button
@@ -835,13 +922,32 @@ export function StockPage() {
               </button>
             </aside>
           </form>
-        ) : isAuditMode && isAuditCreateMode ? (
-          <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
+          </div>
+        ) : null}
+
+        {isAuditCreateMode || showAuditModal ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3 backdrop-blur-[2px] sm:p-6">
+          <div className="grid max-h-[92vh] w-full max-w-6xl gap-5 overflow-y-auto rounded-lg bg-[#f8f9ff] p-4 shadow-2xl xl:grid-cols-[minmax(0,1fr)_340px] sm:p-5">
             <section className="rounded-lg border border-slate-200 bg-white p-5">
-              <StockActionHeader
-                title={editingAuditId ? "Sửa phiếu kiểm kê" : "Lập phiếu kiểm kê"}
-                onBack={cancelAuditEdit}
-              />
+              <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-4">
+                <div>
+                  <p className="text-xs font-extrabold uppercase tracking-wide text-purple-600">
+                    Kiểm kê kho
+                  </p>
+                  <h2 className="text-xl font-extrabold text-[#0b1c30]">
+                    {editingAuditId ? "Sửa phiếu kiểm kê" : "Lập phiếu kiểm kê"}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={cancelAuditEdit}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600"
+                  title="Đóng"
+                  aria-label="Đóng cửa sổ kiểm kê"
+                >
+                  <Icon name="close" className="text-[20px]" />
+                </button>
+              </div>
 
               <div className="relative">
                 <Icon
@@ -869,7 +975,7 @@ export function StockPage() {
                       <div>
                         <p className="font-extrabold text-[#0b1c30]">{material.name}</p>
                         <p className="text-xs font-semibold text-slate-500">
-                          SKU: {material.sku} - ĐVT: {material.unit} - Tồn hiện tại: {material.stockQuantity}
+                          SKU: {material.sku} - ĐVT: {material.purchaseUnit} - Tồn hiện tại: {material.stockQuantity / (material.purchaseToStockFactor || 1)}
                         </p>
                       </div>
                       <Icon name="add" className="text-[#f97316]" />
@@ -896,7 +1002,9 @@ export function StockPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {auditItems.map((item) => {
-                      const variance = item.actualQuantity - item.systemQuantity;
+                      const sys = Number(item.systemQuantity || 0);
+                      const act = Number(item.actualQuantity || 0);
+                      const variance = act - sys;
                       return (
                         <tr key={item.material.id}>
                           <td className="px-4 py-3 font-extrabold text-[#0b1c30]">
@@ -906,7 +1014,7 @@ export function StockPage() {
                             </div>
                           </td>
                           <td className="px-4 py-3 text-right font-semibold text-slate-500">
-                            {item.systemQuantity} {item.material.unit}
+                            {sys} {item.material.purchaseUnit}
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex justify-end">
@@ -923,7 +1031,7 @@ export function StockPage() {
                             </div>
                           </td>
                           <td className={`px-4 py-3 text-right font-extrabold ${variance < 0 ? "text-rose-500" : variance > 0 ? "text-emerald-600" : "text-slate-600"}`}>
-                            {variance > 0 ? `+${variance}` : variance} {item.material.unit}
+                            {variance > 0 ? `+${variance}` : variance} {item.material.purchaseUnit}
                           </td>
                           <td className="px-4 py-3">
                             <input
@@ -1012,9 +1120,11 @@ export function StockPage() {
               </div>
             </aside>
           </div>
-        ) : isAuditMode ? (
+          </div>
+        ) : null}
+
+        {isAuditMode || isAuditHistoryMode ? (
           <div className="space-y-6">
-            <section className="rounded-xl border border-slate-100 bg-white p-5 shadow-[0_14px_34px_rgba(15,23,42,0.06)]">
               <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-4">
                 <div>
                   <h1 className="text-2xl font-extrabold text-[#0b1c30]">
@@ -1024,22 +1134,15 @@ export function StockPage() {
                     Danh sách các đợt kiểm kê thực tế và điều chỉnh chênh lệch tồn kho nguyên vật liệu
                   </p>
                 </div>
-                <div className="flex gap-2">
-                  <BackToStockButton
-                    onClick={() => navigate("/stock")}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => navigate("/stock/audit/create")}
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#f97316] px-4 text-sm font-extrabold text-white shadow-sm hover:bg-[#ea580c] transition"
-                  >
-                    <Icon name="add" className="text-[18px]" />
-                    Tạo phiếu kiểm mới
-                  </button>
-                </div>
+                <BackToStockButton onClick={() => navigate("/stock")} />
               </div>
 
-              <div className="overflow-x-auto">
+              <InventoryHistoryTabs
+                active="audits"
+                onSelect={(tab) => navigate(getInventoryHistoryPath(tab))}
+              />
+
+              <div className="overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-sm">
                 <table className="w-full min-w-245 text-left text-sm">
                   <thead className="bg-slate-50 text-[11px] font-extrabold uppercase tracking-wide text-slate-400">
                     <tr>
@@ -1121,17 +1224,20 @@ export function StockPage() {
                   </tbody>
                 </table>
               </div>
-            </section>
           </div>
-        ) : isHistoryMode ? (
+        ) : isHistoryMode || isSupplierMode ? (
           <div className="space-y-6">
             <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-4">
               <div>
                 <h1 className="text-2xl font-extrabold text-[#0b1c30]">
-                  Lịch sử nhập kho & Quản lý NCC
+                  {isSupplierMode || isSupplierHistoryMode
+                    ? "Quản lý nhà cung cấp"
+                    : "Lịch sử nhập kho"}
                 </h1>
                 <p className="text-sm font-semibold text-slate-500">
-                  Quản lý danh sách phiếu nhập hàng và danh sách các nhà cung cấp
+                  {isSupplierMode || isSupplierHistoryMode
+                    ? "Quản lý danh sách và thông tin các nhà cung cấp"
+                    : "Theo dõi danh sách phiếu nhập hàng theo từng nhà cung cấp"}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -1143,33 +1249,14 @@ export function StockPage() {
               </div>
             </div>
 
-            {/* Tab buttons */}
-            <div className="flex border-b border-slate-200">
-              <button
-                type="button"
-                onClick={() => setActiveHistoryTab("receipts")}
-                className={`px-5 py-3 text-sm font-extrabold border-b-2 transition-all duration-200 ${
-                  activeHistoryTab === "receipts"
-                    ? "border-[#f97316] text-[#f97316]"
-                    : "border-transparent text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                Lịch sử phiếu nhập
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveHistoryTab("suppliers")}
-                className={`px-5 py-3 text-sm font-extrabold border-b-2 transition-all duration-200 ${
-                  activeHistoryTab === "suppliers"
-                    ? "border-[#f97316] text-[#f97316]"
-                    : "border-transparent text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                Nhà cung cấp
-              </button>
-            </div>
+            {isHistoryMode || isSupplierMode ? (
+              <InventoryHistoryTabs
+                active={isSupplierMode || isSupplierHistoryMode ? "suppliers" : "receipts"}
+                onSelect={(tab) => navigate(getInventoryHistoryPath(tab))}
+              />
+            ) : null}
 
-            {activeHistoryTab === "receipts" ? (
+            {isHistoryMode && !isSupplierHistoryMode ? (
               <div className="space-y-4">
                 {/* Toolbar */}
                 <div className="flex flex-col gap-3 md:flex-row md:items-center">
@@ -1209,13 +1296,14 @@ export function StockPage() {
                 </div>
 
                 <div className="overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-sm">
-                  <table className="w-full min-w-190 text-left text-sm">
+                  <table className="w-full min-w-220 text-left text-sm">
                     <thead className="bg-slate-50 text-[11px] font-extrabold uppercase tracking-wide text-slate-400">
                       <tr>
                         <th className="px-5 py-4">Mã phiếu</th>
                         <th className="px-5 py-4">Ngày nhập</th>
                         <th className="px-5 py-4">Nhà cung cấp</th>
                         <th className="px-5 py-4">Nguyên liệu</th>
+                        <th className="px-5 py-4 text-right">Tổng tiền</th>
                         <th className="px-5 py-4 text-right">Thao tác</th>
                       </tr>
                     </thead>
@@ -1234,6 +1322,9 @@ export function StockPage() {
                             <td className="px-5 py-4 font-semibold text-slate-500 max-w-xs truncate" title={getReceiptDetails(r)}>
                               {getReceiptDetails(r)}
                             </td>
+                            <td className="px-5 py-4 text-right font-extrabold text-slate-700">
+                              {formatCurrency(r.totalAmount)}
+                            </td>
                             <td className="px-5 py-4">
                               <div className="flex justify-end gap-2">
                                 <button
@@ -1250,7 +1341,7 @@ export function StockPage() {
                       ))}
                       {filteredReceipts.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="px-5 py-12 text-center text-sm font-bold text-slate-400">
+                          <td colSpan={6} className="px-5 py-12 text-center text-sm font-bold text-slate-400">
                             Không tìm thấy phiếu nhập nào.
                           </td>
                         </tr>
@@ -1284,17 +1375,30 @@ export function StockPage() {
                             {s.address}
                           </td>
                           <td className="px-5 py-4 text-right">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSupplierFilter(s.supplierId);
-                                setActiveHistoryTab("receipts");
-                              }}
-                              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 hover:border-[#f97316] hover:text-[#f97316]"
-                            >
-                              <Icon name="list_alt" className="text-[16px]" />
-                              Xem phiếu nhập
-                            </button>
+                            <div className="flex justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSupplierFilter(s.supplierId);
+                                  navigate("/stock/history");
+                                }}
+                                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 hover:border-[#f97316] hover:text-[#f97316]"
+                              >
+                                <Icon name="list_alt" className="text-[16px]" />
+                                Xem phiếu nhập
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingSupplier(s.supplier);
+                                  setShowSupplierModal(true);
+                                }}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:border-[#f97316] hover:text-[#f97316]"
+                                title="Sửa nhà cung cấp"
+                              >
+                                <Icon name="edit" className="text-[18px]" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1335,7 +1439,7 @@ export function StockPage() {
                       <tr>
                         <th className="px-5 py-4">Tên hàng</th>
                         <th className="px-5 py-4">Nhóm hàng</th>
-                        <th className="px-5 py-4">Đơn vị</th>
+                        <th className="px-5 py-4">ĐVT tồn / nhập</th>
                         <th className="px-5 py-4 text-right">Tồn hiện tại</th>
                         <th className="px-5 py-4 text-right">Tồn tối thiểu</th>
                         <th className="px-5 py-4">Trạng thái</th>
@@ -1350,7 +1454,12 @@ export function StockPage() {
                           <td className="px-5 py-4 font-medium text-slate-500">
                             {material.category || "Khác"}
                           </td>
-                          <td className="px-5 py-4 font-medium text-slate-500">{material.unit}</td>
+                          <td className="px-5 py-4 font-medium text-slate-500">
+                            <p>{material.unit}</p>
+                            <p className="mt-1 text-xs text-slate-400">
+                              Nhập: {material.purchaseUnit} × {material.purchaseToStockFactor}
+                            </p>
+                          </td>
                           <td className="px-5 py-4 text-right font-extrabold text-red-500">
                             {material.stockQuantity}
                           </td>
@@ -1380,10 +1489,13 @@ export function StockPage() {
                   </h2>
                   <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-2">
                     {[
-                      ["Nhập kho", "cloud_download", "text-emerald-500", () => navigate("/stock/import")],
-                      ["Kiểm kê", "assignment", "text-purple-500", () => navigate("/stock/audit")],
+                      ["Nhập kho", "cloud_download", "text-emerald-500", () => setShowImportModal(true)],
+                      ["Kiểm kê", "assignment", "text-purple-500", () => setShowAuditModal(true)],
                       ["Lịch sử", "history", "text-amber-500", () => navigate("/stock/history")],
-                      ["Nhà cung cấp", "storefront", "text-slate-500", () => setShowSupplierModal(true)],
+                      ["Nhà cung cấp", "storefront", "text-slate-500", () => {
+                        setEditingSupplier(null);
+                        setShowSupplierModal(true);
+                      }],
                     ].map(([label, icon, tone, onClick]) => (
                       <button
                         key={label as string}
@@ -1472,9 +1584,8 @@ export function StockPage() {
                         <th className="px-4 py-4">Mã hàng</th>
                         <th className="px-5 py-4">Tên hàng</th>
                         <th className="px-5 py-4">Nhóm hàng</th>
-                        <th className="px-5 py-4">Đơn vị</th>
                         <th className="px-5 py-4 text-right">Tồn kho</th>
-                        <th className="px-5 py-4 text-right">Tồn tối thiểu</th>
+                        <th className="px-5 py-4 text-right">Tổng tiền nhập</th>
                         <th className="px-5 py-4">Nhà cung cấp</th>
                         <th className="px-5 py-4">Trạng thái</th>
                         <th className="px-5 py-4 text-right">Thao tác</th>
@@ -1490,11 +1601,12 @@ export function StockPage() {
                           <td className="px-5 py-4 font-semibold text-slate-600">
                             {material.category || "Khác"}
                           </td>
-                          <td className="px-5 py-4 font-semibold text-slate-600">{material.unit}</td>
                           <td className="px-5 py-4 text-right font-extrabold text-[#0b1c30]">
-                            {material.stockQuantity}
+                            {material.stockQuantity} {material.unit}
                           </td>
-                          <td className="px-5 py-4 text-right font-semibold text-slate-500">5</td>
+                          <td className="px-5 py-4 text-right font-semibold text-slate-600">
+                            <p>{formatCurrency(material.stockQuantity * material.importPrice)}</p>
+                          </td>
                           <td className="px-5 py-4 text-slate-500">
                             {material.supplierName || "Chưa liên kết"}
                           </td>
@@ -1540,27 +1652,29 @@ export function StockPage() {
         )}
 
         {showMaterialModal ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-            <form
-              onSubmit={handleSaveMaterial}
-              className="w-full max-w-md rounded-lg bg-white p-6 shadow-2xl"
-            >
-              <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
-                <h2 className="text-lg font-extrabold text-[#0b1c30]">
-                  {editingMaterial ? "Sửa hàng hóa" : "Thêm hàng hóa mới"}
-                </h2>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+            <div className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+              <div className="flex items-center justify-between border-b p-5">
+                <div>
+                  <p className="text-xs font-black uppercase text-[#f97316]">
+                    {editingMaterial ? "Cập nhật hàng hóa" : "Hàng hóa mới"}
+                  </p>
+                  <h3 className="text-xl font-black text-[#0b1c30]">
+                    {editingMaterial?.name || "Tên hàng hóa"}
+                  </h3>
+                </div>
                 <button
                   type="button"
                   onClick={() => {
                     setShowMaterialModal(false);
                     setEditingMaterial(null);
                   }}
-                  className="p-1 text-slate-400 hover:bg-slate-100"
                 >
                   <Icon name="close" />
                 </button>
               </div>
-              <div className="space-y-3">
+              <form id="materialForm" onSubmit={handleSaveMaterial} className="flex min-h-0 flex-col">
+                <div className="flex-1 overflow-y-auto p-5 space-y-3">
                 <div>
                   <label className={labelClass}>Tên hàng hóa *</label>
                   <input
@@ -1595,18 +1709,45 @@ export function StockPage() {
                     />
                   </div>
                   <div>
-                    <label className={labelClass}>Đơn vị tính *</label>
+                    <label className={labelClass}>Đơn vị tồn/định mức *</label>
                     <input
                       required
                       name="unit"
                       type="text"
-                      placeholder="VD: kg, lon"
+                      placeholder="VD: ml, g, cái"
                       defaultValue={editingMaterial?.unit || ""}
                       className={inputClass}
                     />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className={labelClass}>Đơn vị nhập *</label>
+                    <input
+                      required
+                      name="purchaseUnit"
+                      type="text"
+                      placeholder="VD: lon, bịch, chai"
+                      defaultValue={editingMaterial?.purchaseUnit || editingMaterial?.unit || ""}
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>1 đơn vị nhập bằng *</label>
+                    <input
+                      required
+                      name="purchaseToStockFactor"
+                      type="number"
+                      min="0.001"
+                      step="0.001"
+                      placeholder="VD: 380"
+                      defaultValue={editingMaterial?.purchaseToStockFactor || 1}
+                      className={inputClass}
+                    />
+                    <p className="mt-1 text-[11px] font-semibold text-slate-400">
+                      Quy đổi sang đơn vị tồn/định mức ở trên.
+                    </p>
+                  </div>
                   <div>
                     <label className={labelClass}>Trạng thái</label>
                     <select
@@ -1634,52 +1775,55 @@ export function StockPage() {
                     ))}
                   </select>
                 </div>
-                <div className="flex gap-3 border-t border-slate-100 pt-3">
+                </div>
+                <div className="flex justify-end gap-3 border-t p-4">
                   <button
                     type="button"
                     onClick={() => {
                       setShowMaterialModal(false);
                       setEditingMaterial(null);
                     }}
-                    className="h-10 flex-1 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                    className="rounded-lg border px-5 py-2 font-bold text-slate-700"
                   >
                     Hủy bỏ
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="h-10 flex-1 rounded-lg bg-[#f97316] text-xs font-bold text-white hover:bg-[#ea580c] disabled:bg-slate-300"
+                    className="rounded-lg bg-[#f97316] px-5 py-2 font-bold text-white disabled:opacity-50"
                   >
                     {isSubmitting ? "Đang xử lý..." : editingMaterial ? "Lưu thay đổi" : "Thêm mới"}
                   </button>
                 </div>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
         ) : null}
 
         {showSupplierModal ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-            <form
-              onSubmit={handleSaveSupplier}
-              className="w-full max-w-md rounded-lg bg-white p-6 shadow-2xl"
-            >
-              <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
-                <h2 className="text-lg font-extrabold text-[#0b1c30]">
-                  {editingSupplier ? "Sửa nhà cung cấp" : "Thêm nhà cung cấp mới"}
-                </h2>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+            <div className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+              <div className="flex items-center justify-between border-b p-5">
+                <div>
+                  <p className="text-xs font-black uppercase text-[#f97316]">
+                    {editingSupplier ? "Cập nhật nhà cung cấp" : "Nhà cung cấp mới"}
+                  </p>
+                  <h3 className="text-xl font-black text-[#0b1c30]">
+                    {editingSupplier?.name || "Tên nhà cung cấp"}
+                  </h3>
+                </div>
                 <button
                   type="button"
                   onClick={() => {
                     setShowSupplierModal(false);
                     setEditingSupplier(null);
                   }}
-                  className="p-1 text-slate-400 hover:bg-slate-100"
                 >
                   <Icon name="close" />
                 </button>
               </div>
-              <div className="space-y-3">
+              <div className="flex-1 overflow-y-auto p-5">
+                <form id="supplierForm" onSubmit={handleSaveSupplier} className="space-y-3">
                 <div>
                   <label className={labelClass}>Tên nhà cung cấp *</label>
                   <input
@@ -1737,36 +1881,38 @@ export function StockPage() {
                     className={inputClass}
                   />
                 </div>
-                <div className="flex gap-3 border-t border-slate-100 pt-3">
-                  {editingSupplier ? (
-                    <button
-                      type="button"
-                      onClick={() => void handleDeleteSupplier(editingSupplier)}
-                      className="h-10 rounded-lg border border-rose-200 px-4 text-xs font-bold text-rose-600 hover:bg-rose-50"
-                    >
-                      Xóa
-                    </button>
-                  ) : null}
+                </form>
+              </div>
+              <div className="flex justify-end gap-3 border-t p-4">
+                {editingSupplier ? (
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowSupplierModal(false);
-                      setEditingSupplier(null);
-                    }}
-                    className="h-10 flex-1 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                    onClick={() => void handleDeleteSupplier(editingSupplier)}
+                    className="rounded-lg border px-5 py-2 font-bold text-rose-600 border-rose-200 hover:bg-rose-50"
                   >
-                    Hủy bỏ
+                    Xóa
                   </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="h-10 flex-1 rounded-lg bg-[#f97316] text-xs font-bold text-white hover:bg-[#ea580c] disabled:bg-slate-300"
-                  >
-                    {isSubmitting ? "Đang xử lý..." : editingSupplier ? "Lưu thay đổi" : "Thêm mới"}
-                  </button>
-                </div>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSupplierModal(false);
+                    setEditingSupplier(null);
+                  }}
+                  className="rounded-lg border px-5 py-2 font-bold text-slate-700"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  form="supplierForm"
+                  disabled={isSubmitting}
+                  className="rounded-lg bg-[#f97316] px-5 py-2 font-bold text-white disabled:opacity-50"
+                >
+                  {isSubmitting ? "Đang xử lý..." : editingSupplier ? "Lưu thay đổi" : "Thêm nhà cung cấp"}
+                </button>
               </div>
-            </form>
+            </div>
           </div>
         ) : null}
 
@@ -1785,7 +1931,7 @@ export function StockPage() {
                   <Icon name="close" />
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-4 rounded-lg border border-slate-100 bg-slate-50 p-4 text-sm">
+              <div className="grid gap-4 rounded-lg border border-slate-100 bg-slate-50 p-4 text-sm sm:grid-cols-3">
                 <div>
                   <p className="text-xs font-bold uppercase text-slate-400">Nhà cung cấp</p>
                   <p className="mt-1 font-extrabold text-[#0b1c30]">
@@ -1798,10 +1944,50 @@ export function StockPage() {
                     {formatDateTime(selectedReceipt.createdAt)}
                   </p>
                 </div>
+                <div>
+                  <p className="text-xs font-bold uppercase text-slate-400">Tổng tiền</p>
+                  <p className="mt-1 font-extrabold text-[#0b1c30]">
+                    {formatCurrency(selectedReceipt.totalAmount)}
+                  </p>
+                </div>
               </div>
-              <p className="mt-4 text-sm font-semibold text-slate-600">
-                {getReceiptDetails(selectedReceipt)}
-              </p>
+              {selectedReceipt.materialDetails?.length ? (
+                <div className="mt-4 overflow-x-auto rounded-lg border border-slate-100">
+                  <table className="w-full min-w-150 text-left text-sm">
+                    <thead className="bg-slate-50 text-[11px] font-extrabold uppercase text-slate-400">
+                      <tr>
+                        <th className="px-4 py-3">Nguyên liệu</th>
+                        <th className="px-4 py-3 text-right">Nhập / quy đổi</th>
+                        <th className="px-4 py-3 text-right">Đơn giá</th>
+                        <th className="px-4 py-3 text-right">Thành tiền</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {selectedReceipt.materialDetails.map((detail) => (
+                        <tr key={detail.id}>
+                          <td className="px-4 py-3 font-bold text-slate-700">{detail.materialName}</td>
+                          <td className="px-4 py-3 text-right font-semibold text-slate-600">
+                            {detail.quantity.toLocaleString("vi-VN")} {detail.purchaseUnit}
+                            <span className="block text-xs text-slate-400">
+                              = {detail.stockQuantity.toLocaleString("vi-VN")} {detail.unit}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold text-slate-600">
+                            {formatCurrency(detail.unitPrice)}
+                          </td>
+                          <td className="px-4 py-3 text-right font-extrabold text-slate-700">
+                            {formatCurrency(detail.lineTotal)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="mt-4 text-sm font-semibold text-slate-600">
+                  {getReceiptDetails(selectedReceipt)}
+                </p>
+              )}
             </div>
           </div>
         ) : null}

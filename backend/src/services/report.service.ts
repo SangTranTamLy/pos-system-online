@@ -3,19 +3,20 @@
   getRevenueByEmployeeId,
   getFinancialSummary,
   getFinancialTrend,
-  getProductValuation,
   getRawMaterialValuation,
   getInventoryValuationByCategory,
   getEmployeePerformance,
   getRevenueByPeriod,
   getCustomerRetention,
   getAiCancelledOrders,
+  getAiMaterialPurchaseSummary,
 } from "../repositories/report.repository";
 import { saveAiReportLog } from "../repositories/ai-report-log.repository";
 import { AI_REPORT_SYSTEM_PROMPT } from "../prompts/report-ai.prompt";
 import { buildAiBusinessContext, type AiBusinessContext } from "./report-ai-context.service";
 import { getTopProducts } from "../repositories/dashboard.repository";
 import type { ComparisonPoint } from "../types/report.types";
+import { evaluateAiReportOutput } from "./report-ai-evaluation.service";
 
 export async function getEmployeeRevenueService(
   userRole: string,
@@ -63,31 +64,18 @@ function extractJsonFromAiText(text: string) {
   }
 }
 
-const fallbackAiData = {
-  meta: {
-    assistant_name: "QuickServe-AI",
-    role: "Trợ lý phân tích kinh doanh",
-    period: {
-      from: "",
-      to: "",
-    },
-    confidence: "thap",
-    score: 0,
-    status: "can_cai_thien",
-    data_status: "thieu_du_lieu",
-    confidence_note: "",
+const aiReportMetaDefaults = {
+  assistant_name: "QuickServe-AI",
+  role: "Trợ lý phân tích kinh doanh",
+  period: {
+    from: "",
+    to: "",
   },
-  summary: {
-    main_insight: "Chưa đủ dữ liệu để phân tích.",
-    revenue_text: "Chưa đủ dữ liệu để phân tích.",
-    orders_text: "Chưa đủ dữ liệu để phân tích.",
-    best_selling_product: "Chưa đủ dữ liệu để phân tích.",
-    best_shift: "Chưa đủ dữ liệu để phân tích.",
-  },
-  phan_tich_chuyen_sau: [],
-  action_plan: [],
-  warnings: [],
-  chart_suggestions: [],
+  confidence: "thap",
+  score: 0,
+  status: "can_cai_thien",
+  data_status: "thieu_du_lieu",
+  confidence_note: "",
 };
 
 const AI_REPORT_RESPONSE_SCHEMA = {
@@ -165,6 +153,8 @@ function buildWarningSignals(context: AiBusinessContext) {
   const lowStockItems = getRecordArray(context.lowStockItems);
   const slowProducts = getRecordArray(context.slowProducts);
   const soldProducts = getRecordArray(context.soldProducts);
+  const materialPurchases = context.materialPurchases;
+  const previousMaterialPurchases = context.previousMaterialPurchases;
 
   let largestDailyDropPercent: number | null = null;
   let largestDailyDropFrom = "";
@@ -191,6 +181,10 @@ function buildWarningSignals(context: AiBusinessContext) {
   const topRevenueShare = metrics.totalRevenue > 0 && topRevenueProduct
     ? Number(((toNumber(topRevenueProduct.revenue) / metrics.totalRevenue) * 100).toFixed(1))
     : 0;
+  const purchaseCostGrowthPercent = previousMaterialPurchases.totalPurchaseCost > 0
+    ? Number((((materialPurchases.totalPurchaseCost - previousMaterialPurchases.totalPurchaseCost)
+      / previousMaterialPurchases.totalPurchaseCost) * 100).toFixed(1))
+    : null;
 
   return {
     abnormalRevenueDrop: {
@@ -236,6 +230,22 @@ function buildWarningSignals(context: AiBusinessContext) {
         : null,
       shouldWarn: slowProducts.length > 0 || topRevenueShare >= 45,
     },
+    materialPurchases: {
+      totalPurchaseCost: materialPurchases.totalPurchaseCost,
+      previousTotalPurchaseCost: previousMaterialPurchases.totalPurchaseCost,
+      purchaseCostGrowthPercent,
+      receiptsCount: materialPurchases.receiptsCount,
+      averageReceiptValue: materialPurchases.averageReceiptValue,
+      topMaterials: materialPurchases.topMaterials.slice(0, 6).map((item) => ({
+        materialName: item.materialName,
+        unit: item.unit,
+        quantity: item.quantity,
+        averageUnitPrice: item.averageUnitPrice,
+        totalCost: item.totalCost,
+      })),
+      supplierCount: materialPurchases.suppliers.length,
+      shouldWarn: purchaseCostGrowthPercent !== null && purchaseCostGrowthPercent >= 30,
+    },
   };
 }
 function buildAiPromptContext(context: AiBusinessContext) {
@@ -250,24 +260,95 @@ function buildAiPromptContext(context: AiBusinessContext) {
     new Map(
       [...topByQuantity, ...topByRevenue].map((item) => [String(item.productId || item.name || ""), item])
     ).values()
-  );
+  ).map((item) => ({
+    name: String(item.name || ""),
+    soldQuantity: toNumber(item.soldQuantity),
+    revenue: toNumber(item.revenue),
+  }));
+
+  const materialPurchases = {
+    totalPurchaseCost: context.materialPurchases.totalPurchaseCost,
+    receiptsCount: context.materialPurchases.receiptsCount,
+    averageReceiptValue: context.materialPurchases.averageReceiptValue,
+    topMaterials: context.materialPurchases.topMaterials.slice(0, 10).map((item) => ({
+      materialName: item.materialName,
+      unit: item.unit,
+      quantity: item.quantity,
+      averageUnitPrice: item.averageUnitPrice,
+      totalCost: item.totalCost,
+    })),
+    supplierCount: context.materialPurchases.suppliers.length,
+  };
+
+  const previousMaterialPurchases = {
+    totalPurchaseCost: context.previousMaterialPurchases.totalPurchaseCost,
+    receiptsCount: context.previousMaterialPurchases.receiptsCount,
+    averageReceiptValue: context.previousMaterialPurchases.averageReceiptValue,
+    topMaterials: context.previousMaterialPurchases.topMaterials.slice(0, 10).map((item) => ({
+      materialName: item.materialName,
+      unit: item.unit,
+      quantity: item.quantity,
+      averageUnitPrice: item.averageUnitPrice,
+      totalCost: item.totalCost,
+    })),
+    supplierCount: context.previousMaterialPurchases.suppliers.length,
+  };
 
   return {
     period: context.period,
     businessMetrics: context.businessMetrics,
     dataQuality: context.dataQuality,
     revenueData: {
-      daily: context.trend,
-      hourly: context.hourlyRevenue,
+      daily: context.trend.map((item) => ({
+        date: item.date,
+        label: item.label,
+        revenue: item.revenue,
+        cogs: item.cogs,
+        profit: item.profit,
+      })),
+      hourly: context.hourlyRevenue.map((item) => ({
+        hour: item.hour,
+        label: item.label,
+        ordersCount: item.ordersCount,
+        revenue: item.revenue,
+      })),
     },
     productData: {
       soldProducts: relevantProducts,
-      slowProducts: context.slowProducts,
-      categoryRevenue: context.categoryRevenue,
+      slowProducts: context.slowProducts.map((item) => ({
+        name: item.name,
+        soldQuantity: item.soldQuantity,
+      })),
+      categoryRevenue: context.categoryRevenue.map((item) => ({
+        categoryName: item.categoryName,
+        soldQuantity: item.soldQuantity,
+        revenue: item.revenue,
+        percentage: item.percentage,
+      })),
     },
     operatingData: {
-      paymentSummary: context.paymentSummary,
-      lowStockItems: context.lowStockItems,
+      paymentSummary: context.paymentSummary.map((item) => ({
+        method: item.method,
+        ordersCount: item.ordersCount,
+        amount: item.amount,
+      })),
+      lowStockItems: context.lowStockItems.map((item) => ({
+        name: item.name,
+        type: item.type,
+        stockQuantity: item.stockQuantity,
+        minStock: item.minStock,
+        unit: item.unit,
+      })),
+      materialInventory: context.materialInventory.map((item) => ({
+        name: item.name,
+        category: item.category,
+        unit: item.unit,
+        stockQuantity: item.stockQuantity,
+        importPrice: item.importPrice,
+        totalValue: item.totalValue,
+      })),
+      materialPurchases,
+      previousMaterialPurchases,
     },
     warningSignals: buildWarningSignals(context),
   };
@@ -283,46 +364,6 @@ function normalizePaymentMethod(method: unknown) {
   if (["qr", "qr_code", "bank_qr"].includes(value)) return "qr";
   if (["bank", "bank_transfer", "chuyen_khoan", "chuyển khoản"].includes(value)) return "bank_transfer";
   return value || "unknown";
-}
-
-function buildBasicSystemActions(context: AiBusinessContext) {
-  const soldProducts = getRecordArray(context.soldProducts);
-  const lowStockItems = getRecordArray(context.lowStockItems);
-  const topProductName = soldProducts[0] ? String(soldProducts[0].name || "món bán chạy") : "món bán chạy";
-  const lowStockName = lowStockItems[0] ? String(lowStockItems[0].name || "mặt hàng tồn thấp") : "mặt hàng tồn thấp";
-
-  return [
-    {
-      priority: "cao",
-      action: `Tạo combo bán kèm với ${topProductName}.`,
-      reason: "Món bán chạy dễ kéo thêm món phụ.",
-      expected_result: "Tăng AOV mỗi hóa đơn.",
-    },
-    {
-      priority: "cao",
-      action: `Chuẩn bị thêm ${topProductName} ở giờ cao điểm.`,
-      reason: "Doanh thu theo giờ cho thấy nhu cầu tập trung.",
-      expected_result: "Giảm hết món khi đông khách.",
-    },
-    {
-      priority: lowStockItems.length ? "cao" : "trung_binh",
-      action: lowStockItems.length ? `Bổ sung ${lowStockName} trước ca bán.` : "Kiểm tra tồn kho trước ca bán.",
-      reason: lowStockItems.length ? "Có mặt hàng dưới ngưỡng tồn." : "Giữ nguồn hàng ổn định.",
-      expected_result: "Hạn chế gián đoạn bán hàng.",
-    },
-    {
-      priority: "trung_binh",
-      action: "Theo dõi đơn hủy và lý do hủy mỗi ngày.",
-      reason: "Đơn hủy ảnh hưởng trực tiếp đến doanh thu.",
-      expected_result: "Giảm thao tác sai và thất thoát.",
-    },
-    {
-      priority: "thap",
-      action: "Duy trì phân tích theo ngày và tuần.",
-      reason: "Theo dõi đều giúp phát hiện sớm biến động.",
-      expected_result: "Ra quyết định nhập hàng tốt hơn.",
-    },
-  ];
 }
 
 function buildWarnings(context: AiBusinessContext) {
@@ -378,6 +419,16 @@ function buildWarnings(context: AiBusinessContext) {
     });
   }
 
+  if (signals.materialPurchases.shouldWarn) {
+    warnings.push({
+      type: "chi_phi_nhap_kho",
+      level: signals.materialPurchases.purchaseCostGrowthPercent !== null
+        && signals.materialPurchases.purchaseCostGrowthPercent >= 60 ? "cao" : "trung_binh",
+      message: `Chi phí nhập nguyên liệu tăng ${signals.materialPurchases.purchaseCostGrowthPercent}% so với kỳ trước, đạt ${formatVnd(signals.materialPurchases.totalPurchaseCost)}.`,
+      suggestion: "Đối chiếu số lượng nhập, đơn giá và nguyên liệu chiếm chi phí cao trước lần nhập tiếp theo.",
+    });
+  }
+
   return warnings.length
     ? warnings.slice(0, 5)
     : [
@@ -391,10 +442,10 @@ function buildWarnings(context: AiBusinessContext) {
 }
 
 function buildMetaFromContext(context: AiBusinessContext) {
-  const score = Math.max(0, Math.min(toNumber(context.dataQuality.coverageScore), 100));
+  const score = Math.max(0, Math.min(toNumber(context.dataQuality.coverageScore), 95));
 
   return {
-    ...fallbackAiData.meta,
+    ...aiReportMetaDefaults,
     period: {
       from: context.period.startDate,
       to: context.period.endDate,
@@ -407,25 +458,14 @@ function buildMetaFromContext(context: AiBusinessContext) {
   };
 }
 
-function buildSmartFallbackAiData(context: AiBusinessContext) {
-  const metrics = context.businessMetrics;
+function buildSystemReportData(context: AiBusinessContext) {
   const soldProducts = getRecordArray(context.soldProducts);
   const paymentSummary = getRecordArray(context.paymentSummary);
   const lowStockItems = getRecordArray(context.lowStockItems);
   const categoryRevenue = getRecordArray(context.categoryRevenue);
-  const mainInsight = metrics.totalOrders > 0
-    ? `Hệ thống ghi nhận ${formatVnd(metrics.totalRevenue)} từ ${metrics.totalOrders} đơn.`
-    : "Hệ thống chưa ghi nhận đơn hoàn thành trong khoảng báo cáo.";
-
+  const materialPurchases = context.materialPurchases;
   return {
-    ...fallbackAiData,
-    fallback: true,
     meta: buildMetaFromContext(context),
-    summary: {
-      main_insight: mainInsight,
-    },
-    phan_tich_chuyen_sau: [],
-    action_plan: buildBasicSystemActions(context),
     warnings: buildWarnings(context),
     report_tables: {
       inventory_table: {
@@ -438,17 +478,15 @@ function buildSmartFallbackAiData(context: AiBusinessContext) {
           toNumber(item.minStock),
           String(item.unit || ""),
         ]),
-        validation_note: lowStockItems.length ? "Lấy từ raw_materials/products tồn thấp." : "Không có mặt hàng tồn thấp.",
+        validation_note: lowStockItems.length ? "Lấy từ raw_materials tồn thấp." : "Không có nguyên liệu tồn thấp.",
       },
       sales_table: {
         title: "Bảng sản phẩm bán ra",
-        columns: ["Sản phẩm", "Số lượng bán", "Doanh thu", "Tồn hiện tại", "Quản lý kho"],
+        columns: ["Sản phẩm", "Số lượng bán", "Doanh thu"],
         rows: soldProducts.slice(0, 10).map((item) => [
           String(item.name || ""),
           toNumber(item.soldQuantity),
           toNumber(item.revenue),
-          toNumber(item.stockQuantity),
-          String(item.isTrackedStock ? "Có" : "Không"),
         ]),
         validation_note: soldProducts.length ? "Lấy từ orders/order_details/products." : "Chưa có sản phẩm bán ra.",
       },
@@ -475,6 +513,20 @@ function buildSmartFallbackAiData(context: AiBusinessContext) {
         ]),
         validation_note: paymentSummary.length ? "Chỉ gồm phương thức có trong payments." : "Chưa có thanh toán paid.",
       },
+      material_purchase_table: {
+        title: "Bảng chi phí nhập nguyên liệu",
+        columns: ["Nguyên liệu", "Số lượng nhập trong kỳ", "Đơn vị", "Đơn giá bình quân", "Thành tiền"],
+        rows: materialPurchases.topMaterials.map((item) => [
+          item.materialName,
+          item.quantity,
+          item.unit,
+          item.averageUnitPrice,
+          item.totalCost,
+        ]),
+        validation_note: materialPurchases.receiptsCount
+          ? `Tổng ${materialPurchases.receiptsCount} phiếu nhập, giá trị ${formatVnd(materialPurchases.totalPurchaseCost)}.`
+          : "Chưa có phiếu nhập nguyên liệu trong khoảng lọc.",
+      },
     },
     chart_suggestions: [],
   };
@@ -482,7 +534,7 @@ function buildSmartFallbackAiData(context: AiBusinessContext) {
 
 function normalizeAdvancedAnalysis(value: any) {
   const input = Array.isArray(value) ? value : [];
-  return input
+  const normalized = input
     .filter((item) => item?.noi_dung)
     .slice(0, 5)
     .map((item, index) => ({
@@ -494,32 +546,42 @@ function normalizeAdvancedAnalysis(value: any) {
         ? item.muc_do
         : "neutral",
     }));
+
+  if (normalized.length !== 5) {
+    throw new Error(`AI phải trả đúng 5 nhận định chuyên sâu, hiện nhận được ${normalized.length}`);
+  }
+
+  return normalized;
 }
 
 function normalizeActionPlan(value: any) {
   const input = Array.isArray(value) ? value : [];
-  return input
+  const normalizedActions = input
     .filter((item) => item?.action)
     .slice(0, 5)
     .map((item) => ({
       priority: ["cao", "trung_binh", "thap"].includes(String(item.priority)) ? item.priority : "trung_binh",
-      action: String(item.action),
+      action: String(item.action).trim(),
       reason: String(item.reason || ""),
       expected_result: String(item.expected_result || ""),
     }));
+
+  if (normalizedActions.length !== 5) {
+    throw new Error(`AI phải trả đúng 5 chiến lược hành động, hiện nhận được ${normalizedActions.length}`);
+  }
+
+  return normalizedActions;
 }
 
 function normalizeAiReportData(rawData: any, context: AiBusinessContext) {
-  const fallbackData = buildSmartFallbackAiData(context);
+  const systemData = buildSystemReportData(context);
   const input = rawData && typeof rawData === "object" ? rawData : {};
   const summaryInput = input.summary && typeof input.summary === "object" ? input.summary : {};
 
   return {
-    ...fallbackData,
-    fallback: false,
-    meta: buildMetaFromContext(context),
+    ...systemData,
     summary: {
-      main_insight: String(summaryInput.main_insight || fallbackData.summary.main_insight),
+      main_insight: String(summaryInput.main_insight || ""),
       revenue_text: String(summaryInput.revenue_text || ""),
       orders_text: String(summaryInput.orders_text || ""),
       best_selling_product: String(summaryInput.best_selling_product || ""),
@@ -527,9 +589,6 @@ function normalizeAiReportData(rawData: any, context: AiBusinessContext) {
     },
     phan_tich_chuyen_sau: normalizeAdvancedAnalysis(input.phan_tich_chuyen_sau),
     action_plan: normalizeActionPlan(input.action_plan),
-    warnings: buildWarnings(context),
-    report_tables: fallbackData.report_tables,
-    chart_suggestions: fallbackData.chart_suggestions || [],
   };
 }
 async function trySaveAiReportLog(input: Parameters<typeof saveAiReportLog>[0]) {
@@ -560,6 +619,8 @@ function extractTextFromGeminiResult(result: any) {
 }
 export async function getAiReportInsightsService(startDate: string, endDate: string, createdBy?: string | null) {
   const context: AiBusinessContext = await getAiInsightsContextService(startDate, endDate);
+  const promptContext = buildAiPromptContext(context);
+  const responseContext = { dataQuality: context.dataQuality };
 
   const apiKey = process.env.AI_API_KEY;
   const apiUrl = process.env.AI_API_URL || "https://generativelanguage.googleapis.com/v1beta/models";
@@ -570,24 +631,28 @@ export async function getAiReportInsightsService(startDate: string, endDate: str
     : 8192;
 
   if (!apiKey || !apiUrl) {
-    const fallbackData = buildSmartFallbackAiData(context);
-
     await trySaveAiReportLog({
       startDate,
       endDate,
-      context,
-      aiResult: fallbackData,
-      isFallback: true,
+      context: promptContext,
+      aiResult: null,
+      isFallback: false,
       errorMessage: "Chưa cấu hình API AI",
       createdBy,
     });
 
     return {
       success: false,
-      fallback: true,
-      data: fallbackData,
+      data: null,
       message: "Chưa cấu hình API AI",
-      context,
+      evaluation: {
+        status: "rejected" as const,
+        schemaValid: false,
+        groundingScore: 0,
+        privacyPassed: true,
+        issues: ["Chưa cấu hình API AI."],
+      },
+      context: responseContext,
     };
   }
 
@@ -605,7 +670,7 @@ export async function getAiReportInsightsService(startDate: string, endDate: str
         contents: [
           {
             role: "user",
-            parts: [{ text: JSON.stringify(buildAiPromptContext(context)) }],
+            parts: [{ text: JSON.stringify(promptContext) }],
           },
         ],
         generationConfig: {
@@ -639,43 +704,72 @@ export async function getAiReportInsightsService(startDate: string, endDate: str
     }
 
     const text = extractTextFromGeminiResult(result);
-    const aiData = normalizeAiReportData(extractJsonFromAiText(text), context);
+    const rawAiData = extractJsonFromAiText(text);
+    const evaluation = evaluateAiReportOutput(rawAiData, promptContext);
+
+    if (evaluation.status === "rejected") {
+      await trySaveAiReportLog({
+        startDate,
+        endDate,
+        context: promptContext,
+        aiResult: { evaluation },
+        isFallback: false,
+        errorMessage: evaluation.issues.join(" "),
+        createdBy,
+      });
+
+      return {
+        success: false,
+        data: null,
+        message: "Kết quả AI bị từ chối vì không vượt qua kiểm tra cấu trúc, dữ liệu và quyền riêng tư.",
+        evaluation,
+        context: responseContext,
+      };
+    }
+
+    const aiData = normalizeAiReportData(rawAiData, context);
+    const verifiedAiData = { ...aiData, evaluation };
 
     await trySaveAiReportLog({
       startDate,
       endDate,
-      context,
-      aiResult: aiData,
+      context: promptContext,
+      aiResult: verifiedAiData,
       isFallback: false,
       createdBy,
     });
 
     return {
       success: true,
-      fallback: false,
-      data: aiData,
-      context,
+      data: verifiedAiData,
+      evaluation,
+      context: responseContext,
     };
   } catch (error) {
     console.error("Lỗi gọi AI báo cáo:", error);
-    const fallbackData = buildSmartFallbackAiData(context);
 
     await trySaveAiReportLog({
       startDate,
       endDate,
-      context,
-      aiResult: fallbackData,
-      isFallback: true,
+      context: promptContext,
+      aiResult: null,
+      isFallback: false,
       errorMessage: error instanceof Error ? error.message : String(error),
       createdBy,
     });
 
     return {
       success: false,
-      fallback: true,
-      data: fallbackData,
-      message: "AI lỗi, hệ thống đang hiển thị báo cáo dự phòng từ dữ liệu hệ thống",
-      context,
+      data: null,
+      message: "AI chưa thể hoàn tất phân tích. Vui lòng thử lại.",
+      evaluation: {
+        status: "rejected" as const,
+        schemaValid: false,
+        groundingScore: 0,
+        privacyPassed: true,
+        issues: [error instanceof Error ? error.message : String(error)],
+      },
+      context: responseContext,
     };
   }
 }
@@ -703,13 +797,26 @@ function getPreviousDateRange(startDate: string, endDate: string) {
 
 export async function getFinancialReportService(startDate?: string, endDate?: string) {
   const previousRange = startDate && endDate ? getPreviousDateRange(startDate, endDate) : null;
-  const [summary, trend, topProductsRaw, previousSummary, currentCancelledOrders, previousCancelledOrders] = await Promise.all([
+  const [
+    summary,
+    trend,
+    topProductsRaw,
+    previousSummary,
+    currentCancelledOrders,
+    previousCancelledOrders,
+    materialPurchases,
+    previousMaterialPurchases,
+  ] = await Promise.all([
     getFinancialSummary(startDate, endDate),
     getFinancialTrend(startDate, endDate),
     getTopProducts(startDate, endDate),
     previousRange ? getFinancialSummary(previousRange.startDate, previousRange.endDate) : null,
     startDate && endDate ? getAiCancelledOrders(startDate, endDate) : [],
     previousRange ? getAiCancelledOrders(previousRange.startDate, previousRange.endDate) : [],
+    startDate && endDate ? getAiMaterialPurchaseSummary(startDate, endDate) : null,
+    previousRange
+      ? getAiMaterialPurchaseSummary(previousRange.startDate, previousRange.endDate)
+      : null,
   ]);
   
   const topProducts = topProductsRaw.map((item) => ({
@@ -734,27 +841,32 @@ export async function getFinancialReportService(startDate?: string, endDate?: st
     cancelledOrdersGrowthPercent: previousRange
       ? calculateGrowthPercent(currentCancelledOrders.length, previousCancelledOrders.length)
       : null,
+    materialPurchaseCost: materialPurchases?.totalPurchaseCost ?? 0,
+    materialPurchaseCostGrowthPercent: previousMaterialPurchases
+      ? calculateGrowthPercent(
+          materialPurchases?.totalPurchaseCost ?? 0,
+          previousMaterialPurchases.totalPurchaseCost
+        )
+      : null,
   };
 }
 
 // 2. Service báo cáo tồn kho và giá trị kho
 export async function getInventoryValuationService() {
-  const products = await getProductValuation();
   const rawMaterials = await getRawMaterialValuation();
   const categories = await getInventoryValuationByCategory();
 
-  const totalProductsValue = products.reduce((sum, p) => sum + p.totalValue, 0);
   const totalRawValue = rawMaterials.reduce((sum, r) => sum + r.totalValue, 0);
 
   return {
     summary: {
-      totalItems: products.length + rawMaterials.length,
-      totalValue: totalProductsValue + totalRawValue,
-      totalProductsValue,
+      totalItems: rawMaterials.length,
+      totalValue: totalRawValue,
+      totalProductsValue: 0,
       totalRawValue
     },
     categories,
-    products,
+    products: [],
     rawMaterials
   };
 }
@@ -828,15 +940,6 @@ export async function getComparisonReportService(startDate: string, endDate: str
 export async function getCustomerRetentionService(startDate?: string, endDate?: string) {
   return getCustomerRetention(startDate, endDate);
 }
-
-
-
-
-
-
-
-
-
 
 
 

@@ -1,21 +1,23 @@
 import { apiRequest } from "./api-client";
 
 export type ProductStatus = "active" | "paused" | "out_of_stock";
+export type ProductType = "single" | "combo";
 
 export type Product = {
   id: string;
   categoryId: string;
   categoryName?: string;
-  isTrackedStock: boolean;
   isAvailable: boolean;
+  productType: ProductType;
   sku: string;
   name: string;
   importPrice: number;
   salePrice: number;
-  stockQuantity: number | null;
   status: ProductStatus;
   description: string | null;
   imageUrl: string | null;
+  isTrackedStock?: boolean;
+  stockQuantity?: number | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -24,11 +26,9 @@ export type CreateProductPayload = {
   categoryId: string;
   sku: string;
   name: string;
-  isTrackedStock?: boolean;
   isAvailable?: boolean;
   importPrice?: number;
   salePrice: number;
-  stockQuantity?: number | null;
   status?: ProductStatus;
   description?: string | null;
   imageUrl?: string | null;
@@ -43,6 +43,63 @@ export type UpdateProductStatusPayload = {
 export type UploadProductImageResult = {
   imageUrl: string;
 };
+
+export type RecipeItem = {
+  rawMaterialId: string;
+  rawMaterialName?: string;
+  unit?: string;
+  quantity: number;
+};
+
+export type ProductVariant = {
+  id: string;
+  productId: string;
+  name: string;
+  sku?: string | null;
+  salePrice: number;
+  isDefault?: boolean;
+  isActive?: boolean;
+  recipeItems: RecipeItem[];
+};
+
+export type ModifierOption = {
+  id: string;
+  name: string;
+  priceDelta: number;
+  isActive?: boolean;
+  recipeItems: RecipeItem[];
+};
+
+export type ComboItem = {
+  id: string;
+  componentProductId: string;
+  componentProductName: string;
+  componentVariantId: string;
+  componentVariantName: string;
+  quantity: number;
+};
+
+export type ProductConfiguration = {
+  productId: string;
+  productType: ProductType;
+  variants: ProductVariant[];
+  modifierOptions: ModifierOption[];
+  comboItems: ComboItem[];
+};
+
+export type SaveProductConfigurationPayload = {
+  productType?: ProductType;
+  variants: Array<Omit<ProductVariant, "productId">>;
+  modifierOptions: ModifierOption[];
+  comboItems?: Array<{
+    id?: string;
+    componentProductId: string;
+    componentVariantId: string;
+    quantity: number;
+  }>;
+};
+
+let productsRequest: ReturnType<typeof apiRequest<Product[]>> | null = null;
 
 function readFileAsDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
@@ -66,11 +123,43 @@ function readFileAsDataUrl(file: File) {
 }
 
 export function getProducts() {
-  return apiRequest<Product[]>({ method: "GET", url: "/products" });
+  if (!productsRequest) {
+    productsRequest = apiRequest<Product[]>({ method: "GET", url: "/products" })
+      .finally(() => {
+        productsRequest = null;
+      });
+  }
+
+  return productsRequest;
 }
 
 export function getProductDetail(id: string) {
   return apiRequest<Product>({ method: "GET", url: `/products/${id}` });
+}
+
+export function getProductConfiguration(id: string) {
+  return apiRequest<ProductConfiguration>({
+    method: "GET",
+    url: `/products/${id}/configuration`,
+  });
+}
+
+export function getPosProductConfiguration(id: string) {
+  return apiRequest<ProductConfiguration>({
+    method: "GET",
+    url: `/pos/products/${id}/configuration`,
+  });
+}
+
+export function saveProductConfiguration(
+  id: string,
+  payload: SaveProductConfigurationPayload
+) {
+  return apiRequest<ProductConfiguration>({
+    method: "PUT",
+    url: `/products/${id}/configuration`,
+    data: payload,
+  });
 }
 
 export function createProduct(payload: CreateProductPayload) {

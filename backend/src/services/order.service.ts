@@ -46,7 +46,7 @@ function normalizeOrderQuery(query: Record<string, unknown>): OrderListQuery {
 }
 
 function normalizeCancelReason(body: CancelOrderBody) {
-  return (body.cancel_reason ?? body.reason)?.trim();
+  return body.reason?.trim();
 }
 
 export async function getOrdersService(query: Record<string, unknown>) {

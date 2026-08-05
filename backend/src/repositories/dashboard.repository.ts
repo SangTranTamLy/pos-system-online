@@ -45,11 +45,9 @@ export async function getDashboardStats(startDate?: string, endDate?: string) {
         FROM products
         WHERE status = 'active') AS activeProducts,
 
-        (
-          (SELECT COALESCE(SUM(stock_quantity * import_price), 0) FROM raw_materials WHERE is_active = 1)
-          +
-          (SELECT COALESCE(SUM(stock_quantity * import_price), 0) FROM products WHERE is_tracked_stock = 1 AND is_available = 1)
-        ) AS totalStockValue
+        (SELECT COALESCE(SUM(stock_quantity * import_price), 0)
+         FROM raw_materials
+         WHERE is_active = 1) AS totalStockValue
     `, params);
 
     return rows[0];
@@ -176,21 +174,6 @@ export async function getLowStockItems() {
         FROM raw_materials
         WHERE is_active = 1
           AND COALESCE(stock_quantity, 0) <= 5
-
-        UNION ALL
-
-        SELECT
-          id,
-          name,
-          COALESCE(sku, '') AS sku,
-          'product' AS type,
-          COALESCE(stock_quantity, 0) AS stockQuantity,
-          10 AS threshold,
-          NULL AS unit
-        FROM products
-        WHERE status = 'active'
-          AND is_tracked_stock = 1
-          AND COALESCE(stock_quantity, 0) <= 10
 
         ORDER BY stockQuantity ASC, name ASC
         LIMIT 8

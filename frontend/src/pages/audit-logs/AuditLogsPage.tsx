@@ -5,6 +5,7 @@ import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 import { fetchShifts, type Shift } from "../../api/shifts.api";
 import type { AuditLog } from "../../types/audit-log";
 import { translateRole } from "../../utils/role";
+import { useAppNotifications } from "../../components/common/AppNotificationsContext";
 
 type ActionMeta = {
   label: string;
@@ -60,7 +61,6 @@ const FIELD_LABELS: Record<string, string> = {
   isAvailable: "Trạng thái bán",
   isActive: "Trạng thái",
   requiresPreparation: "Chế biến",
-  isStockReturnable: "Hoàn kho",
   status: "Trạng thái",
   email: "Email",
   code: "Mã",
@@ -263,11 +263,11 @@ function getActionBadge(actionType: string) {
 }
 
 export default function AuditLogsPage() {
+  const { notify } = useAppNotifications();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [actionType, setActionType] = useState("");
@@ -290,7 +290,7 @@ export default function AuditLogsPage() {
     currentShiftId = shiftId
   ) => {
     setLoading(true);
-    setError("");
+
 
     try {
       const data = await getAuditLogs({
@@ -303,7 +303,7 @@ export default function AuditLogsPage() {
       setLogs(data.logs);
       setTotal(data.total);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không thể tải nhật ký hệ thống.");
+      notify(err instanceof Error ? err.message : "Không thể tải nhật ký hệ thống.", "error");
     } finally {
       setLoading(false);
     }
@@ -433,11 +433,7 @@ export default function AuditLogsPage() {
           </FilterBar>
         </section>
 
-        {error ? (
-          <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-xs font-semibold text-red-600">
-            {error}
-          </div>
-        ) : null}
+
 
         {loading ? (
           <div className="flex h-80 items-center justify-center rounded-3xl border border-slate-200 bg-white">

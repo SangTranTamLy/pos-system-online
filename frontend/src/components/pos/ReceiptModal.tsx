@@ -64,21 +64,53 @@ function getPromotionDisplayName(order: PosOrderResult) {
   }`;
 }
 
+function getDetailConfigurationLines(detail: PosOrderResult["details"][number]) {
+  const lines: string[] = [];
+  if (detail.variantName && detail.variantName !== "Mặc định") {
+    lines.push(`Biến thể: ${detail.variantName}`);
+  }
+  if (detail.modifierOptions?.length) {
+    lines.push(
+      `Topping: ${detail.modifierOptions.map((item) => item.name).join(", ")}`
+    );
+  }
+  const comboComponents = (detail.configurationSnapshot?.comboComponents || []) as Array<{
+    productName?: string;
+    variantName?: string;
+    quantity?: number;
+  }>;
+  if (comboComponents.length) {
+    lines.push(
+      `Combo: ${comboComponents
+        .map((item) => `${item.productName || "Món"}${item.variantName && item.variantName !== "Mặc định" ? ` (${item.variantName})` : ""} x${item.quantity || 1}`)
+        .join(", ")}`
+    );
+  }
+  if (detail.itemNote) lines.push(`Ghi chú: ${detail.itemNote}`);
+  return lines;
+}
+
 function buildReceiptHtml(order: PosOrderResult, employeeName: string) {
   const orderCode = `#HD${order.id.slice(0, 10)}`;
   const createdAt = new Date().toLocaleString("vi-VN", { hour12: false });
   const paymentLabel = getPaymentMethodLabel(order.payment.paymentMethod);
   const promotionDisplayName = getPromotionDisplayName(order);
   const detailRows = order.details
-    .map(
-      (detail) => `
+    .map((detail) => {
+      const configurationLines = getDetailConfigurationLines(detail)
+        .map((line) => `<span class="item-option">${escapeHtml(line)}</span>`)
+        .join("");
+      return `
         <tr>
-          <td>${escapeHtml(detail.productName)}</td>
+          <td>
+            ${escapeHtml(detail.productName)}
+            ${configurationLines}
+          </td>
           <td class="center">${detail.quantity}</td>
           <td class="right">${formatCurrency(detail.lineTotal)}</td>
         </tr>
-      `
-    )
+      `;
+    })
     .join("");
 
   return `
@@ -195,6 +227,14 @@ function buildReceiptHtml(order: PosOrderResult, employeeName: string) {
             padding: 11px 0;
             border-bottom: 1px solid #e2e8f0;
             font-weight: 700;
+          }
+
+          .item-option {
+            display: block;
+            margin-top: 3px;
+            color: #64748b;
+            font-size: 11px;
+            font-weight: 500;
           }
 
           .center {
@@ -386,7 +426,17 @@ function ReceiptPreview({ order, employeeName }: { order: PosOrderResult; employ
         <tbody className="divide-y divide-slate-100">
           {order.details.map((detail) => (
             <tr key={detail.id}>
-              <td className="py-4 font-semibold text-[#0b1c30]">{detail.productName}</td>
+              <td className="py-4 font-semibold text-[#0b1c30]">
+                <span>{detail.productName}</span>
+                {getDetailConfigurationLines(detail).map((line) => (
+                  <span
+                    key={line}
+                    className="mt-1 block text-xs font-medium text-slate-500"
+                  >
+                    {line}
+                  </span>
+                ))}
+              </td>
               <td className="py-4 text-center font-semibold text-slate-500">
                 {detail.quantity}
               </td>
@@ -446,38 +496,34 @@ function ReceiptModal({ order, onClose }: ReceiptModalProps) {
   const employeeName = getCurrentEmployeeName();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[rgba(11,28,48,0.72)] p-4 backdrop-blur-[2px]">
-      <div className="w-full max-w-4xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
-        <header className="flex h-20 items-center justify-between border-b border-slate-200 px-8">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+      <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b p-5 bg-white z-10 relative">
           <div className="flex items-center gap-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100"
-              aria-label="Quay lại"
-            >
-              <Icon name="arrow_back" className="text-xl" />
+            <button type="button" onClick={onClose} className="rounded-lg p-1 hover:bg-slate-100 text-slate-600">
+              <Icon name="arrow_back" />
             </button>
-            <h3 className="font-['Outfit',sans-serif] text-2xl font-extrabold text-[#0b1c30]">
-              Thanh toán thành công
-            </h3>
+            <div>
+              <p className="text-xs font-black uppercase text-green-600">
+                Thành công
+              </p>
+              <h3 className="text-xl font-black text-[#0b1c30]">
+                Thanh toán thành công
+              </h3>
+            </div>
           </div>
-
-          <div className="flex items-center gap-4">
-            <span className="rounded-xl bg-green-50 px-4 py-2 text-sm font-extrabold text-green-600">
+          <div className="flex items-center gap-3">
+            <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-extrabold text-green-600">
               Bill đã tạo
             </span>
-            <button
-              type="button"
-              className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100"
-              aria-label="Chia sẻ hóa đơn"
-            >
-              <Icon name="share" />
+            <button type="button" onClick={onClose}>
+              <Icon name="close" />
             </button>
           </div>
-        </header>
+        </div>
 
-        <div className="grid bg-[#f8f9ff] lg:grid-cols-[1fr_260px]">
+        <div className="flex-1 overflow-y-auto bg-[#f8f9ff]">
+          <div className="grid lg:grid-cols-[1fr_260px] min-h-full">
           <section className="flex justify-center p-6 lg:p-8">
             <ReceiptPreview order={order} employeeName={employeeName} />
           </section>
@@ -512,6 +558,7 @@ function ReceiptModal({ order, onClose }: ReceiptModalProps) {
               <p className="mt-1 font-extrabold text-[#0b1c30]">#HD{order.id.slice(0, 10)}</p>
             </div>
           </aside>
+          </div>
         </div>
       </div>
     </div>

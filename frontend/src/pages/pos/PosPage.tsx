@@ -20,6 +20,7 @@ import ProductCard from "../../components/pos/ProductCard";
 import QrPaymentModal from "../../components/pos/QrPaymentModal";
 import ReceiptModal from "../../components/pos/ReceiptModal";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
+import { useAppNotifications } from "../../components/common/AppNotificationsContext";
 
 type CartItem = {
   product: Product;
@@ -82,14 +83,14 @@ function isProductUnavailable(product: Product) {
   return (
     product.status === "out_of_stock" ||
     !product.isAvailable ||
-    (product.isTrackedStock && product.stockQuantity !== null && product.stockQuantity <= 0)
+    (product.isTrackedStock && product.stockQuantity != null && product.stockQuantity <= 0)
   );
 }
 
 function isLowStockProduct(product: Product) {
   return (
     product.isTrackedStock &&
-    product.stockQuantity !== null &&
+    product.stockQuantity != null &&
     product.stockQuantity > 0 &&
     product.stockQuantity <= 5
   );
@@ -159,7 +160,7 @@ function PosPage() {
   const [completedOrder, setCompletedOrder] = useState<PosOrderResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const { notify } = useAppNotifications();
   const [promotionCode, setPromotionCode] = useState("");
   const [promotionPreview, setPromotionPreview] =
     useState<PosPromotionPreview | null>(null);
@@ -181,13 +182,13 @@ function PosPage() {
 
   const loadProducts = useCallback(async () => {
     try {
-      setErrorMessage("");
-      const response = await getProducts();
+            const response = await getProducts();
       setProducts(response.data);
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "Không tải được sản phẩm. Vui lòng thử lại."
-      );
+      notify(
+error instanceof Error ? error.message : "Không tải được sản phẩm. Vui lòng thử lại.",
+"error"
+);
     } finally {
       setIsLoading(false);
     }
@@ -264,8 +265,7 @@ function PosPage() {
     Promise.all([getProducts(), fetchPromotions(), fetchShifts()])
       .then(([productResponse, promotionData, shiftData]) => {
         if (!isMounted) return;
-        setErrorMessage("");
-        setProducts(productResponse.data);
+                setProducts(productResponse.data);
         setPromotions(promotionData);
         setPromotionFilterTime(Date.now());
         
@@ -284,9 +284,10 @@ function PosPage() {
       .catch((error) => {
         if (!isMounted) return;
         setPromotions([]);
-        setErrorMessage(
-          error instanceof Error ? error.message : "Không tải được dữ liệu POS. Vui lòng thử lại."
-        );
+        notify(
+error instanceof Error ? error.message : "Không tải được dữ liệu POS. Vui lòng thử lại.",
+"error"
+);
       })
       .finally(() => {
         if (!isMounted) return;
@@ -486,15 +487,20 @@ function PosPage() {
 
   const addToCart = (product: Product) => {
     setCompletedOrder(null);
-    setErrorMessage("");
-
+    
     if (product.status === "out_of_stock" || !product.isAvailable) {
-      setErrorMessage(`${product.name} đã ngừng bán hoặc hết hàng.`);
+      notify(
+`${product.name} đã ngừng bán hoặc hết hàng.`,
+"error"
+);
       return;
     }
 
-    if (product.isTrackedStock && product.stockQuantity !== null && product.stockQuantity <= 0) {
-      setErrorMessage(`${product.name} đã hết hàng.`);
+    if (product.isTrackedStock && product.stockQuantity != null && product.stockQuantity <= 0) {
+      notify(
+`${product.name} đã hết hàng.`,
+"error"
+);
       return;
     }
 
@@ -505,8 +511,11 @@ function PosPage() {
         return [...currentItems, { product, quantity: 1 }];
       }
 
-      if (product.isTrackedStock && product.stockQuantity !== null && existedItem.quantity >= product.stockQuantity) {
-        setErrorMessage(`${product.name} chỉ còn ${product.stockQuantity} sản phẩm.`);
+      if (product.isTrackedStock && product.stockQuantity != null && existedItem.quantity >= product.stockQuantity) {
+        notify(
+`${product.name} chỉ còn ${product.stockQuantity} sản phẩm.`,
+"error"
+);
         return currentItems;
       }
 
@@ -521,8 +530,8 @@ function PosPage() {
   const updateQuantity = (productId: string, quantity: number) => {
     const item = cartItems.find((i) => i.product.id === productId);
     if (item) {
-      const maxQty = (item.product.isTrackedStock && item.product.stockQuantity !== null)
-        ? item.product.stockQuantity
+      const maxQty = (item.product.isTrackedStock && item.product.stockQuantity != null)
+        ? (item.product.stockQuantity as number)
         : 9999;
       const newQty = Math.min(Math.max(quantity, 0), maxQty);
       if (newQty < item.quantity) {
@@ -538,9 +547,9 @@ function PosPage() {
     setCartItems((currentItems) =>
       currentItems
         .map((item) => {
-          const maxQty = (item.product.isTrackedStock && item.product.stockQuantity !== null)
-            ? item.product.stockQuantity
-            : 9999;
+          const maxQty = (item.product.isTrackedStock && item.product.stockQuantity != null)
+            ? (item.product.stockQuantity as number)
+        : 9999;
           return item.product.id === productId
             ? {
               ...item,
@@ -578,8 +587,7 @@ function PosPage() {
 
     setCartItems([]);
     setNote("");
-    setErrorMessage("");
-    setCashPaid("");
+        setCashPaid("");
     setPromotionCode("");
     setPromoMessage("");
     setCustomerPhone("");
@@ -590,8 +598,7 @@ function PosPage() {
   const submitOrder = async () => {
     try {
       setIsProcessing(true);
-      setErrorMessage("");
-
+      
       const response = await createPosOrder({
         customerId: matchedCustomer?.id ?? null,
         customerPhone: customerPhone.replace(/\D/g, "") || null,
@@ -623,9 +630,10 @@ function PosPage() {
       clearCart();
       await loadProducts();
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "Chưa tạo được hóa đơn. Vui lòng thử lại."
-      );
+      notify(
+error instanceof Error ? error.message : "Chưa tạo được hóa đơn. Vui lòng thử lại.",
+"error"
+);
     } finally {
       setIsProcessing(false);
     }
@@ -633,22 +641,30 @@ function PosPage() {
 
   const handleCheckout = async () => {
     if (cartItems.length === 0) {
-      setErrorMessage("Vui lòng chọn ít nhất một sản phẩm.");
+      notify(
+"Vui lòng chọn ít nhất một sản phẩm.",
+"error"
+);
       return;
     }
 
     if (!isPromotionApplicable) {
-      setErrorMessage(displayedPromoMessage);
+      notify(
+displayedPromoMessage,
+"error"
+);
       return;
     }
 
     if (paymentMethod === "cash" && finalAmount > 0 && cashPaidAmount < finalAmount) {
-      setErrorMessage("Tiền khách đưa chưa đủ để thanh toán.");
+      notify(
+"Tiền khách đưa chưa đủ để thanh toán.",
+"error"
+);
       return;
     }
 
-    setErrorMessage("");
-    setShowPaymentConfirmModal(true);
+        setShowPaymentConfirmModal(true);
   };
 
   const handleConfirmPayment = async () => {
@@ -665,18 +681,23 @@ function PosPage() {
     if (!activeShift || activeShift.id === "admin_bypass") return;
     const openingCash = Number(openingCashInput);
     if (!Number.isFinite(openingCash) || openingCash <= 0) {
-      setErrorMessage("Vui lòng nhập tiền đầu ca lớn hơn 0.");
+      notify(
+"Vui lòng nhập tiền đầu ca lớn hơn 0.",
+"error"
+);
       return;
     }
 
     try {
       setIsSavingOpeningCash(true);
-      setErrorMessage("");
-      const updatedShift = await setShiftOpeningCash(activeShift.id, openingCash);
+            const updatedShift = await setShiftOpeningCash(activeShift.id, openingCash);
       setActiveShift(updatedShift);
       setOpeningCashInput("");
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Không thể nhập tiền đầu ca.");
+      notify(
+error instanceof Error ? error.message : "Không thể nhập tiền đầu ca.",
+"error"
+);
     } finally {
       setIsSavingOpeningCash(false);
     }
@@ -736,12 +757,6 @@ function PosPage() {
                 </p>
               </div>
             </div>
-
-            {errorMessage ? (
-              <div className="mb-4 rounded-2xl border border-red-100 bg-red-50 p-3 text-sm font-semibold text-red-600">
-                {errorMessage}
-              </div>
-            ) : null}
 
             <label className="block">
               <span className="mb-2 block text-xs font-extrabold uppercase text-slate-500">
@@ -936,12 +951,6 @@ function PosPage() {
               ))}
             </div>
           </div>
-
-          {errorMessage ? (
-            <div className="mb-4 rounded-2xl border border-red-100 bg-red-50 p-3 text-sm font-semibold text-red-600">
-              {errorMessage}
-            </div>
-          ) : null}
 
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-4 flex items-center justify-between">

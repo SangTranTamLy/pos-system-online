@@ -16,6 +16,14 @@ export type AiValidationResult = {
   failed_reason?: string;
 };
 
+export type AiReportEvaluation = {
+  status?: "accepted" | "rejected" | string;
+  schemaValid?: boolean;
+  groundingScore?: number;
+  privacyPassed?: boolean;
+  issues?: string[];
+};
+
 export type AiReportChart = {
   title?: string;
   type?: AiChartType;
@@ -45,9 +53,11 @@ export type AiReportTables = {
   sales_table?: AiReportTable;
   payment_table?: AiReportTable;
   employee_table?: AiReportTable;
+  material_purchase_table?: AiReportTable;
 };
 
 export type AiReportInsightData = {
+  evaluation?: AiReportEvaluation;
   meta?: {
     assistant_name?: string;
     role?: string;
@@ -121,10 +131,18 @@ export type AiReportInsightData = {
 
 export type AiReportInsightResponse = {
   success: boolean;
-  fallback: boolean;
   data: AiReportInsightData | null;
   message?: string;
-  context?: unknown;
+  evaluation?: AiReportEvaluation;
+  context?: {
+    dataQuality?: {
+      coverageScore?: number;
+      confidence?: "cao" | "trung_binh" | "thap";
+      status?: "du_du_lieu_co_ban" | "thieu_du_lieu";
+      missing?: string[];
+      note?: string;
+    };
+  };
 };
 function buildDateQuery(startDate?: string, endDate?: string) {
   const params = new URLSearchParams();

@@ -44,6 +44,12 @@ function requireDateRange(startDate?: string, endDate?: string) {
   }
 }
 
+function setNoCacheHeaders(res: Response) {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+}
+
 export async function getAiInsightsContextController(req: Request, res: Response) {
   const user = (req as any).user as AuthUser | undefined;
   checkAdminOrManager(user);
@@ -64,12 +70,7 @@ export async function getAiReportInsightsController(
   req: Request,
   res: Response
 ) {
-  res.setHeader(
-    "Cache-Control",
-    "no-store, no-cache, must-revalidate, proxy-revalidate"
-  );
-  res.setHeader("Pragma", "no-cache");
-  res.setHeader("Expires", "0");
+  setNoCacheHeaders(res);
 
   const user = (req as any).user as AuthUser | undefined;
   checkAdminOrManager(user);
@@ -91,6 +92,7 @@ export async function getAiReportInsightsController(
 }
 
 export async function getEmployeeRevenueController(req: Request, res: Response) {
+  setNoCacheHeaders(res);
   const user = (req as any).user as AuthUser | undefined;
   if (!user) {
     throw new ApiError(401, "Chưa được xác thực");
@@ -107,6 +109,7 @@ export async function getEmployeeRevenueController(req: Request, res: Response) 
 }
 
 export async function getFinancialReportController(req: Request, res: Response) {
+  setNoCacheHeaders(res);
   const user = (req as any).user as AuthUser | undefined;
   checkAdminOrManager(user);
 
@@ -121,6 +124,7 @@ export async function getFinancialReportController(req: Request, res: Response) 
 }
 
 export async function getInventoryValuationController(req: Request, res: Response) {
+  setNoCacheHeaders(res);
   const user = (req as any).user as AuthUser | undefined;
   checkAdminOrManager(user);
 
@@ -134,6 +138,7 @@ export async function getInventoryValuationController(req: Request, res: Respons
 }
 
 export async function getEmployeePerformanceController(req: Request, res: Response) {
+  setNoCacheHeaders(res);
   const user = (req as any).user as AuthUser | undefined;
   checkAdminOrManager(user);
 
@@ -148,6 +153,7 @@ export async function getEmployeePerformanceController(req: Request, res: Respon
 }
 
 export async function getComparisonReportController(req: Request, res: Response) {
+  setNoCacheHeaders(res);
   const user = (req as any).user as AuthUser | undefined;
   checkAdminOrManager(user);
 
@@ -164,6 +170,7 @@ export async function getComparisonReportController(req: Request, res: Response)
 }
 
 export async function getCustomerRetentionController(req: Request, res: Response) {
+  setNoCacheHeaders(res);
   const user = (req as any).user as AuthUser | undefined;
   checkAdminOrManager(user);
 

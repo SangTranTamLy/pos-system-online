@@ -45,13 +45,9 @@ export async function cancelOrderController(req: Request, res: Response) {
     throw new ApiError(401, "Chưa được xác thực");
   }
 
-  const bodyCancelledBy =
-    typeof req.body?.cancelled_by === "string" ? req.body.cancelled_by.trim() : "";
-  const cancelledBy = bodyCancelledBy || req.user.id;
-
   const order = await cancelOrderService(
     getParamId(req.params.id),
-    cancelledBy,
+    req.user.id,
     req.body
   );
 

@@ -9,6 +9,7 @@ import {
   type PaymentMethod,
   type PaymentStatus,
 } from "../../api/order.api";
+import { useAppNotifications } from "../../components/common/AppNotificationsContext";
 import { fetchUsers, type User } from "../../api/users.api";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 import { FilterBar } from "../../components/common/FilterBar";
@@ -109,24 +110,54 @@ function getPrimaryPayment(order: OrderDetail) {
   return order.payments[0] ?? null;
 }
 
+function getDetailConfigurationLines(detail: OrderDetail["details"][number]) {
+  const lines: string[] = [];
+  if (detail.variantName && detail.variantName !== "Mặc định") {
+    lines.push(`Biến thể: ${detail.variantName}`);
+  }
+  if (detail.modifierOptions.length) {
+    lines.push(
+      `Topping: ${detail.modifierOptions.map((item) => item.name).join(", ")}`
+    );
+  }
+  const comboComponents = (detail.configurationSnapshot?.comboComponents || []) as Array<{
+    productName?: string;
+    variantName?: string;
+    quantity?: number;
+  }>;
+  if (comboComponents.length) {
+    lines.push(
+      `Combo: ${comboComponents
+        .map((item) => `${item.productName || "Món"}${item.variantName && item.variantName !== "Mặc định" ? ` (${item.variantName})` : ""} x${item.quantity || 1}`)
+        .join(", ")}`
+    );
+  }
+  if (detail.itemNote) lines.push(`Ghi chú: ${detail.itemNote}`);
+  return lines;
+}
+
 function buildInvoiceReceiptHtml(order: OrderDetail) {
   const orderCode = shortOrderId(order.id);
   const payment = getPrimaryPayment(order);
   const paymentLabel = payment ? paymentMethodLabels[payment.paymentMethod] : "Chưa có";
   const paymentStatus = payment ? paymentStatusLabels[payment.paymentStatus] : "Chưa thanh toán";
   const detailRows = order.details
-    .map(
-      (detail) => `
+    .map((detail) => {
+      const configuration = getDetailConfigurationLines(detail)
+        .map((line) => `<small>${escapeHtml(line)}</small>`)
+        .join("");
+      return `
         <tr>
           <td>
             <strong>${escapeHtml(detail.productName)}</strong>
+            ${configuration}
             <span>${formatCurrency(detail.unitPrice)}</span>
           </td>
           <td class="center">${detail.quantity}</td>
           <td class="right">${formatCurrency(detail.lineTotal)}</td>
         </tr>
-      `
-    )
+      `;
+    })
     .join("");
 
   return `
@@ -188,6 +219,7 @@ function buildInvoiceReceiptHtml(order: OrderDetail) {
             vertical-align: top;
           }
           td strong { display: block; font-weight: 800; }
+          td small { display: block; margin-top: 3px; color: #64748b; font-size: 11px; }
           td span { display: block; margin-top: 3px; color: #64748b; font-size: 12px; }
           .center { text-align: center; }
           .right { text-align: right; }
@@ -311,27 +343,25 @@ function CancelOrderModal({
   setReason: (reason: string) => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b1c30]/45 p-4">
-      <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl">
-        <div className="mb-5 flex items-start justify-between gap-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+      <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b p-5">
           <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-red-600">Thao tác nguy hiểm</p>
-            <h3 className="mt-1 font-['Outfit',sans-serif] text-2xl font-extrabold text-[#0b1c30]">
+            <p className="text-xs font-black uppercase text-red-600">
+              Thao tác nguy hiểm
+            </p>
+            <h3 className="text-xl font-black text-[#0b1c30]">
               Hủy hóa đơn
             </h3>
-            <p className="mt-2 text-sm text-slate-500">
-              Vui lòng nhập lý do hủy để quản lý dễ kiểm tra lại lịch sử thao tác.
-            </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-            aria-label="Đóng"
-          >
+          <button type="button" onClick={onClose}>
             <Icon name="close" />
           </button>
         </div>
+        <div className="flex-1 overflow-y-auto p-5">
+          <p className="mb-4 text-sm font-semibold text-slate-600">
+            Vui lòng nhập lý do hủy để quản lý dễ kiểm tra lại lịch sử thao tác.
+          </p>
 
         <div className="mb-4 flex flex-wrap gap-2">
           {cancelReasonSuggestions.map((suggestion) => (
@@ -354,21 +384,22 @@ function CancelOrderModal({
           className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm outline-none transition-all focus:border-red-400 focus:bg-white focus:ring-2 focus:ring-red-100"
         />
 
-        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+        </div>
+        <div className="flex justify-end gap-3 border-t p-4">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50"
+            className="rounded-lg border px-5 py-2 font-bold text-slate-700"
           >
-            Quay lại
+            Hủy
           </button>
           <button
             type="button"
             onClick={onConfirm}
             disabled={isCancelling || !reason.trim()}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-red-100 transition-all hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2 font-bold text-white disabled:opacity-50"
           >
-            <Icon name="cancel" />
+            {isCancelling && <Icon name="progress_activity" className="animate-spin text-base" />}
             {isCancelling ? "Đang hủy..." : "Xác nhận hủy"}
           </button>
         </div>
@@ -459,6 +490,11 @@ function InvoiceDetailPanel({
             <div key={item.id} className="flex items-center justify-between gap-4 rounded-2xl bg-slate-50 p-4">
               <div>
                 <p className="font-bold text-[#0b1c30]">{item.productName}</p>
+                {getDetailConfigurationLines(item).map((line) => (
+                  <p key={line} className="mt-1 text-xs text-slate-500">
+                    {line}
+                  </p>
+                ))}
                 <p className="mt-1 text-xs text-slate-400">
                   {item.quantity} x {formatCurrency(item.unitPrice)}
                 </p>
@@ -489,6 +525,7 @@ function InvoiceDetailPanel({
 }
 
 function InvoicePage() {
+  const { notify } = useAppNotifications();
   const [orders, setOrders] = useState<OrderListItem[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<OrderDetail | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -501,7 +538,7 @@ function InvoicePage() {
   const [isCancelling, setIsCancelling] = useState(false);
   const [cancelModal, setCancelModal] = useState<CancelModalState>("closed");
   const [cancelReason, setCancelReason] = useState("");
-  const [error, setError] = useState<string | null>(null);
+
   const [users, setUsers] = useState<User[]>([]);
   const [createdBy, setCreatedBy] = useState<string>("all");
   const currentUser = getCurrentUser();
@@ -513,7 +550,7 @@ function InvoicePage() {
 
     async function loadOrders() {
       setIsLoading(true);
-      setError(null);
+
 
       try {
         const response = await getOrders({
@@ -541,7 +578,7 @@ function InvoicePage() {
           return;
         }
 
-        setError(requestError instanceof Error ? requestError.message : "Không tải được danh sách hóa đơn");
+        notify(requestError instanceof Error ? requestError.message : "Không tải được danh sách hóa đơn", "error");
         setOrders([]);
         setSelectedOrder(null);
         setSelectedOrderId(null);
@@ -595,7 +632,7 @@ function InvoicePage() {
         }
       } catch (requestError) {
         if (isMounted) {
-          setError(requestError instanceof Error ? requestError.message : "Không tải được chi tiết hóa đơn");
+          notify(requestError instanceof Error ? requestError.message : "Không tải được chi tiết hóa đơn", "error");
           setSelectedOrder(null);
         }
       } finally {
@@ -626,8 +663,7 @@ function InvoicePage() {
       return;
     }
 
-    setIsCancelling(true);
-    setError(null);
+
 
     try {
       const response = await cancelOrder(selectedOrder.id, {
@@ -650,7 +686,7 @@ function InvoicePage() {
       setCancelReason("");
       window.dispatchEvent(new Event("quickserve:notifications-refresh"));
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Không hủy được hóa đơn");
+      notify(requestError instanceof Error ? requestError.message : "Không hủy được hóa đơn", "error");
     } finally {
       setIsCancelling(false);
     }
@@ -663,7 +699,7 @@ function InvoicePage() {
       return;
     }
 
-    setError(null);
+
 
     try {
       const orderToPrint =
@@ -682,7 +718,7 @@ function InvoicePage() {
         description: `In lại hóa đơn Đơn ${shortOrderId(orderToPrint.id)}`,
       }).catch((err) => console.error("Lỗi ghi log in lại hóa đơn:", err));
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Không in được hóa đơn");
+      notify(requestError instanceof Error ? requestError.message : "Không in được hóa đơn", "error");
     }
   }
 
@@ -755,9 +791,7 @@ function InvoicePage() {
             )}
           </FilterBar>
 
-          {error ? (
-            <div className="border-b border-red-100 bg-red-50 px-6 py-3 text-sm font-semibold text-red-600">{error}</div>
-          ) : null}
+
 
           <div className="overflow-x-auto">
             <table className="w-full min-w-[900px] text-left text-sm">

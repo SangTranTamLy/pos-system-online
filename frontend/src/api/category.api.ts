@@ -7,7 +7,6 @@ export type Category = {
   imageUrl: string | null;
   productCount: number;
   isActive: boolean;
-  isTrackedStock: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -16,7 +15,6 @@ export type CreateCategoryPayload = {
   name: string;
   description?: string | null;
   imageUrl?: string | null;
-  isTrackedStock?: boolean;
 };
 
 export type UpdateCategoryPayload = CreateCategoryPayload;

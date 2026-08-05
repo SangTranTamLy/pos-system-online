@@ -14,9 +14,9 @@ export const db = mysql.createPool({
   queueLimit: 0,
   timezone: "+07:00",
 
-  ssl: {
-    rejectUnauthorized: false,
-  },
+  ssl: process.env.DB_SSL === "true"
+    ? { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== "false" }
+    : undefined,
 });
 
 

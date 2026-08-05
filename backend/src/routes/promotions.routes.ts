@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { authMiddleware } from "../middleware/auth.middleware";
+import { authMiddleware, requireRoles } from "../middleware/auth.middleware";
 import { asyncHandler } from "../utils/asyncHandler";
 import {
   listPromotionsController,
@@ -16,6 +16,7 @@ promotionsRouter.use(authMiddleware);
 
 promotionsRouter.get("/", asyncHandler(listPromotionsController));
 promotionsRouter.get("/:id", asyncHandler(getPromotionController));
+promotionsRouter.use(requireRoles(["ADMIN", "MANAGER"]));
 promotionsRouter.post("/", asyncHandler(createPromotionController));
 promotionsRouter.put("/:id", asyncHandler(updatePromotionController));
 promotionsRouter.patch("/:id/toggle", asyncHandler(togglePromotionController));

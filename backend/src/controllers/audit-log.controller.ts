@@ -52,15 +52,27 @@ export async function createAuditLogsController(req: Request, res: Response) {
     throw new ApiError(400, "Thiếu loại hành động");
   }
 
+  const normalizedRole = user.roleName.trim().toUpperCase();
+  const allowedActions = ["ADMIN", "MANAGER"].includes(normalizedRole)
+    ? ["HUY_MON", "IN_LAI_BILL", "DANG_XUAT", "SUA_CAU_HINH"]
+    : ["HUY_MON", "IN_LAI_BILL", "DANG_XUAT"];
+
+  if (!allowedActions.includes(String(actionType).trim().toUpperCase())) {
+    throw new ApiError(403, "Loại nhật ký này phải được ghi bởi nghiệp vụ backend");
+  }
+  if (String(targetObject || "").length > 100 || String(description || "").length > 1000) {
+    throw new ApiError(400, "Nội dung nhật ký vượt quá giới hạn cho phép");
+  }
+
   const { createAuditLog } = await import("../repositories/audit-log.repository");
 
   await createAuditLog(
     user.id,
-    actionType,
-    targetObject || "",
-    description || "",
-    oldValues,
-    newValues
+    String(actionType).trim().toUpperCase(),
+    String(targetObject || ""),
+    String(description || ""),
+    ["ADMIN", "MANAGER"].includes(normalizedRole) ? oldValues : undefined,
+    ["ADMIN", "MANAGER"].includes(normalizedRole) ? newValues : undefined
   );
 
   return res.status(201).json({

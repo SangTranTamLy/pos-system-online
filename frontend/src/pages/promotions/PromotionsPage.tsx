@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 import {
   type Promotion,
@@ -10,7 +10,7 @@ import {
   updatePromotion,
 } from "../../api/promotions.api";
 import { getProducts, type Product } from "../../api/product.api";
-
+import { useAppNotifications } from "../../components/common/AppNotificationsContext";
 
 function formatDate(iso: string | null) {
   if (!iso) return "—";
@@ -165,7 +165,7 @@ function PromotionModal({ editing, products, onClose, onSaved }: ModalProps) {
       : { ...EMPTY_FORM, productId: products[0]?.id ?? "" }
   );
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const { notify } = useAppNotifications();
   const codeRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -177,7 +177,6 @@ function PromotionModal({ editing, products, onClose, onSaved }: ModalProps) {
     value: PromotionFormData[K]
   ) {
     setForm((prev) => ({ ...prev, [key]: value }));
-    setError("");
   }
 
   function setPromotionScope(scope: "product" | "combo") {
@@ -195,7 +194,6 @@ function PromotionModal({ editing, products, onClose, onSaved }: ModalProps) {
               ].filter((item) => item.productId)
           : [],
     }));
-    setError("");
   }
 
   function updateComboItem(
@@ -214,7 +212,6 @@ function PromotionModal({ editing, products, onClose, onSaved }: ModalProps) {
           : item
       ),
     }));
-    setError("");
   }
 
   function addComboItem() {
@@ -235,7 +232,6 @@ function PromotionModal({ editing, products, onClose, onSaved }: ModalProps) {
       ...prev,
       requiredItems: prev.requiredItems.filter((_, itemIndex) => itemIndex !== index),
     }));
-    setError("");
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -244,17 +240,16 @@ function PromotionModal({ editing, products, onClose, onSaved }: ModalProps) {
       const selectedItems = form.requiredItems.filter((item) => item.productId);
       const uniqueProductIds = new Set(selectedItems.map((item) => item.productId));
       if (selectedItems.length < 2) {
-        setError("Combo cần ít nhất 2 sản phẩm áp dụng.");
+        notify("Combo cần ít nhất 2 sản phẩm áp dụng.", "error");
         return;
       }
       if (uniqueProductIds.size !== selectedItems.length) {
-        setError("Sản phẩm trong combo không được trùng nhau.");
+        notify("Sản phẩm trong combo không được trùng nhau.", "error");
         return;
       }
     }
 
     setLoading(true);
-    setError("");
     try {
       let saved: Promotion;
       if (editing) {
@@ -264,44 +259,31 @@ function PromotionModal({ editing, products, onClose, onSaved }: ModalProps) {
       }
       onSaved(saved);
     } catch (err) {
-      setError((err as Error).message);
+      notify((err as Error).message, "error");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
-      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto border border-slate-200 bg-white shadow-xl">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b p-5">
           <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-[#f97316]">
+            <p className="text-xs font-black uppercase text-[#f97316]">
               {editing ? "Chỉnh sửa" : "Tạo mới"}
             </p>
-            <h2 className="text-lg font-extrabold text-[#0b1c30]">
+            <h3 className="text-xl font-black text-[#0b1c30]">
               {editing ? "Cập nhật khuyến mãi" : "Tạo khuyến mãi"}
-            </h2>
+            </h3>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
-          >
-            <Icon name="close" className="text-xl" />
+          <button type="button" onClick={onClose}>
+            <Icon name="close" />
           </button>
         </div>
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-col">
+          <div className="flex-1 overflow-y-auto p-5 space-y-4">
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
-          {error && (
-            <div className="border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
-              {error}
-            </div>
-          )}
 
           <div>
             <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-600">
@@ -548,23 +530,21 @@ function PromotionModal({ editing, products, onClose, onSaved }: ModalProps) {
             </label>
           )}
 
-          {/* Actions */}
-          <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
+          </div>
+          <div className="flex justify-end gap-3 border-t p-4">
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-10 items-center justify-center border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
+              className="rounded-lg border px-5 py-2 font-bold text-slate-700"
             >
-              Hủy
+              Hủy bỏ
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="inline-flex h-10 items-center justify-center gap-2 bg-[#f97316] px-4 text-sm font-bold text-white transition-colors hover:bg-[#ea580c] disabled:opacity-60"
+              className="rounded-lg bg-[#f97316] px-5 py-2 font-bold text-white disabled:opacity-50 flex items-center gap-2"
             >
-              {loading && (
-                <Icon name="progress_activity" className="animate-spin text-base" />
-              )}
+              {loading && <Icon name="progress_activity" className="animate-spin text-base" />}
               {editing ? "Lưu thay đổi" : "Tạo khuyến mãi"}
             </button>
           </div>
@@ -585,7 +565,7 @@ function DeleteConfirm({
   onDeleted: (id: string) => void;
 }) {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const { notify } = useAppNotifications();
 
   async function handleDelete() {
     setLoading(true);
@@ -593,30 +573,30 @@ function DeleteConfirm({
       await deletePromotion(promotion.id);
       onDeleted(promotion.id);
     } catch (err) {
-      setError((err as Error).message);
+      notify((err as Error).message, "error");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
-      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="w-full max-w-sm border border-slate-200 bg-white shadow-xl">
-        <div className="border-b border-slate-200 px-6 py-4">
-          <p className="text-xs font-bold uppercase tracking-widest text-red-500">
-            Xác nhận xóa
-          </p>
-          <h2 className="text-lg font-extrabold text-[#0b1c30]">Xóa khuyến mãi</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+      <div className="flex max-h-[90vh] w-full max-w-sm flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b p-5">
+          <div>
+            <p className="text-xs font-black uppercase text-red-500">
+              Xác nhận xóa
+            </p>
+            <h3 className="text-xl font-black text-[#0b1c30]">
+              Xóa khuyến mãi
+            </h3>
+          </div>
+          <button type="button" onClick={onClose}>
+            <Icon name="close" />
+          </button>
         </div>
-        <div className="px-6 py-5">
-          {error && (
-            <div className="mb-4 border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
-              {error}
-            </div>
-          )}
+        <div className="flex-1 overflow-y-auto p-5">
+
           <p className="mb-1 text-sm text-slate-700">
             Bạn sắp xóa mã khuyến mãi:
           </p>
@@ -627,23 +607,21 @@ function DeleteConfirm({
             Thao tác này không thể hoàn tác.
           </p>
         </div>
-        <div className="flex justify-end gap-3 border-t border-slate-100 px-6 py-4">
+        <div className="flex justify-end gap-3 border-t p-4">
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-10 items-center justify-center border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
+            className="rounded-lg border px-5 py-2 font-bold text-slate-700"
           >
-            Hủy
+            Hủy bỏ
           </button>
           <button
             type="button"
             onClick={handleDelete}
             disabled={loading}
-            className="inline-flex h-10 items-center justify-center gap-2 bg-red-600 px-4 text-sm font-bold text-white transition-colors hover:bg-red-700 disabled:opacity-60"
+            className="flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2 font-bold text-white disabled:opacity-50"
           >
-            {loading && (
-              <Icon name="progress_activity" className="animate-spin text-base" />
-            )}
+            {loading && <Icon name="progress_activity" className="animate-spin text-base" />}
             Xóa
           </button>
         </div>

@@ -15,7 +15,10 @@ export type Material = {
   name: string;
   sku: string;
   category: string;
+  /** Đơn vị tồn kho và định mức công thức. */
   unit: string;
+  purchaseUnit: string;
+  purchaseToStockFactor: number;
   supplierId?: string | null;
   supplierName?: string | null;
   stockQuantity: number;
@@ -30,8 +33,11 @@ export type GoodsReceiptMaterialDetail = {
   receiptId: string;
   materialId: string;
   materialName: string;
+  purchaseUnit: string;
   unit: string;
   quantity: number;
+  conversionFactor: number;
+  stockQuantity: number;
   unitPrice: number;
   lineTotal: number;
 };
@@ -110,6 +116,8 @@ type MaterialPayload = {
   sku?: string;
   category?: string;
   unit: string;
+  purchaseUnit?: string;
+  purchaseToStockFactor?: number;
   supplierId?: string | null;
   importPrice?: number;
   isActive?: boolean;
@@ -187,18 +195,6 @@ export function payGoodsReceiptDebt(id: string, amount: number) {
     method: "PUT",
     url: `/inventory/receipts/${id}/pay`,
     data: { amount },
-  });
-}
-
-export function adjustStock(payload: {
-  productId: string;
-  newQuantity: number;
-  note: string;
-}) {
-  return apiRequest<unknown>({
-    method: "POST",
-    url: "/inventory/adjust",
-    data: payload,
   });
 }
 

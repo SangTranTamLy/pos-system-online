@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 import { 
   fetchShifts, openShiftForEmployee, closeShift, cancelShift,
@@ -136,7 +136,6 @@ export default function ShiftsPage() {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [employees, setEmployees] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
   
   const [userRole] = useState<string>(() => {
     try {
@@ -177,7 +176,7 @@ export default function ShiftsPage() {
   const [detailTab, setDetailTab] = useState<"overview" | "orders" | "cash">("overview");
   const [shiftOrders, setShiftOrders] = useState<OrderListItem[]>([]);
 
-  const loadShifts = async () => {
+  const loadShifts = useCallback(async () => {
     try {
       setIsLoading(true);
       const data = await fetchShifts();
@@ -199,15 +198,16 @@ export default function ShiftsPage() {
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Lỗi khi tải danh sách ca";
-      setErrorMessage(message);
+      notify(message, "error");
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentUserId, isManager]);
 
   useEffect(() => {
-    void loadShifts();
-  }, []);
+    const timer = window.setTimeout(() => void loadShifts(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadShifts]);
 
   const handleOpenShiftForEmployee = async () => {
     try {
@@ -225,7 +225,7 @@ export default function ShiftsPage() {
         expectedStartTime: startAt,
         expectedEndTime: endAt,
       });
-      notify("Đã mở ca cho nhân viên", "success");
+      notify("Đã phê duyệt và mở ca cho nhân viên", "success");
       void loadShifts();
     } catch (error: unknown) {
       notify(error instanceof Error ? error.message : "Lỗi mở ca cho nhân viên", "error");
@@ -334,11 +334,7 @@ export default function ShiftsPage() {
       subtitle={isManager ? "Phân ca, giao tiền và đối soát cuối ca" : "Đăng ký ca và theo dõi lịch làm việc"}
     >
       <div className="min-h-full w-full space-y-7 overflow-x-hidden bg-[#f8fafc] font-['Inter',sans-serif]">
-        {errorMessage ? (
-          <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-600">
-            {errorMessage}
-          </div>
-        ) : null}
+
 
         <section className="grid gap-7 xl:grid-cols-3">
           <ShiftStatCard
@@ -572,9 +568,9 @@ export default function ShiftsPage() {
       </div>
 
       {selectedShift ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-sm">
-          <div className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+          <div className="flex h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b p-5">
               <div>
                 <div className="mb-2 flex items-center gap-2">
                   <span className="rounded-full bg-orange-50 px-3 py-1 text-xs font-extrabold text-[#f97316]">
@@ -584,7 +580,7 @@ export default function ShiftsPage() {
                     {getShiftCode(selectedShift, shifts.findIndex((shift) => shift.id === selectedShift.id))}
                   </span>
                 </div>
-                <h3 className="font-['Outfit',sans-serif] text-xl font-extrabold text-slate-900">
+                <h3 className="text-xl font-black text-[#0b1c30]">
                   {selectedShift.userName || "Nhân viên"} - {getShiftName(selectedShift)} ({formatTimeRange(selectedShift)})
                 </h3>
                 <p className="mt-1 text-xs font-semibold text-slate-400">
@@ -651,7 +647,7 @@ export default function ShiftsPage() {
               ))}
             </div>
 
-            <div className="max-h-[62vh] overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-5">
               {detailTab === "overview" ? (
                 <div className="space-y-5">
                   <div className="grid gap-4 md:grid-cols-4">
@@ -771,11 +767,21 @@ export default function ShiftsPage() {
 
       {/* Manager Close Modal */}
       {showCloseModal && activeShiftToClose && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold text-[#0b1c30] mb-4">Đối soát & Đóng ca</h3>
-            <div className="space-y-4">
-              <div className="rounded-xl bg-slate-50 p-4 border border-slate-100 space-y-2">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+          <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b p-5">
+              <div>
+                <p className="text-xs font-black uppercase text-[#f97316]">
+                  Chốt ca
+                </p>
+                <h3 className="text-xl font-black text-[#0b1c30]">Đối soát & Đóng ca</h3>
+              </div>
+              <button type="button" onClick={() => setShowCloseModal(null)}>
+                <Icon name="close" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              <div className="rounded-xl bg-slate-50 p-4 border border-slate-100 space-y-2 mb-4">
                 <div className="flex justify-between">
                   <span className="text-slate-500">Tiền đầu ca:</span>
                   <span className="font-bold">{formatCurrency(activeShiftToClose.openingCash)}</span>
@@ -796,9 +802,9 @@ export default function ShiftsPage() {
                 <textarea rows={3} value={closingNote} onChange={e => setClosingNote(e.target.value)} placeholder="Ví dụ: Thiếu 20.000 do khách trả thiếu" className="w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100"></textarea>
               </div>
             </div>
-            <div className="mt-6 flex justify-end gap-3">
-              <button onClick={() => setShowCloseModal(null)} className="rounded-xl px-5 py-3 font-bold text-slate-600 hover:bg-slate-50">Hủy</button>
-              <button onClick={handleClose} className="rounded-xl bg-purple-600 px-5 py-3 font-bold text-white hover:bg-purple-700">Đóng ca</button>
+            <div className="flex justify-end gap-3 border-t p-4">
+              <button onClick={() => setShowCloseModal(null)} className="rounded-lg border px-5 py-2 font-bold text-slate-700">Hủy</button>
+              <button onClick={handleClose} className="rounded-lg bg-[#f97316] px-5 py-2 font-bold text-white disabled:opacity-50">Đóng ca</button>
             </div>
           </div>
         </div>

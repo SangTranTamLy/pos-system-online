@@ -34,12 +34,6 @@ function normalizeImageUrl(imageUrl: string | null | undefined) {
   return value ? value : null;
 }
 
-function normalizeCategoryStockLogic(input: { isTrackedStock?: boolean }) {
-  return {
-    isTrackedStock: Boolean(input.isTrackedStock),
-  };
-}
-
 const allowedImageTypes: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
@@ -106,15 +100,10 @@ export async function createCategoryService(body: CreateCategoryBody, userId?: s
       throw new ApiError(409, "Tên danh mục đã tồn tại.");
     }
 
-    const stockLogic = normalizeCategoryStockLogic({
-      isTrackedStock: body.isTrackedStock,
-    });
-
     const category = await createCategory({
       name,
       description: normalizeDescription(body.description),
       imageUrl: normalizeImageUrl(body.imageUrl),
-      ...stockLogic,
     });
 
     if (userId) {
@@ -159,18 +148,10 @@ export async function updateCategoryService(
       throw new ApiError(409, "Tên danh mục đã tồn tại.");
     }
 
-    const stockLogic = normalizeCategoryStockLogic({
-      isTrackedStock:
-        typeof body.isTrackedStock === "boolean"
-          ? body.isTrackedStock
-          : currentCategory.isTrackedStock,
-    });
-
     const updatedCategory = await updateCategory(id, {
       name,
       description: normalizeDescription(body.description),
       imageUrl: normalizeImageUrl(body.imageUrl),
-      ...stockLogic,
     });
 
     if (!updatedCategory) {

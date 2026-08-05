@@ -18,6 +18,7 @@ import {
 } from "../../api/dashboard.api";
 import { getEmployeeRevenue } from "../../api/report.api";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
+import { useAppNotifications } from "../../components/common/AppNotificationsContext";
 import type { EmployeeRevenue } from "../../types/report";
 
 type StatTone = "orange" | "green" | "blue" | "purple" | "amber";
@@ -167,7 +168,7 @@ function DashboardPage() {
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
   const [employeeRevenue, setEmployeeRevenue] = useState<EmployeeRevenue[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
+  const { notify } = useAppNotifications();
   const [reportDate, setReportDate] = useState(getTodayInputValue);
 
   useEffect(() => {
@@ -185,14 +186,15 @@ function DashboardPage() {
         if (isActive) {
           setDashboard(dashboardResponse.data);
           setEmployeeRevenue(employeeResponse);
-          setErrorMessage("");
+
         }
       } catch (error) {
         if (isActive) {
-          setErrorMessage(
+          notify(
             error instanceof Error
               ? error.message
-              : "Không tải được dữ liệu tổng quan."
+              : "Không tải được dữ liệu tổng quan.",
+            "error"
           );
         }
       } finally {
@@ -323,11 +325,7 @@ function DashboardPage() {
       }
     >
       <div className="min-h-full w-full space-y-6 overflow-x-hidden bg-[#f8fafc] font-['Inter',sans-serif]">
-        {errorMessage ? (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">
-            {errorMessage}
-          </div>
-        ) : null}
+
 
         <section className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>

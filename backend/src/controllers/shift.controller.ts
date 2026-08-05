@@ -33,17 +33,20 @@ export const registerShiftController = async (req: Request, res: Response) => {
 
 export const openShiftForEmployeeController = async (req: Request, res: Response) => {
   const user = req.user as AuthUser;
-  const { userId, expectedStartTime, expectedEndTime, openingCash } = req.body;
+  const { userId, expectedStartTime, expectedEndTime } = req.body;
 
   const shift = await shiftService.openShiftForEmployee(
     String(userId || ""),
     user.id,
     expectedStartTime,
-    expectedEndTime,
-    Number(openingCash) || 0
+    expectedEndTime
   );
 
-  res.status(201).json({ success: true, message: "Mo ca cho nhan vien thanh cong", data: shift });
+  res.status(201).json({
+    success: true,
+    message: "Đã phê duyệt và mở ca cho nhân viên",
+    data: shift,
+  });
 };
 
 export const approveShiftController = async (req: Request, res: Response) => {

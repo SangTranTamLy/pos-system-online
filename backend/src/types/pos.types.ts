@@ -2,7 +2,10 @@ export type PosPaymentMethod = "cash" | "qr";
 
 export type CreatePosOrderItemBody = {
   productId?: string;
+  variantId?: string | null;
+  modifierOptionIds?: string[];
   quantity?: number;
+  note?: string | null;
 };
 
 export type CreatePosOrderBody = {
@@ -18,19 +21,39 @@ export type CreatePosOrderBody = {
 
 export type NormalizedPosOrderItem = {
   productId: string;
+  variantId: string | null;
+  modifierOptionIds: string[];
   quantity: number;
+  note: string | null;
+};
+
+export type CartCancellationScope = "item" | "cart";
+
+export type CartCancellationItemBody = {
+  productId?: string;
+  quantity?: number;
+};
+
+export type CreateCartCancellationBody = {
+  scope?: CartCancellationScope;
+  reason?: string;
+  items?: CartCancellationItemBody[];
 };
 
 export type PosOrderDetail = {
   id: string;
   productId: string;
   productName: string;
+  variantId?: string | null;
+  variantName?: string | null;
+  modifierOptions?: Array<{ id: string; name: string; priceDelta: number }>;
+  itemNote?: string | null;
+  configurationSnapshot?: Record<string, unknown>;
   categoryId?: string | null;
   categoryName?: string | null;
   quantity: number;
   unitPrice: number;
   lineTotal: number;
-  isTrackedStock?: boolean;
 };
 
 export type PosPayment = {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
-import AdminLayout from "../../layouts/AdminLayout";
+import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 import { translateRole } from "../../utils/role";
 import {
   fetchUsers,
@@ -266,18 +266,30 @@ export default function EmployeePage() {
         )}
 
         {isModalOpen && (
-          <div className="fixed inset-0 bg-[#0b1c30]/45 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-              <h2 className="text-xl font-bold mb-4 text-[#0b1c30]">
-                {editingUser ? "Cập nhật nhân viên" : "Thêm nhân viên mới"}
-              </h2>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+            <div className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+              <div className="flex items-center justify-between border-b p-5">
+                <div>
+                  <p className="text-xs font-black uppercase text-[#f97316]">
+                    {editingUser ? "Cập nhật tài khoản" : "Tài khoản mới"}
+                  </p>
+                  <h3 className="text-xl font-black text-[#0b1c30]">
+                    {formData.fullName || "Tên nhân viên"}
+                  </h3>
+                </div>
+                <button type="button" onClick={handleCloseModal}>
+                  <Icon name="close" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-5">
               {(() => {
                 const selectedRoleName = roles.find(r => r.id === formData.roleId)?.name?.toLowerCase() || '';
                 const isManagerOrAdmin = selectedRoleName === 'admin' || selectedRoleName === 'manager';
                 const isStaff = !isManagerOrAdmin && selectedRoleName !== '';
 
                 return (
-                  <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
+                  <form id="employeeForm" onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 mb-1">Họ tên</label>
                       <input
@@ -412,24 +424,26 @@ export default function EmployeePage() {
                       </>
                     )}
 
-                    <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-slate-100">
-                      <button
-                        type="button"
-                        onClick={handleCloseModal}
-                        className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 font-semibold"
-                      >
-                        Hủy
-                      </button>
-                      <button
-                        type="submit"
-                        className="px-4 py-2 bg-[#f97316] text-white rounded-lg hover:bg-orange-600 font-semibold shadow-sm"
-                      >
-                        {editingUser ? "Cập nhật" : "Lưu"}
-                      </button>
-                    </div>
-                  </form>
-                );
-              })()}
+                    </form>
+                  );
+                })()}
+              </div>
+              <div className="flex justify-end gap-3 border-t p-4">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="rounded-lg border px-5 py-2 font-bold text-slate-700"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  form="employeeForm"
+                  className="rounded-lg bg-[#f97316] px-5 py-2 font-bold text-white"
+                >
+                  {editingUser ? "Lưu thay đổi" : "Thêm nhân viên"}
+                </button>
+              </div>
             </div>
           </div>
         )}

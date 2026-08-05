@@ -4,7 +4,6 @@ import {
   useMemo,
   useState,
   type ChangeEvent,
-  type FormEvent,
 } from "react";
 import { useSearchParams } from "react-router-dom";
 import { getCategories, type Category } from "../../api/category.api";
@@ -12,41 +11,15 @@ import {
   createProduct,
   deleteProduct,
   getProducts,
-  updateProduct,
-  uploadProductImage,
   type Product,
 } from "../../api/product.api";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 import { useAppNotifications } from "../../components/common/AppNotificationsContext";
+import ProductConfigurationModal from "../../components/products/ProductConfigurationModal";
 
-type ProductFormState = {
-  categoryId: string;
-  sku: string;
-  name: string;
-  importPrice: string;
-  salePrice: string;
-  stockQuantity: string;
-  description: string;
-  imageUrl: string;
-  isAvailable: boolean;
-};
 
-type NoticeState = {
-  type: "success" | "error";
-  message: string;
-};
 
-const defaultFormState: ProductFormState = {
-  categoryId: "",
-  sku: "",
-  name: "",
-  importPrice: "0",
-  salePrice: "",
-  stockQuantity: "0",
-  description: "",
-  imageUrl: "",
-  isAvailable: true,
-};
+
 
 const pageSize = 8;
 
@@ -111,34 +84,11 @@ function parseImportedNumber(value: string) {
 }
 
 function getStockState(product: Product) {
-  if (!product.isTrackedStock) {
-    return {
-      label: product.isAvailable ? "Đang bán" : "Ngừng bán",
-      className: product.isAvailable
-        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-        : "bg-slate-50 text-slate-500 border-slate-200",
-    };
-  }
-
-  const quantity = product.stockQuantity ?? 0;
-
-  if (quantity <= 0) {
-    return {
-      label: "Hết hàng",
-      className: "bg-rose-50 text-rose-700 border-rose-200",
-    };
-  }
-
-  if (quantity <= 10) {
-    return {
-      label: "Sắp hết",
-      className: "bg-amber-50 text-amber-700 border-amber-200",
-    };
-  }
-
   return {
-    label: "Còn hàng",
-    className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    label: product.isAvailable ? "Đang bán" : "Ngừng bán",
+    className: product.isAvailable
+      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+      : "bg-slate-50 text-slate-500 border-slate-200",
   };
 }
 
@@ -178,7 +128,7 @@ function StatCard({
 }
 
 function ProductPage() {
-  const { confirm: confirmAction } = useAppNotifications();
+  const { notify, confirm: confirmAction } = useAppNotifications();
   const [searchParams, setSearchParams] = useSearchParams();
   const categoryQuery = searchParams.get("category") ?? "";
   const [products, setProducts] = useState<Product[]>([]);
@@ -187,17 +137,12 @@ function ProductPage() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [availabilityFilter, setAvailabilityFilter] = useState("all");
   const [page, setPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [notice, setNotice] = useState<NoticeState | null>(null);
-  const [formState, setFormState] = useState<ProductFormState>(defaultFormState);
-  const [imageSource, setImageSource] = useState<"file" | "url">("file");
-
-  const showNotice = useCallback((message: string, type: NoticeState["type"] = "error") => {
-    setNotice({ message, type });
-  }, []);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isConfiguring, setIsConfiguring] = useState(false);
+  const [configuringProduct, setConfiguringProduct] = useState<Product | null>(null);
+  const showNotice = useCallback((message: string, type: "success" | "error" = "error") => {
+    notify(message, type);
+  }, [notify]);
 
   const loadData = useCallback(async () => {
     try {
@@ -237,35 +182,11 @@ function ProductPage() {
     void Promise.resolve().then(() => void loadData());
   }, [loadData]);
 
-  useEffect(() => {
-    if (!notice || notice.type !== "success") return undefined;
 
-    const timer = window.setTimeout(() => setNotice(null), 3000);
-    return () => window.clearTimeout(timer);
-  }, [notice]);
 
   const stats = useMemo(() => {
-    const availableCount = products.filter((product) =>
-      product.isTrackedStock
-        ? product.stockQuantity !== null && product.stockQuantity > 0
-        : product.isAvailable
-    ).length;
-    const lowStockCount = products.filter(
-      (product) =>
-        product.isTrackedStock &&
-        product.stockQuantity !== null &&
-        product.stockQuantity > 0 &&
-        product.stockQuantity <= 10
-    ).length;
-    const outOfStockCount = products.filter((product) =>
-      product.isTrackedStock
-        ? product.stockQuantity === null || product.stockQuantity <= 0
-        : !product.isAvailable
-    ).length;
-    const inventoryValue = products.reduce((sum, product) => {
-      if (!product.isTrackedStock || product.stockQuantity === null) return sum;
-      return sum + product.stockQuantity * product.importPrice;
-    }, 0);
+    const availableCount = products.filter((product) => product.isAvailable).length;
+    const pausedCount = products.filter((product) => !product.isAvailable).length;
 
     return [
       {
@@ -281,31 +202,24 @@ function ProductPage() {
         tone: "green" as const,
       },
       {
-        label: "Sắp hết hàng",
-        value: String(lowStockCount),
-        icon: "warning",
-        tone: "amber" as const,
-      },
-      {
-        label: "Giá trị tồn kho",
-        value: formatCurrency(inventoryValue),
-        icon: "warehouse",
+        label: "Danh mục",
+        value: String(categories.length),
+        icon: "category",
         tone: "blue" as const,
       },
       {
-        label: "Hết hàng/ngừng bán",
-        value: String(outOfStockCount),
-        icon: "error",
+        label: "Ngừng bán",
+        value: String(pausedCount),
+        icon: "pause_circle",
         tone: "rose" as const,
       },
     ];
-  }, [products]);
+  }, [categories.length, products]);
 
   const filteredProducts = useMemo(() => {
     const query = normalizeText(search);
 
     return products.filter((product) => {
-      const stockState = getStockState(product);
       const matchesSearch =
         query.length === 0 ||
         normalizeText(product.name).includes(query) ||
@@ -314,12 +228,8 @@ function ProductPage() {
         categoryFilter === "all" || product.categoryId === categoryFilter;
       const matchesAvailability =
         availabilityFilter === "all" ||
-        (availabilityFilter === "available" &&
-          product.isAvailable &&
-          stockState.label !== "Hết hàng") ||
-        (availabilityFilter === "low" && stockState.label === "Sắp hết") ||
-        (availabilityFilter === "unavailable" &&
-          (!product.isAvailable || stockState.label === "Hết hàng"));
+        (availabilityFilter === "available" && product.isAvailable) ||
+        (availabilityFilter === "unavailable" && !product.isAvailable);
 
       return matchesSearch && matchesCategory && matchesAvailability;
     });
@@ -332,106 +242,13 @@ function ProductPage() {
   );
 
   function openCreateModal() {
-    setEditingProduct(null);
-    setFormState({
-      ...defaultFormState,
-      categoryId: categories[0]?.id ?? "",
-      isAvailable: true,
-    });
-    setImageSource("file");
-    setIsModalOpen(true);
+    setConfiguringProduct(null);
+    setIsConfiguring(true);
   }
 
   function openEditModal(product: Product) {
-    setEditingProduct(product);
-    setFormState({
-      categoryId: product.categoryId,
-      sku: product.sku,
-      name: product.name,
-      importPrice: String(product.importPrice),
-      salePrice: String(product.salePrice),
-      stockQuantity:
-        product.stockQuantity !== null ? String(product.stockQuantity) : "",
-      description: product.description ?? "",
-      imageUrl: product.imageUrl ?? "",
-      isAvailable: product.isAvailable,
-    });
-    setImageSource(
-      product.imageUrl?.startsWith("http") &&
-        !product.imageUrl.includes("/uploads/products/")
-        ? "url"
-        : "file"
-    );
-    setIsModalOpen(true);
-  }
-
-  function closeModal() {
-    setEditingProduct(null);
-    setFormState(defaultFormState);
-    setImageSource("file");
-    setIsModalOpen(false);
-  }
-
-  async function handleImageFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      setIsUploadingImage(true);
-      const response = await uploadProductImage(file);
-      setFormState((current) => ({
-        ...current,
-        imageUrl: response.data.imageUrl,
-      }));
-      showNotice("Đã tải ảnh sản phẩm.", "success");
-    } catch (error) {
-      showNotice(
-        error instanceof Error ? error.message : "Không tải được ảnh sản phẩm."
-      );
-    } finally {
-      setIsUploadingImage(false);
-    }
-  }
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const selectedCategory = categories.find(
-      (category) => category.id === formState.categoryId
-    );
-    const isTrackedStock = selectedCategory?.isTrackedStock ?? false;
-
-    const payload = {
-      categoryId: formState.categoryId,
-      sku: formState.sku.trim(),
-      name: formState.name.trim(),
-      isTrackedStock,
-      importPrice: Number(formState.importPrice || 0),
-      salePrice: Number(formState.salePrice || 0),
-      stockQuantity: isTrackedStock ? Number(formState.stockQuantity || 0) : null,
-      description: formState.description.trim() || null,
-      imageUrl: formState.imageUrl.trim() || null,
-      isAvailable: formState.isAvailable,
-    };
-
-    try {
-      if (editingProduct) {
-        await updateProduct(editingProduct.id, payload);
-        showNotice("Đã lưu thay đổi sản phẩm.", "success");
-      } else {
-        await createProduct(payload);
-        showNotice("Đã thêm sản phẩm mới.", "success");
-      }
-
-      await loadData();
-      closeModal();
-    } catch (error) {
-      showNotice(
-        error instanceof Error
-          ? error.message
-          : "Chưa lưu được sản phẩm. Vui lòng kiểm tra lại thông tin."
-      );
-    }
+    setConfiguringProduct(product);
+    setIsConfiguring(true);
   }
 
   async function handleDeleteProduct(product: Product) {
@@ -464,7 +281,6 @@ function ProductPage() {
       "Danh mục",
       "Giá nhập",
       "Giá bán",
-      "Tồn kho",
       "Mô tả",
       "Ảnh",
     ];
@@ -474,7 +290,6 @@ function ProductPage() {
       product.categoryName || "",
       product.importPrice,
       product.salePrice,
-      product.stockQuantity,
       product.description || "",
       product.imageUrl || "",
     ]);
@@ -542,17 +357,12 @@ function ProductPage() {
           );
         }
 
-        const isTrackedStock = category.isTrackedStock;
         await createProduct({
           sku: getCell(values, ["SKU", "Mã sản phẩm"]),
           name: getCell(values, ["Tên sản phẩm", "name"]),
           categoryId: category.id,
-          isTrackedStock,
           importPrice: parseImportedNumber(getCell(values, ["Giá nhập", "importPrice"])),
           salePrice: parseImportedNumber(getCell(values, ["Giá bán", "salePrice"])),
-          stockQuantity: isTrackedStock
-            ? parseImportedNumber(getCell(values, ["Tồn kho", "stockQuantity"]))
-            : null,
           description: getCell(values, ["Mô tả", "description"]) || null,
           imageUrl: getCell(values, ["Ảnh", "imageUrl"]) || null,
         });
@@ -569,35 +379,12 @@ function ProductPage() {
     }
   }
 
-  const selectedCategory = categories.find(
-    (category) => category.id === formState.categoryId
-  );
-  const isTrackedStock = selectedCategory?.isTrackedStock ?? false;
-
   return (
     <AdminLayout
       title="Sản phẩm"
       subtitle="Quản lý danh sách sản phẩm, giá bán, danh mục và trạng thái kinh doanh."
     >
-      {notice ? (
-        <div
-          className={`mb-4 flex items-start justify-between border p-4 text-sm font-bold ${
-            notice.type === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-              : "border-rose-200 bg-rose-50 text-rose-700"
-          }`}
-        >
-          <span>{notice.message}</span>
-          <button
-            type="button"
-            onClick={() => setNotice(null)}
-            className="ml-4 text-lg leading-none opacity-70 hover:opacity-100"
-            aria-label="Đóng thông báo"
-          >
-            ×
-          </button>
-        </div>
-      ) : null}
+
 
       <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {stats.map((stat) => (
@@ -650,8 +437,7 @@ function ProductPage() {
           >
             <option value="all">Tất cả trạng thái</option>
             <option value="available">Đang bán</option>
-            <option value="low">Sắp hết hàng</option>
-            <option value="unavailable">Hết hàng/ngừng bán</option>
+            <option value="unavailable">Ngừng bán</option>
           </select>
           <button
             type="button"
@@ -710,7 +496,6 @@ function ProductPage() {
                 <th className="px-5 py-4">Danh mục</th>
                 <th className="px-5 py-4 text-right">Giá nhập</th>
                 <th className="px-5 py-4 text-right">Giá bán</th>
-                <th className="px-5 py-4 text-center">Tồn kho</th>
                 <th className="px-5 py-4">Trạng thái</th>
                 <th className="px-5 py-4 text-right">Thao tác</th>
               </tr>
@@ -755,15 +540,6 @@ function ProductPage() {
                     <td className="px-5 py-4 text-right font-black text-[#0b1c30]">
                       {formatCurrency(product.salePrice)}
                     </td>
-                    <td className="px-5 py-4 text-center">
-                      {product.isTrackedStock ? (
-                        <span className="font-black text-[#0b1c30]">
-                          {(product.stockQuantity ?? 0).toLocaleString("vi-VN")}
-                        </span>
-                      ) : (
-                        <span className="font-bold text-slate-400">Không quản lý</span>
-                      )}
-                    </td>
                     <td className="px-5 py-4">
                       <span
                         className={`inline-flex border px-3 py-1 text-xs font-black ${stockState.className}`}
@@ -776,10 +552,11 @@ function ProductPage() {
                         <button
                           type="button"
                           onClick={() => openEditModal(product)}
-                          className="p-2 text-[#f97316] hover:bg-orange-50"
-                          aria-label="Sửa sản phẩm"
+                          className="p-2 text-sky-600 hover:bg-sky-50"
+                          aria-label="Thiết kế món"
+                          title="Sửa và thiết kế món"
                         >
-                          <Icon name="edit" className="text-xl" />
+                          <Icon name="restaurant_menu" className="text-xl" />
                         </button>
                         <button
                           type="button"
@@ -838,262 +615,17 @@ function ProductPage() {
         </div>
       </section>
 
-      {isModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[rgba(11,28,48,0.45)] p-4">
-          <div className="w-full max-w-3xl border border-slate-200 bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-5">
-              <div>
-                <p className="text-xs font-black uppercase tracking-wide text-[#f97316]">
-                  {editingProduct ? "Cập nhật sản phẩm" : "Sản phẩm mới"}
-                </p>
-                <h3 className="mt-1 text-xl font-black text-[#0b1c30]">
-                  {editingProduct ? "Sửa sản phẩm" : "Thêm sản phẩm"}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={closeModal}
-                className="p-2 text-slate-500 hover:bg-slate-100"
-                aria-label="Đóng form"
-              >
-                <Icon name="close" />
-              </button>
-            </div>
-
-            <form className="grid max-h-[78vh] gap-5 overflow-y-auto p-6 sm:grid-cols-2" onSubmit={handleSubmit}>
-              <label className="space-y-2">
-                <span className="block text-sm font-bold text-[#0b1c30]">
-                  Tên sản phẩm <span className="text-rose-600">*</span>
-                </span>
-                <input
-                  required
-                  value={formState.name}
-                  onChange={(event) =>
-                    setFormState((current) => ({ ...current, name: event.target.value }))
-                  }
-                  className="h-11 w-full border border-slate-200 px-3 text-sm outline-none focus:border-[#f97316]"
-                  placeholder="VD: Cà phê sữa"
-                />
-              </label>
-
-              <label className="space-y-2">
-                <span className="block text-sm font-bold text-[#0b1c30]">
-                  SKU <span className="text-rose-600">*</span>
-                </span>
-                <input
-                  required
-                  value={formState.sku}
-                  onChange={(event) =>
-                    setFormState((current) => ({ ...current, sku: event.target.value }))
-                  }
-                  className="h-11 w-full border border-slate-200 px-3 text-sm outline-none focus:border-[#f97316]"
-                  placeholder="VD: CF-SUA"
-                />
-              </label>
-
-              <label className="space-y-2">
-                <span className="block text-sm font-bold text-[#0b1c30]">
-                  Danh mục <span className="text-rose-600">*</span>
-                </span>
-                <select
-                  required
-                  value={formState.categoryId}
-                  onChange={(event) =>
-                    setFormState((current) => ({ ...current, categoryId: event.target.value }))
-                  }
-                  className="h-11 w-full border border-slate-200 px-3 text-sm outline-none focus:border-[#f97316]"
-                >
-                  <option value="">Chọn danh mục</option>
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="space-y-2">
-                <span className="block text-sm font-bold text-[#0b1c30]">Giá nhập</span>
-                <input
-                  type="number"
-                  min={0}
-                  value={formState.importPrice}
-                  onChange={(event) =>
-                    setFormState((current) => ({
-                      ...current,
-                      importPrice: event.target.value,
-                    }))
-                  }
-                  className="h-11 w-full border border-slate-200 px-3 text-sm outline-none focus:border-[#f97316]"
-                />
-              </label>
-
-              <label className="space-y-2">
-                <span className="block text-sm font-bold text-[#0b1c30]">
-                  Giá bán <span className="text-rose-600">*</span>
-                </span>
-                <input
-                  required
-                  type="number"
-                  min={0}
-                  value={formState.salePrice}
-                  onChange={(event) =>
-                    setFormState((current) => ({
-                      ...current,
-                      salePrice: event.target.value,
-                    }))
-                  }
-                  className="h-11 w-full border border-slate-200 px-3 text-sm outline-none focus:border-[#f97316]"
-                />
-              </label>
-
-              <label className="space-y-2">
-                <span className="block text-sm font-bold text-[#0b1c30]">
-                  Tồn kho {isTrackedStock ? <span className="text-rose-600">*</span> : null}
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  disabled={!isTrackedStock}
-                  value={isTrackedStock ? formState.stockQuantity : ""}
-                  onChange={(event) =>
-                    setFormState((current) => ({
-                      ...current,
-                      stockQuantity: event.target.value,
-                    }))
-                  }
-                  placeholder={
-                    isTrackedStock ? "VD: 10" : "Danh mục này không quản lý tồn kho"
-                  }
-                  className="h-11 w-full border border-slate-200 px-3 text-sm outline-none focus:border-[#f97316] disabled:bg-slate-50 disabled:text-slate-400"
-                />
-              </label>
-
-              <div className="space-y-3 sm:col-span-2">
-                <span className="block text-sm font-bold text-[#0b1c30]">Ảnh sản phẩm</span>
-                <div className="grid grid-cols-2 border border-slate-200 p-1">
-                  <button
-                    type="button"
-                    onClick={() => setImageSource("file")}
-                    className={`h-9 text-xs font-black ${
-                      imageSource === "file"
-                        ? "bg-[#f97316] text-white"
-                        : "text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    Tải từ máy
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setImageSource("url")}
-                    className={`h-9 text-xs font-black ${
-                      imageSource === "url"
-                        ? "bg-[#f97316] text-white"
-                        : "text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    Nhập link ảnh
-                  </button>
-                </div>
-
-                {imageSource === "file" ? (
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp,image/gif"
-                    onChange={(event) => {
-                      void handleImageFileChange(event);
-                    }}
-                    className="w-full border border-slate-200 px-3 py-2 text-sm file:mr-3 file:border-0 file:bg-orange-50 file:px-3 file:py-1 file:text-xs file:font-black file:text-[#f97316]"
-                  />
-                ) : (
-                  <input
-                    type="url"
-                    value={formState.imageUrl}
-                    onChange={(event) =>
-                      setFormState((current) => ({
-                        ...current,
-                        imageUrl: event.target.value,
-                      }))
-                    }
-                    placeholder="https://..."
-                    className="h-11 w-full border border-slate-200 px-3 text-sm outline-none focus:border-[#f97316]"
-                  />
-                )}
-                {isUploadingImage ? (
-                  <p className="text-xs font-bold text-slate-400">Đang tải ảnh...</p>
-                ) : null}
-              </div>
-
-              {formState.imageUrl.trim() ? (
-                <div className="relative border border-slate-200 sm:col-span-2">
-                  <img
-                    src={formState.imageUrl}
-                    alt="Ảnh xem trước"
-                    className="h-44 w-full object-cover"
-                  />
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setFormState((current) => ({ ...current, imageUrl: "" }))
-                    }
-                    className="absolute right-3 top-3 bg-rose-600 px-3 py-2 text-xs font-black text-white hover:bg-rose-700"
-                  >
-                    Xóa ảnh
-                  </button>
-                </div>
-              ) : null}
-
-              <label className="space-y-2 sm:col-span-2">
-                <span className="block text-sm font-bold text-[#0b1c30]">Mô tả</span>
-                <textarea
-                  rows={3}
-                  value={formState.description}
-                  onChange={(event) =>
-                    setFormState((current) => ({
-                      ...current,
-                      description: event.target.value,
-                    }))
-                  }
-                  className="w-full resize-none border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#f97316]"
-                  placeholder="Mô tả ngắn về món bán..."
-                />
-              </label>
-
-              <label className="flex items-center gap-3 sm:col-span-2">
-                <input
-                  type="checkbox"
-                  checked={formState.isAvailable}
-                  onChange={(event) =>
-                    setFormState((current) => ({
-                      ...current,
-                      isAvailable: event.target.checked,
-                    }))
-                  }
-                  className="h-5 w-5 accent-[#f97316]"
-                />
-                <span className="text-sm font-bold text-[#0b1c30]">
-                  Cho phép bán tại POS
-                </span>
-              </label>
-
-              <div className="flex gap-3 border-t border-slate-200 pt-5 sm:col-span-2">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="flex h-10 flex-1 items-center justify-center border border-slate-300 bg-white px-4 text-sm font-black text-slate-700 hover:bg-slate-50"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="flex h-10 flex-1 items-center justify-center bg-[#f97316] px-4 text-sm font-black text-white hover:bg-[#ea580c]"
-                >
-                  {editingProduct ? "Lưu thay đổi" : "Thêm sản phẩm"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {isConfiguring ? (
+        <ProductConfigurationModal
+          product={configuringProduct}
+          products={products}
+          categories={categories}
+          onClose={() => setIsConfiguring(false)}
+          onSaved={() => {
+            void loadData();
+            showNotice("Đã lưu thông tin sản phẩm và cấu hình món.", "success");
+          }}
+        />
       ) : null}
     </AdminLayout>
   );

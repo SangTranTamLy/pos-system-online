@@ -108,6 +108,62 @@ export async function getAuditLogs(
   return { logs, total };
 }
 
+async function insertAuditLog(
+  userId: string,
+  actionType: string,
+  targetObject: string,
+  description: string,
+  oldValues?: any,
+  newValues?: any
+): Promise<void> {
+  const [userRows] = await db.execute<RowDataPacket[]>(
+    `SELECT u.full_name, r.name AS role_name
+     FROM users u
+     JOIN roles r ON u.role_id = r.id
+     WHERE u.id = ?
+     LIMIT 1`,
+    [userId]
+  );
+
+  const userFullName = userRows[0]?.full_name || "Nhân viên";
+  const rawRole = userRows[0]?.role_name || "staff";
+  const normalizedRole = rawRole.trim().toLowerCase();
+  const userRole = normalizedRole === "admin" || normalizedRole === "manager" ? "QL" : "TN";
+
+  const { randomUUID } = await import("crypto");
+  const oldJson = oldValues ? JSON.stringify(oldValues) : null;
+  const newJson = newValues ? JSON.stringify(newValues) : null;
+
+  await db.execute(
+    `
+    INSERT INTO audit_logs (id, user_id, user_name, role, action_type, target_object, description, old_values, new_values)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    [
+      randomUUID(),
+      userId,
+      userFullName,
+      userRole,
+      actionType,
+      targetObject,
+      description,
+      oldJson,
+      newJson
+    ]
+  );
+}
+
+export async function createRequiredAuditLog(
+  userId: string,
+  actionType: string,
+  targetObject: string,
+  description: string,
+  oldValues?: any,
+  newValues?: any
+): Promise<void> {
+  await insertAuditLog(userId, actionType, targetObject, description, oldValues, newValues);
+}
+
 export async function createAuditLog(
   userId: string,
   actionType: string,
@@ -117,42 +173,8 @@ export async function createAuditLog(
   newValues?: any
 ): Promise<void> {
   try {
-    const [userRows] = await db.execute<RowDataPacket[]>(
-      `SELECT u.full_name, r.name AS role_name 
-       FROM users u 
-       JOIN roles r ON u.role_id = r.id 
-       WHERE u.id = ? 
-       LIMIT 1`,
-      [userId]
-    );
-
-    const userFullName = userRows[0]?.full_name || "Nhân viên";
-    const rawRole = userRows[0]?.role_name || "staff";
-    const userRole = rawRole.trim().toLowerCase() === "admin" || rawRole.trim().toLowerCase() === "manager" ? "QL" : "TN";
-
-    const { randomUUID } = await import("crypto");
-    const oldJson = oldValues ? JSON.stringify(oldValues) : null;
-    const newJson = newValues ? JSON.stringify(newValues) : null;
-
-    await db.execute(
-      `
-      INSERT INTO audit_logs (id, user_id, user_name, role, action_type, target_object, description, old_values, new_values)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-      [
-        randomUUID(),
-        userId,
-        userFullName,
-        userRole,
-        actionType,
-        targetObject,
-        description,
-        oldJson,
-        newJson
-      ]
-    );
+    await insertAuditLog(userId, actionType, targetObject, description, oldValues, newValues);
   } catch (error) {
     console.error("Lỗi khi ghi nhận nhật ký hệ thống:", error);
   }
 }
-

@@ -115,26 +115,22 @@ function QrPaymentModal({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/60 p-4">
-      <div className="w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+      <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b p-5">
           <div>
-            <h3 className="font-['Outfit',sans-serif] text-xl font-extrabold text-[#0b1c30]">
+            <p className="text-xs font-black uppercase text-[#f97316]">
+              Chuyển khoản
+            </p>
+            <h3 className="text-xl font-black text-[#0b1c30]">
               Thanh toán QR
             </h3>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isProcessing}
-            className="rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
-            aria-label="Đóng"
-          >
-            <Icon name="close" className="text-2xl" />
+          <button type="button" onClick={onClose} disabled={isProcessing}>
+            <Icon name="close" />
           </button>
         </div>
-
-        <div className="space-y-5 p-6">
+        <div className="flex-1 overflow-y-auto p-5">
           <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
             <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
               <div className="mx-auto w-fit rounded-xl border border-slate-200 bg-white p-3">
@@ -268,26 +264,25 @@ function QrPaymentModal({
               </div>
             </div>
           </section>
-
-          <div className="flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isProcessing}
-              className="rounded-xl border border-slate-200 bg-white px-6 py-3 font-extrabold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Quay lại xác nhận
-            </button>
-            <button
-              type="button"
-              onClick={onConfirm}
-              disabled={isProcessing}
-              className="flex items-center justify-center gap-2 rounded-xl bg-[#0b1c30] px-6 py-3 font-extrabold text-white hover:bg-[#132a45] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Icon name="check_circle" />
-              {isProcessing ? "Đang tạo hóa đơn..." : "Xác nhận đã nhận tiền"}
-            </button>
-          </div>
+        </div>
+        <div className="flex justify-end gap-3 border-t p-4">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isProcessing}
+            className="rounded-lg border px-5 py-2 font-bold text-slate-700"
+          >
+            Quay lại xác nhận
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isProcessing}
+            className="flex items-center gap-2 rounded-lg bg-[#f97316] px-5 py-2 font-bold text-white disabled:opacity-50"
+          >
+            {isProcessing && <Icon name="progress_activity" className="animate-spin text-base" />}
+            {isProcessing ? "Đang tạo hóa đơn..." : "Xác nhận đã nhận tiền"}
+          </button>
         </div>
       </div>
     </div>

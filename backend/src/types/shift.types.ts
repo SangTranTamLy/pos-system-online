@@ -41,7 +41,6 @@ export interface OpenShiftForEmployeePayload {
   userId: string;
   expectedStartTime: string;
   expectedEndTime: string;
-  openingCash?: number;
 }
 
 export interface ApproveShiftPayload {

@@ -9,7 +9,10 @@ export type CreatePosOrderPayload = {
   note?: string | null;
   items: Array<{
     productId: string;
+    variantId?: string | null;
+    modifierOptionIds?: string[];
     quantity: number;
+    note?: string | null;
   }>;
   promotionCode?: string | null;
   changeAmount?: number;
@@ -17,10 +20,28 @@ export type CreatePosOrderPayload = {
   discountAmount?: number;
 };
 
+export type CreateCartCancellationPayload = {
+  scope: "item" | "cart";
+  reason: string;
+  items: Array<{ productId: string; quantity: number }>;
+};
+
 export type PosOrderDetail = {
   id: string;
   productId: string;
   productName: string;
+  variantId?: string | null;
+  variantName?: string | null;
+  modifierOptions?: Array<{ id: string; name: string; priceDelta: number }>;
+  comboComponents?: Array<{
+    productId: string;
+    productName: string;
+    variantId: string;
+    variantName: string;
+    quantity: number;
+  }>;
+  itemNote?: string | null;
+  configurationSnapshot?: Record<string, unknown>;
   quantity: number;
   unitPrice: number;
   lineTotal: number;
@@ -84,6 +105,18 @@ export function createPosOrder(payload: CreatePosOrderPayload) {
   return apiRequest<PosOrderResult>({
     method: "POST",
     url: "/pos/orders",
+    data: payload,
+  });
+}
+
+export function createCartCancellation(payload: CreateCartCancellationPayload) {
+  return apiRequest<{
+    scope: "item" | "cart";
+    reason: string;
+    items: Array<{ productId: string; productName: string; quantity: number }>;
+  }>({
+    method: "POST",
+    url: "/pos/cart-cancellations",
     data: payload,
   });
 }

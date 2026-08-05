@@ -1,6 +1,7 @@
 import { db } from "../config/database";
 import { ResultSetHeader, RowDataPacket } from "mysql2";
 import { Shift, ShiftBucketKey } from "../types/shift.types";
+import { ApiError } from "../utils/apiError";
 
 type ShiftRow = RowDataPacket & {
   id: string;
@@ -132,23 +133,34 @@ export const createOpenShiftForEmployee = async (
   userId: string,
   expectedStartTime: Date,
   expectedEndTime: Date,
-  managerId: string,
-  openingCash: number
+  managerId: string
 ): Promise<void> => {
   await db.execute<ResultSetHeader>(
     `INSERT INTO shifts (
        id, user_id, expected_start_time, expected_end_time, status,
-       opened_by, actual_start_time, opening_cash
+       approved_by, opened_by, actual_start_time, opening_cash
      )
-     VALUES (?, ?, ?, ?, 'OPEN', ?, NOW(), ?)`,
-    [id, userId, expectedStartTime, expectedEndTime, managerId, openingCash]
+     VALUES (?, ?, ?, ?, 'OPEN', ?, ?, NOW(), 0)`,
+    [id, userId, expectedStartTime, expectedEndTime, managerId, managerId]
   );
 };
 
-export const checkOpenShiftExists = async (userId: string): Promise<boolean> => {
+export const checkOpenShiftExists = async (
+  userId: string,
+  excludeShiftId?: string
+): Promise<boolean> => {
+  const params: string[] = [userId];
+  const excludeClause = excludeShiftId ? "AND id <> ?" : "";
+  if (excludeShiftId) params.push(excludeShiftId);
+
   const [rows] = await db.execute<RowDataPacket[]>(
-    `SELECT id FROM shifts WHERE user_id = ? AND status = 'OPEN'`,
-    [userId]
+    `SELECT id
+     FROM shifts
+     WHERE user_id = ?
+       AND status IN ('OPEN', 'OPENING_REQUEST', 'CLOSING_REQUEST')
+       ${excludeClause}
+     LIMIT 1`,
+    params
   );
   return rows.length > 0;
 };
@@ -209,6 +221,85 @@ export const calculateShiftSales = async (
   }
   
   return { totalCash, totalQr };
+};
+
+export const closeShiftTransaction = async (
+  id: string,
+  managerId: string,
+  actualClosingCash: number,
+  closingNote?: string
+): Promise<Shift> => {
+  const connection = await db.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    const [shiftRows] = await connection.execute<ShiftRow[]>(
+      `SELECT * FROM shifts WHERE id = ? LIMIT 1 FOR UPDATE`,
+      [id]
+    );
+    const shift = shiftRows[0];
+
+    if (!shift) {
+      throw new ApiError(404, "Không tìm thấy ca làm");
+    }
+    if (!["OPEN", "CLOSING_REQUEST"].includes(shift.status)) {
+      throw new ApiError(400, "Chỉ có thể chốt ca đang mở");
+    }
+
+    const [salesRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT
+         COALESCE(SUM(CASE WHEN p.payment_method = 'cash' THEN p.amount ELSE 0 END), 0) AS total_cash,
+         COALESCE(SUM(CASE WHEN p.payment_method = 'qr' THEN p.amount ELSE 0 END), 0) AS total_qr
+       FROM orders o
+       JOIN payments p ON p.order_id = o.id
+       WHERE o.shift_id = ?
+         AND o.status = 'completed'
+         AND p.payment_status = 'paid'`,
+      [id]
+    );
+    const totalCash = Number(salesRows[0]?.total_cash || 0);
+    const totalQr = Number(salesRows[0]?.total_qr || 0);
+    const totalSales = totalCash + totalQr;
+    const variance = actualClosingCash - (Number(shift.opening_cash) + totalCash);
+
+    await connection.execute<ResultSetHeader>(
+      `UPDATE shifts
+       SET status = 'CLOSED',
+           closed_by = ?,
+           actual_end_time = NOW(),
+           actual_closing_cash = ?,
+           total_sales_cash = ?,
+           total_sales_qr = ?,
+           total_sales = ?,
+           variance = ?,
+           closing_note = ?
+       WHERE id = ?`,
+      [
+        managerId,
+        actualClosingCash,
+        totalCash,
+        totalQr,
+        totalSales,
+        variance,
+        closingNote || null,
+        id,
+      ]
+    );
+
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+
+  const updatedShift = await findShiftById(id);
+  if (!updatedShift) {
+    throw new ApiError(404, "Không tìm thấy ca làm sau khi chốt");
+  }
+  return updatedShift;
 };
 
 export const findShiftRevenueByBucket = async (

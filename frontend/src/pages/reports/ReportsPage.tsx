@@ -29,6 +29,7 @@ import {
   type Shift,
 } from "../../api/shifts.api";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
+import { useAppNotifications } from "../../components/common/AppNotificationsContext";
 import type { FinancialReport } from "../../types/report";
 
 type ReportRangePreset = "last_7" | "last_30" | "last_90";
@@ -270,9 +271,6 @@ function getAiPaperLabel(value: string | undefined, labels: Record<string, strin
   return labels[value] || value.replace(/_/g, " ");
 }
 
-function isAiFallbackReport(response: AiReportInsightResponse | null) {
-  return Boolean(response?.fallback || (response?.data as { fallback?: boolean } | null)?.fallback);
-}
 function isAiPaperValidationPassed(validation?: AiValidationResult) {
   return validation?.passed !== false;
 }
@@ -372,10 +370,15 @@ function AiPaperReportHeader({
   onRefresh: () => void;
 }) {
   const ai = getAiPaperData(response);
-  const score = Math.max(0, Math.min(Number(ai.meta.score || 0), 100));
+  const contextCoverageScore = response?.context?.dataQuality?.coverageScore;
+  const scoreSource = Number.isFinite(Number(contextCoverageScore))
+    ? Number(contextCoverageScore)
+    : Number(ai.meta.score || 0);
+  const score = Math.max(0, Math.min(scoreSource, 95));
   const status = getAiPaperLabel(String(ai.meta.status), aiPaperStatusLabels, "Cần cải thiện");
-  const isFallback = isAiFallbackReport(response);
   const confidenceNote = getAiPaperConfidenceNote(score, String(ai.meta.confidence), ai.meta.confidence_note);
+  const evaluation = response?.evaluation;
+  const evaluationAccepted = evaluation?.status === "accepted";
 
   return (
     <header className="border-b border-slate-200 px-6 py-5">
@@ -409,9 +412,13 @@ function AiPaperReportHeader({
               <span className="rounded-full border border-slate-200 px-3 py-1 text-slate-600">
                 Độ đầy đủ dữ liệu: {score}/100
               </span>
-              {isFallback ? (
-                <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-700">
-                  Dữ liệu hệ thống
+              {evaluationAccepted ? (
+                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-700">
+                  Đã kiểm tra dựa trên dữ liệu hệ thống
+                </span>
+              ) : evaluation?.status === "rejected" ? (
+                <span className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-red-700">
+                  Kết quả AI chưa được chấp nhận
                 </span>
               ) : null}
             </div>
@@ -429,11 +436,7 @@ function AiPaperReportHeader({
         </button>
       </div>
 
-      {isFallback ? (
-        <p className="mt-4 border-l-2 border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
-          AI chưa khả dụng. Đây là dữ liệu tổng hợp trực tiếp từ hệ thống.
-        </p>
-      ) : confidenceNote ? (
+      {confidenceNote ? (
         <p className="mt-4 border-l-2 border-orange-300 bg-orange-50 px-3 py-2 text-sm font-semibold text-orange-800">
           {confidenceNote}
         </p>
@@ -692,9 +695,6 @@ function AiPaperTopProductRevenueChart({
           <h4 className="text-sm font-extrabold uppercase tracking-[0.12em] text-slate-700">
             Top 5 sản phẩm theo doanh thu
           </h4>
-          <p className="mt-1 text-xs font-semibold text-slate-500">
-            Lấy từ order_details/sales_table, sắp xếp theo doanh thu thực tế
-          </p>
         </div>
       </div>
 
@@ -751,7 +751,6 @@ function AiPaperDailyRevenueChart({ response }: { response: AiReportInsightRespo
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
         <div>
           <h4 className="text-sm font-extrabold uppercase tracking-[0.12em] text-slate-700">Biến động doanh thu theo ngày</h4>
-          <p className="mt-1 text-xs font-semibold text-slate-500">Lấy từ dữ liệu SQL theo khoảng lọc báo cáo</p>
         </div>
       </div>
       <div className="h-[320px] px-4 pb-4 pt-5">
@@ -1034,36 +1033,170 @@ function AiPaperCategoryDonutFromTable({
   );
 }
 
+function buildAiMaterialPurchaseDonutData(table: AiReportTable | undefined) {
+  const rows = (table?.rows || [])
+    .map((row, index) => ({
+      id: `${String(row[0] ?? "material")}-${index}`,
+      label: String(row[0] ?? "Nguyên liệu").trim() || "Nguyên liệu",
+      quantity: parseAiPaperNumber(row[1]),
+      unit: String(row[2] ?? "").trim(),
+      averageUnitPrice: parseAiPaperNumber(row[3]),
+      totalCost: parseAiPaperNumber(row[4]),
+      color: categoryColors[index % categoryColors.length],
+      percentage: 0,
+    }))
+    .filter((item) => item.totalCost > 0);
+
+  const totalCost = rows.reduce((sum, item) => sum + item.totalCost, 0);
+
+  return rows.map((item) => ({
+    ...item,
+    percentage: totalCost > 0 ? (item.totalCost / totalCost) * 100 : 0,
+  }));
+}
+
+function AiPaperMaterialPurchaseDonutFromTable({
+  table,
+}: {
+  table: AiReportTable | undefined;
+}) {
+  const data = buildAiMaterialPurchaseDonutData(table);
+  const totalCost = data.reduce((sum, item) => sum + item.totalCost, 0);
+  const renderMaterialLabel = ({
+    cx,
+    cy,
+    midAngle,
+    outerRadius,
+    index,
+  }: {
+    cx?: number;
+    cy?: number;
+    midAngle?: number;
+    outerRadius?: number;
+    index?: number;
+  }) => {
+    const item = typeof index === "number" ? data[index] : undefined;
+    if (!item || item.percentage < 5) return null;
+
+    const radius = Number(outerRadius || 0) + 22;
+    const angle = -Number(midAngle || 0) * (Math.PI / 180);
+    const x = Number(cx || 0) + radius * Math.cos(angle);
+    const y = Number(cy || 0) + radius * Math.sin(angle);
+    const lineStartX = Number(cx || 0) + (Number(outerRadius || 0) + 2) * Math.cos(angle);
+    const lineStartY = Number(cy || 0) + (Number(outerRadius || 0) + 2) * Math.sin(angle);
+    const textAnchor = x > Number(cx || 0) ? "start" : "end";
+
+    return (
+      <g>
+        <path
+          d={`M${lineStartX},${lineStartY}L${x},${y}`}
+          stroke={item.color}
+          strokeWidth={1.5}
+          fill="none"
+        />
+        <text
+          x={x + (textAnchor === "start" ? 4 : -4)}
+          y={y}
+          textAnchor={textAnchor}
+          dominantBaseline="central"
+          fill={item.color}
+          fontSize={11}
+          fontWeight={800}
+        >
+          {`${truncateChartLabel(item.label, 12)} ${item.percentage.toFixed(0)}%`}
+        </text>
+      </g>
+    );
+  };
+
+  return (
+    <article className="border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+        <h4 className="text-sm font-extrabold uppercase tracking-[0.12em] text-slate-700">
+          Cơ cấu chi phí nhập nguyên liệu
+        </h4>
+        <p className="mt-1 text-xs font-semibold text-slate-500">
+          {table?.validation_note || `${formatNumber(data.length)} nguyên liệu có chi phí nhập`}
+        </p>
+      </div>
+
+      <div className="relative h-[320px] p-4">
+        {data.length ? (
+          <>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart margin={{ top: 22, right: 42, bottom: 22, left: 42 }}>
+                <Pie
+                  data={data}
+                  dataKey="totalCost"
+                  nameKey="label"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={54}
+                  outerRadius={86}
+                  paddingAngle={3}
+                  labelLine={false}
+                  label={renderMaterialLabel}
+                >
+                  {data.map((item) => (
+                    <Cell key={item.id} fill={item.color} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(value, _name, payload) => [
+                    formatCurrency(Number(value)),
+                    `${payload?.payload?.label || "Nguyên liệu"}: nhập ${formatNumber(Number(payload?.payload?.quantity || 0))} ${payload?.payload?.unit || ""} trong kỳ · TB ${formatCurrency(Number(payload?.payload?.averageUnitPrice || 0))}`,
+                  ]}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+              <p className="text-lg font-extrabold text-[#0b1c30]">{formatCompactCurrency(totalCost)}</p>
+              <p className="text-[11px] font-bold text-slate-500">Chi phí nhập</p>
+            </div>
+          </>
+        ) : (
+          <div className="flex h-full items-center justify-center bg-slate-50 text-center text-sm font-semibold text-slate-400">
+            Chưa có chi phí nhập nguyên liệu trong kỳ.
+          </div>
+        )}
+      </div>
+    </article>
+  );
+}
+
 function AiPaperDataTablesSection({ response }: { response: AiReportInsightResponse | null }) {
   const ai = getAiPaperData(response);
-  const isFallback = isAiFallbackReport(response);
   const aiCharts = ai.chart_suggestions
     .filter((chart) => buildAiPaperChartData(chart).some((item) => item.value > 0))
     .slice(0, 4);
   const tables = ai.report_tables || {};
   const orderDetailsTable = getPreferredAiTable(tables.order_details_table, tables.sales_table);
   const categoriesTable = tables.categories_table;
+  const materialPurchaseTable = tables.material_purchase_table;
   const hasAnyTable = [
     tables.orders_table,
     orderDetailsTable,
     tables.payment_table,
     categoriesTable,
+    materialPurchaseTable,
   ].some((table) => table?.rows?.length);
 
   return (
     <section className="px-6 py-5">
-      <AiPaperSectionTitle index="VIII." title="Biểu đồ dữ liệu phân tích" helper="Biểu đồ được dựng trực tiếp từ dữ liệu bán hàng của hệ thống." />
-      {!isFallback && aiCharts.length ? (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          {aiCharts.map((chart, index) => (
+      <AiPaperSectionTitle index="VIII." title="Biểu đồ dữ liệu phân tích" helper="Biểu đồ được dựng trực tiếp từ dữ liệu bán hàng và nhập kho của hệ thống." />
+      {aiCharts.length ? (
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+          {aiCharts.slice(0, 2).map((chart, index) => (
             <AiPaperSingleChart key={`${chart.title || chart.tieu_de || "ai-chart"}-${index}`} chart={chart} />
           ))}
+          <AiPaperMaterialPurchaseDonutFromTable table={materialPurchaseTable} />
         </div>
       ) : hasAnyTable ? (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
             <AiPaperCategoryDonutFromTable table={categoriesTable} />
             <AiPaperDailyRevenueChart response={response} />
+            <AiPaperMaterialPurchaseDonutFromTable table={materialPurchaseTable} />
           </div>
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -1079,56 +1212,10 @@ function AiPaperDataTablesSection({ response }: { response: AiReportInsightRespo
 }
 
 function AiPaperDeepAnalysisSection({ response }: { response: AiReportInsightResponse | null }) {
-  const fallbackAdvancedAnalysis = [
-    {
-      thu_tu: 1,
-      loai: "xu_huong_doanh_thu",
-      tieu_de: "Xu hướng doanh thu",
-      noi_dung: "Chưa đủ dữ liệu để kết luận về xu hướng doanh thu.",
-      muc_do: "neutral",
-    },
-    {
-      thu_tu: 2,
-      loai: "nguyen_nhan_bien_dong",
-      tieu_de: "Nguyên nhân tăng hoặc giảm",
-      noi_dung: "Chưa đủ dữ liệu để xác định nguyên nhân biến động doanh thu.",
-      muc_do: "neutral",
-    },
-    {
-      thu_tu: 3,
-      loai: "san_pham",
-      tieu_de: "Phân tích sản phẩm",
-      noi_dung: "Chưa đủ dữ liệu để đánh giá xu hướng bán của sản phẩm.",
-      muc_do: "neutral",
-    },
-    {
-      thu_tu: 4,
-      loai: "hanh_vi_mua",
-      tieu_de: "Khách hàng và hành vi mua",
-      noi_dung: "Chưa đủ dữ liệu để kết luận về hành vi mua hàng.",
-      muc_do: "neutral",
-    },
-    {
-      thu_tu: 5,
-      loai: "rui_ro_co_hoi",
-      tieu_de: "Rủi ro và cơ hội",
-      noi_dung: "Chưa phát hiện đủ bằng chứng để xác định rủi ro hoặc cơ hội.",
-      muc_do: "neutral",
-    },
-  ];
-  const inputItems = Array.isArray(response?.data?.phan_tich_chuyen_sau)
+  const compactItems = Array.isArray(response?.data?.phan_tich_chuyen_sau)
     ? response?.data?.phan_tich_chuyen_sau || []
     : [];
-  const compactItems = fallbackAdvancedAnalysis.map((fallback) => {
-    const matched = inputItems.find((item) => item.loai === fallback.loai || item.thu_tu === fallback.thu_tu);
-    return {
-      ...fallback,
-      ...matched,
-      tieu_de: getAiPaperText(matched?.tieu_de || fallback.tieu_de),
-      noi_dung: getAiPaperText(matched?.noi_dung || fallback.noi_dung),
-      muc_do: matched?.muc_do || fallback.muc_do,
-    };
-  });
+
   return (
     <section className="px-6 py-5">
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -1240,7 +1327,7 @@ function AiPaperBusinessReport({
   if (loading) {
     return (
       <section className="border border-slate-200 bg-white font-['Inter',system-ui,sans-serif]">
-        <div className="flex min-h-[360px] flex-col items-center justify-center gap-4 px-6 py-16 text-center">
+        <div className="flex min-h-[220px] flex-col items-center justify-center gap-4 px-6 py-10 text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-full border border-orange-100 bg-orange-50 text-[#f97316]">
             <Icon name="sync" className="animate-spin text-[26px]" />
           </div>
@@ -1260,6 +1347,34 @@ function AiPaperBusinessReport({
     );
   }
 
+  if (!data?.success || !data.data) {
+    return (
+      <section className="border border-slate-200 bg-white px-5 py-3 font-['Inter',system-ui,sans-serif]">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-[#f97316]">
+              QuickServe-AI
+            </p>
+            <div className="mt-0.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <h2 className="text-base font-extrabold text-[#0b1c30]">Trợ lý phân tích kinh doanh</h2>
+              <p className={`text-sm font-medium ${data?.message ? "text-red-600" : "text-slate-500"}`}>
+                {data?.message || "Bấm Phân tích để tạo báo cáo."}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md bg-slate-950 px-4 text-sm font-extrabold text-white transition hover:bg-slate-800"
+          >
+            <Icon name="refresh" className="text-[18px]" />
+            Phân tích
+          </button>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="relative overflow-hidden border border-slate-200 bg-white font-['Inter',system-ui,sans-serif]">
       <AiPaperReportHeader response={data} loading={loading} onRefresh={onRefresh} />
@@ -1273,53 +1388,47 @@ function AiPaperBusinessReport({
   );
 }
 export default function ReportsPage() {
+  const { notify } = useAppNotifications();
   const initialRange = resolveReportRangePreset("last_30");
   const [rangePreset, setRangePreset] = useState<ReportRangePreset>("last_30");
   const [startDate, setStartDate] = useState(initialRange.startDate);
   const [endDate, setEndDate] = useState(initialRange.endDate);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+
   const [financialData, setFinancialData] = useState<FinancialReport | null>(null);
   const [aiInsights, setAiInsights] = useState<AiReportInsightResponse | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
   const [orders, setOrders] = useState<OrderListItem[]>([]);
-  const [cancelledOrders, setCancelledOrders] = useState<OrderListItem[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
 
   const loadReportData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
-    setError("");
+
 
     try {
       const [
         financial,
         dashboardResponse,
         ordersResponse,
-        cancelledResponse,
         shiftResponse,
       ] = await Promise.all([
         getFinancialReport(startDate, endDate),
         getDashboardSummary("week", startDate, endDate),
         getOrders({ dateFrom: startDate, dateTo: endDate }),
-        getOrders({
-          status: "cancelled",
-          dateFrom: startDate,
-          dateTo: endDate,
-        }),
         fetchShifts(),
       ]);
 
       setFinancialData(financial);
       setDashboard(dashboardResponse.data);
       setOrders(ordersResponse.data);
-      setCancelledOrders(cancelledResponse.data);
       setShifts(shiftResponse);
     } catch (err) {
-      setError(
+      notify(
         err instanceof Error
           ? err.message
-          : "Không tải được dữ liệu báo cáo."
+          : "Không tải được dữ liệu báo cáo.",
+        "error"
       );
     } finally {
       setLoading(false);
@@ -1340,7 +1449,6 @@ export default function ReportsPage() {
     } catch (error) {
       setAiInsights({
         success: false,
-        fallback: true,
         data: null,
         message:
           error instanceof Error
@@ -1392,7 +1500,10 @@ export default function ReportsPage() {
   const totalRevenue = summary?.totalRevenue ?? 0;
   const totalOrders = summary?.totalOrders ?? orders.length;
   const averageOrderValue = summary?.averageOrderValue ?? (totalOrders ? totalRevenue / totalOrders : 0);
-  const totalCustomers = dashboard?.stats.totalCustomers ?? 0;
+  const totalCOGS = summary?.totalCOGS ?? 0;
+  const grossProfit = summary?.grossProfit ?? 0;
+  const grossProfitMargin = summary?.grossProfitMargin ?? 0;
+  const materialPurchaseCost = financialData?.materialPurchaseCost ?? 0;
   const cashRevenue =
     dashboard?.paymentMethods.find((item) => item.method === "cash")?.revenue ??
     shifts.reduce((sum, shift) => sum + Number(shift.totalSalesCash || 0), 0);
@@ -1405,9 +1516,7 @@ export default function ReportsPage() {
       subtitle="Thống kê và phân tích dữ liệu bán hàng"
     >
       <div className="min-h-full space-y-5 bg-[#f8fafc] font-['Inter',sans-serif]">
-        {error ? (
-          <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-sm font-bold text-red-600">{error}</div>
-        ) : null}
+
 
         <section>
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -1469,9 +1578,9 @@ export default function ReportsPage() {
             <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
               <ReportCard label="Tổng doanh thu" value={formatCurrency(totalRevenue)} helper={formatGrowth(financialData?.revenueGrowthPercent)} icon="wallet" tone="bg-orange-50 text-[#f97316]" trend={getGrowthTrend(financialData?.revenueGrowthPercent)} />
               <ReportCard label="Tổng đơn hàng" value={`${formatNumber(totalOrders)} đơn`} helper={formatGrowth(financialData?.ordersGrowthPercent)} icon="shopping_cart" tone="bg-green-50 text-green-500" trend={getGrowthTrend(financialData?.ordersGrowthPercent)} />
-              <ReportCard label="Số khách hàng" value={`${formatNumber(totalCustomers)} khách`} helper="Chưa có dữ liệu kỳ trước" icon="groups" tone="bg-purple-50 text-purple-500" trend="neutral" />
+              <ReportCard label="Chi phí nhập nguyên liệu" value={formatCurrency(materialPurchaseCost)} helper={formatGrowth(financialData?.materialPurchaseCostGrowthPercent)} icon="inventory_2" tone="bg-purple-50 text-purple-500" trend={getGrowthTrend(financialData?.materialPurchaseCostGrowthPercent)} />
               <ReportCard label="Giá trị TB/đơn hàng (AOV)" value={formatCurrency(averageOrderValue)} helper={formatGrowth(financialData?.averageOrderValueGrowthPercent)} icon="receipt_long" tone="bg-blue-50 text-blue-500" trend={getGrowthTrend(financialData?.averageOrderValueGrowthPercent)} />
-              <ReportCard label="Đơn hủy" value={`${formatNumber(cancelledOrders.length)} đơn`} helper={formatGrowth(financialData?.cancelledOrdersGrowthPercent)} icon="warning" tone="bg-amber-50 text-amber-500" trend={getGrowthTrend(financialData?.cancelledOrdersGrowthPercent)} />
+              <ReportCard label="Giá vốn và lợi nhuận" value={formatCurrency(grossProfit)} helper={`Giá vốn ${formatCurrency(totalCOGS)} · Biên ${grossProfitMargin.toFixed(1)}%`} icon="monitoring" tone="bg-amber-50 text-amber-500" trend="neutral" />
               <ReportCard label="Doanh thu tiền mặt" value={formatCurrency(cashRevenue)} helper={`${cashPercentage}% tổng doanh thu`} icon="payments" tone="bg-emerald-50 text-emerald-500" trend="neutral" />
             </section>
 

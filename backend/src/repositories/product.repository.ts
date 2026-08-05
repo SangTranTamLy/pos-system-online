@@ -1,5 +1,4 @@
 import type { RowDataPacket, ResultSetHeader } from "mysql2";
-import type { PoolConnection } from "mysql2/promise";
 import { db } from "../config/database";
 import type { CreateProductBody, Product, UpdateProductBody } from "../types/product.types";
 import crypto from "crypto";
@@ -12,14 +11,13 @@ type ProductRow = RowDataPacket & {
     name: string;
     import_price: string;
     sale_price: string;
-    stock_quantity: number | null;
     status: Product["status"];
     description: string | null;
     image_url: string | null;
     created_at: Date;
     updated_at: Date; 
-    is_tracked_stock: number;
     is_available: number;
+    product_type: Product["productType"];
 };
 
 function mapProduct(row: ProductRow): Product {
@@ -27,13 +25,12 @@ function mapProduct(row: ProductRow): Product {
         id: row.id,
         categoryId: row.category_id,
         categoryName: row.category_name,
-        isTrackedStock: Boolean(row.is_tracked_stock),
         isAvailable: Boolean(row.is_available),
+        productType: row.product_type,
         sku: row.sku,
         name: row.name,
         importPrice: Number(row.import_price),
         salePrice: Number(row.sale_price),
-        stockQuantity: row.stock_quantity !== null ? Number(row.stock_quantity) : null,
         status: row.status,
         description: row.description,
         imageUrl: row.image_url,
@@ -53,14 +50,13 @@ export async function findProducts(): Promise<Product[]>{
             products.name,
             products.import_price,
             products.sale_price,
-            products.stock_quantity,
             products.status,
             products.description,
             products.image_url,
             products.created_at,
             products.updated_at,
-            products.is_tracked_stock,
             products.is_available
+            , products.product_type
         FROM products
         JOIN categories ON products.category_id = categories.id
         ORDER BY products.created_at DESC`
@@ -80,14 +76,13 @@ export async function findProductById(id: string): Promise<Product | null> {
         products.name,
         products.import_price,
         products.sale_price,
-        products.stock_quantity,
         products.status,
         products.description,
         products.image_url,
         products.created_at,
         products.updated_at,
-        products.is_tracked_stock,
         products.is_available
+        , products.product_type
         FROM products
         JOIN categories ON products.category_id = categories.id
         WHERE products.id = ?
@@ -110,14 +105,13 @@ export async function findProductBySku(sku: string): Promise<Product | null> {
         products.name,
         products.import_price,
         products.sale_price,
-        products.stock_quantity,
         products.status,
         products.description,
         products.image_url,
         products.created_at,
         products.updated_at,
-        products.is_tracked_stock,
         products.is_available
+        , products.product_type
         FROM products
         JOIN categories ON products.category_id = categories.id
         WHERE products.sku = ?
@@ -131,40 +125,53 @@ export async function findProductBySku(sku: string): Promise<Product | null> {
 
 export async function createProduct(data: CreateProductBody): Promise<Product> {
     const id = crypto.randomUUID();
+    const defaultVariantId = crypto.randomUUID();
+    const connection = await db.getConnection();
 
-    await db.execute(
+    try {
+      await connection.beginTransaction();
+      await connection.execute(
         `
         INSERT INTO products (
         id,
         category_id,
-        is_tracked_stock,
         is_available,
         sku,
         name,
         import_price,
         sale_price,
-        stock_quantity,
         status,
         description,
         image_url
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
         id,
         data.categoryId,
-        data.isTrackedStock ? 1 : 0,
         data.isAvailable ? 1 : 0,
         data.sku,
         data.name,
         data.importPrice ?? 0,
         data.salePrice,
-        data.stockQuantity ?? null,
         data.status ?? "active",
         data.description ?? null,
         data.imageUrl ?? null,
         ]
-    );
+      );
+      await connection.execute(
+        `INSERT INTO product_variants
+          (id, product_id, name, sku, sale_price, is_default, is_active)
+         VALUES (?, ?, 'Mặc định', ?, ?, 1, 1)`,
+        [defaultVariantId, id, `${data.sku}-DEFAULT`, data.salePrice]
+      );
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
 
     const product = await findProductById(id);
 
@@ -184,13 +191,11 @@ export async function updateProductById(
         UPDATE products
         SET
         category_id = ?,
-        is_tracked_stock = ?,
         is_available = ?,
         sku = ?,
         name = ?,
         import_price = ?,
         sale_price = ?,
-        stock_quantity = ?,
         status = ?,
         description = ?,
         image_url = ?
@@ -198,18 +203,22 @@ export async function updateProductById(
         `,
         [
         data.categoryId ?? null,
-        data.isTrackedStock ? 1 : 0,
         data.isAvailable ? 1 : 0,
         data.sku ?? null,
         data.name ?? null,
         data.importPrice ?? 0,
         data.salePrice ?? 0,
-        data.stockQuantity ?? null,
         data.status ?? "active",
         data.description ?? null,
         data.imageUrl ?? null,
         id,
         ]
+    );
+    await db.execute(
+      `UPDATE product_variants
+       SET sale_price = ?
+       WHERE product_id = ? AND is_default = 1`,
+      [data.salePrice ?? 0, id]
     );
 
     return findProductById(id);

@@ -207,7 +207,7 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
     eyebrow: "Phân tích kinh doanh",
     heroTitle: "Báo cáo cửa hàng",
     heroDescription:
-      "Chuẩn bị dashboard báo cáo nâng cao từ orders, payments, products và stock_transactions.",
+      "Chuẩn bị dashboard báo cáo nâng cao từ orders, payments, products và raw_material_transactions.",
     primaryAction: "Xuất báo cáo",
     searchPlaceholder: "Tìm báo cáo hoặc chỉ số...",
     emptyText: "Chưa có báo cáo phù hợp.",

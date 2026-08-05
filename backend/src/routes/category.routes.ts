@@ -7,13 +7,14 @@ import {
   updateCategoryController,
   updateCategoryStatusController,
 } from "../controllers/category.controller";
-import { authMiddleware } from "../middleware/auth.middleware";
+import { authMiddleware, requireRoles } from "../middleware/auth.middleware";
 import { asyncHandler } from "../utils/asyncHandler";
 
 const categoryRouter = Router();
 
 categoryRouter.use(authMiddleware);
 categoryRouter.get("/", asyncHandler(getCategoriesController));
+categoryRouter.use(requireRoles(["ADMIN", "MANAGER"]));
 categoryRouter.post("/upload-image", asyncHandler(uploadCategoryImageController));
 categoryRouter.post("/", asyncHandler(createCategoryController));
 categoryRouter.put("/:id", asyncHandler(updateCategoryController));

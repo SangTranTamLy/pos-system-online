@@ -182,15 +182,14 @@ function DonutChart({
 
 /* ─── Main Page ─────────────────────────────────────────────── */
 function CustomerPage() {
-  const { confirm: confirmAction } = useAppNotifications();
+  const { notify, confirm: confirmAction } = useAppNotifications();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState("");
   const [segmentFilter, setSegmentFilter] = useState<CustomerSegment>("all");
   const [statusFilter, setStatusFilter] = useState<CustomerStatus>("all");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -204,14 +203,15 @@ function CustomerPage() {
   const loadCustomers = useCallback(async (query = "") => {
     try {
       setIsLoading(true);
-      setErrorMessage("");
+
       const response = await getCustomers(query);
       setCustomers(response.data);
     } catch (error) {
-      setErrorMessage(
+      notify(
         error instanceof Error
           ? error.message
-          : "Không tải được danh sách khách hàng. Vui lòng thử lại."
+          : "Không tải được danh sách khách hàng. Vui lòng thử lại.",
+        "error"
       );
     } finally {
       setIsLoading(false);
@@ -226,11 +226,7 @@ function CustomerPage() {
     return () => window.clearTimeout(timer);
   }, [loadCustomers, search]);
 
-  useEffect(() => {
-    if (!successMessage) return undefined;
-    const timer = window.setTimeout(() => setSuccessMessage(""), 3000);
-    return () => window.clearTimeout(timer);
-  }, [successMessage]);
+
 
   /* ── Stats ────────────────────────────────────────────────── */
   const stats = useMemo(() => {
@@ -320,7 +316,6 @@ function CustomerPage() {
   const openCreateModal = () => {
     setEditingCustomer(null);
     setFormState(defaultFormState);
-    setErrorMessage("");
     setIsModalOpen(true);
   };
 
@@ -331,7 +326,7 @@ function CustomerPage() {
       phone: customer.phone,
       address: customer.address ?? "",
     });
-    setErrorMessage("");
+
     setIsModalOpen(true);
   };
 
@@ -346,7 +341,7 @@ function CustomerPage() {
 
     try {
       setIsSaving(true);
-      setErrorMessage("");
+
 
       const payload = {
         fullName: formState.fullName.trim(),
@@ -355,25 +350,26 @@ function CustomerPage() {
       };
 
       if (!/^[0-9]{10}$/.test(payload.phone)) {
-        setErrorMessage("Số điện thoại phải gồm đúng 10 chữ số.");
+        notify("Số điện thoại phải gồm đúng 10 chữ số.", "error");
         return;
       }
 
       if (editingCustomer) {
         await updateCustomer(editingCustomer.id, payload);
-        setSuccessMessage("Đã lưu thay đổi khách hàng.");
+        notify("Đã lưu thay đổi khách hàng.", "success");
       } else {
         await createCustomer(payload);
-        setSuccessMessage("Đã thêm khách hàng mới.");
+        notify("Đã thêm khách hàng mới.", "success");
       }
 
       closeModal();
       await loadCustomers(search);
     } catch (error) {
-      setErrorMessage(
+      notify(
         error instanceof Error
           ? error.message
-          : "Chưa lưu được khách hàng. Vui lòng kiểm tra lại thông tin."
+          : "Chưa lưu được khách hàng. Vui lòng kiểm tra lại thông tin.",
+        "error"
       );
     } finally {
       setIsSaving(false);
@@ -391,16 +387,17 @@ function CustomerPage() {
     if (!confirmed) return;
 
     try {
-      setErrorMessage("");
+
       await deleteCustomer(customer.id);
-      setSuccessMessage("Đã xóa khách hàng khỏi danh sách.");
+      notify("Đã xóa khách hàng khỏi danh sách.", "success");
       if (selectedCustomer?.id === customer.id) setSelectedCustomer(null);
       await loadCustomers(search);
     } catch (error) {
-      setErrorMessage(
+      notify(
         error instanceof Error
           ? error.message
-          : "Chưa xóa được khách hàng. Vui lòng thử lại."
+          : "Chưa xóa được khách hàng. Vui lòng thử lại.",
+        "error"
       );
     }
   };
@@ -408,14 +405,15 @@ function CustomerPage() {
   const handleViewDetails = async (customer: Customer) => {
     try {
       setSelectedCustomer(customer);
-      setErrorMessage("");
+
       const ordersResponse = await getCustomerOrders(customer.id);
       setCustomerOrders(ordersResponse.data);
     } catch (error) {
-      setErrorMessage(
+      notify(
         error instanceof Error
           ? error.message
-          : "Không tải được chi tiết khách hàng. Vui lòng thử lại."
+          : "Không tải được chi tiết khách hàng. Vui lòng thử lại.",
+        "error"
       );
     }
   };
@@ -536,17 +534,7 @@ function CustomerPage() {
           />
         </section>
 
-        {/* ─ Alerts ─ */}
-        {errorMessage ? (
-          <div className="border border-rose-200 bg-rose-50 px-5 py-3 text-sm font-bold text-rose-600">
-            {errorMessage}
-          </div>
-        ) : null}
-        {successMessage ? (
-          <div className="border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-bold text-emerald-700">
-            {successMessage}
-          </div>
-        ) : null}
+
 
         {/* ─ Main grid: table + sidebar ─ */}
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
@@ -872,27 +860,23 @@ function CustomerPage() {
 
         {/* ─── Detail modal ─────────────────────────────────── */}
         {selectedCustomer ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(11,28,48,0.45)] p-4">
-            <div className="w-full max-w-4xl overflow-hidden border border-slate-200 bg-white shadow-2xl">
-              <div className="flex items-start justify-between border-b border-slate-200 bg-white px-6 py-5">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+            <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+              <div className="flex items-center justify-between border-b p-5">
                 <div>
-                  <h3 className="font-['Outfit',sans-serif] text-xl font-extrabold text-[#0b1c30]">
-                    {selectedCustomer.fullName}
-                  </h3>
-                  <p className="mt-1 text-sm font-medium text-slate-500">
+                  <p className="text-xs font-black uppercase text-[#f97316]">
                     SĐT: {selectedCustomer.phone}
                   </p>
+                  <h3 className="text-xl font-black text-[#0b1c30]">
+                    {selectedCustomer.fullName}
+                  </h3>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedCustomer(null)}
-                  className="p-2 text-slate-500 transition-colors hover:bg-slate-50"
-                >
+                <button type="button" onClick={() => setSelectedCustomer(null)}>
                   <Icon name="close" />
                 </button>
               </div>
 
-              <div className="max-h-[75vh] overflow-y-auto p-6">
+              <div className="flex-1 overflow-y-auto p-5">
                 <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-3">
                   <div className="bg-slate-50 p-4">
                     <p className="text-xs font-medium text-slate-500">Tổng chi tiêu</p>
@@ -952,27 +936,24 @@ function CustomerPage() {
 
         {/* ─── Create / Edit modal ──────────────────────────── */}
         {isModalOpen ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(11,28,48,0.45)] p-4">
-            <div className="w-full max-w-lg overflow-hidden border border-slate-200 bg-white shadow-2xl">
-              <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-5">
-                <div className="flex items-center gap-3">
-                  <span className="bg-orange-50 p-2 text-[#f97316]">
-                    <Icon name="person" />
-                  </span>
-                  <h3 className="font-['Outfit',sans-serif] text-xl font-extrabold text-[#0b1c30]">
-                    {editingCustomer ? "Sửa khách hàng" : "Thêm khách hàng"}
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+            <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+              <div className="flex items-center justify-between border-b p-5">
+                <div>
+                  <p className="text-xs font-black uppercase text-[#f97316]">
+                    {editingCustomer ? "Cập nhật khách hàng" : "Khách hàng mới"}
+                  </p>
+                  <h3 className="text-xl font-black text-[#0b1c30]">
+                    {formState.fullName || "Tên khách hàng"}
                   </h3>
                 </div>
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="p-2 text-slate-500 transition-colors hover:bg-slate-100"
-                >
+                <button type="button" onClick={closeModal}>
                   <Icon name="close" />
                 </button>
               </div>
 
-              <form className="space-y-5 p-6" onSubmit={handleSubmit}>
+              <div className="flex-1 overflow-y-auto p-5">
+                <form id="customerForm" className="space-y-5" onSubmit={handleSubmit}>
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-[#0b1c30]">
                     Tên khách hàng <span className="text-red-600">*</span>
@@ -1031,23 +1012,25 @@ function CustomerPage() {
                   />
                 </div>
 
-                <div className="flex gap-3 border-t border-slate-200 pt-4">
-                  <button
-                    type="button"
-                    onClick={closeModal}
-                    className="flex h-10 flex-1 items-center justify-center border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
-                  >
-                    Hủy
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSaving}
-                    className="flex h-10 flex-1 items-center justify-center bg-[#f97316] px-4 text-sm font-bold text-white transition-colors hover:bg-[#ea6c0e] disabled:opacity-60"
-                  >
-                    {isSaving ? "Đang lưu..." : editingCustomer ? "Lưu thay đổi" : "Thêm mới"}
-                  </button>
-                </div>
-              </form>
+                </form>
+              </div>
+              <div className="flex justify-end gap-3 border-t p-4">
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="rounded-lg border px-5 py-2 font-bold text-slate-700"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  form="customerForm"
+                  disabled={isSaving}
+                  className="rounded-lg bg-[#f97316] px-5 py-2 font-bold text-white disabled:opacity-50"
+                >
+                  {isSaving ? "Đang lưu..." : editingCustomer ? "Lưu thay đổi" : "Thêm khách hàng"}
+                </button>
+              </div>
             </div>
           </div>
         ) : null}

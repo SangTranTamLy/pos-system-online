@@ -2,6 +2,8 @@ import type { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import type { AuthTokenPayload, AuthUser } from "../types/auth.types";
 import { ApiError } from "../utils/apiError";
+import { db } from "../config/database";
+import type { RowDataPacket } from "mysql2/promise";
 
 declare global {
   namespace Express {
@@ -21,7 +23,7 @@ function getJwtSecret() {
   return secret;
 }
 
-export function authMiddleware(
+export async function authMiddleware(
   req: Request,
   _res: Response,
   next: NextFunction
@@ -50,12 +52,26 @@ export function authMiddleware(
     throw error;
   }
 
+  const [rows] = await db.execute<RowDataPacket[]>(
+    `SELECT u.id, u.full_name, u.email, u.role_id, r.name AS role_name
+     FROM users u
+     JOIN roles r ON r.id = u.role_id
+     WHERE u.id = ? AND u.is_active = 1
+     LIMIT 1`,
+    [payload.userId]
+  );
+  const user = rows[0];
+
+  if (!user) {
+    throw new ApiError(401, "Tài khoản không còn hoạt động");
+  }
+
   req.user = {
-    id: payload.userId,
-    fullName: payload.fullName,
-    email: payload.email,
-    roleId: payload.roleId,
-    roleName: payload.roleName,
+    id: user.id,
+    fullName: user.full_name,
+    email: user.email,
+    roleId: user.role_id,
+    roleName: user.role_name,
   };
 
   next();

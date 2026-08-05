@@ -36,6 +36,8 @@ export interface FinancialReport {
   ordersGrowthPercent: number | null;
   averageOrderValueGrowthPercent: number | null;
   cancelledOrdersGrowthPercent: number | null;
+  materialPurchaseCost: number;
+  materialPurchaseCostGrowthPercent: number | null;
 }
 
 export interface ProductValuation {

@@ -186,6 +186,10 @@ function mapMaterial(row: MaterialRow): Material {
     sku: row.sku,
     category: row.category ?? "Khac",
     unit: row.unit,
+    purchaseUnit: row.purchaseUnit ?? row.purchase_unit ?? row.unit,
+    purchaseToStockFactor: Number(
+      row.purchaseToStockFactor ?? row.purchase_to_stock_factor ?? 1
+    ),
     supplierId: row.supplierId ?? row.supplier_id ?? null,
     supplierName: row.supplierName ?? row.supplier_name ?? null,
     stockQuantity: Number(row.stockQuantity ?? row.stock_quantity ?? 0),
@@ -242,6 +246,8 @@ export async function findAllMaterials(): Promise<Material[]> {
       raw_materials.sku,
       raw_materials.category,
       raw_materials.unit,
+      raw_materials.purchase_unit AS purchaseUnit,
+      raw_materials.purchase_to_stock_factor AS purchaseToStockFactor,
       raw_materials.supplier_id AS supplierId,
       suppliers.name AS supplierName,
       stock_quantity AS stockQuantity,
@@ -267,19 +273,27 @@ export async function createMaterial(data: CreateMaterialBody): Promise<Material
       .slice(2, 6)
       .toUpperCase()}`;
   const supplierId = await resolveMaterialSupplierId(data.supplierId);
+  const unit = data.unit.trim();
+  const purchaseUnit = data.purchaseUnit?.trim() || unit;
+  const purchaseToStockFactor = Number(data.purchaseToStockFactor ?? 1);
+  if (!Number.isFinite(purchaseToStockFactor) || purchaseToStockFactor <= 0) {
+    throw new ApiError(400, "Hệ số quy đổi phải lớn hơn 0.");
+  }
   await ensureMaterialSkuAvailable(sku);
 
   await db.execute(
     `
-    INSERT INTO raw_materials (id, name, sku, category, unit, supplier_id, stock_quantity, import_price, is_active)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO raw_materials (id, name, sku, category, unit, purchase_unit, purchase_to_stock_factor, supplier_id, stock_quantity, import_price, is_active)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     [
       id,
       data.name.trim(),
       sku,
       data.category?.trim() || "Khac",
-      data.unit.trim(),
+      unit,
+      purchaseUnit,
+      purchaseToStockFactor,
       supplierId,
       Number(data.stockQuantity ?? 0),
       Number(data.importPrice ?? 0),
@@ -295,6 +309,8 @@ export async function createMaterial(data: CreateMaterialBody): Promise<Material
       raw_materials.sku,
       raw_materials.category,
       raw_materials.unit,
+      raw_materials.purchase_unit AS purchaseUnit,
+      raw_materials.purchase_to_stock_factor AS purchaseToStockFactor,
       raw_materials.supplier_id AS supplierId,
       suppliers.name AS supplierName,
       stock_quantity AS stockQuantity,
@@ -327,21 +343,56 @@ export async function updateMaterial(
   }
 
   const supplierId = await resolveMaterialSupplierId(data.supplierId);
+  const unit = data.unit.trim();
+  const purchaseUnit = data.purchaseUnit?.trim() || unit;
+  const purchaseToStockFactor = Number(data.purchaseToStockFactor ?? 1);
+  if (!Number.isFinite(purchaseToStockFactor) || purchaseToStockFactor <= 0) {
+    throw new ApiError(400, "Hệ số quy đổi phải lớn hơn 0.");
+  }
   await ensureMaterialSkuAvailable(sku, id);
+
+  const [currentRows] = await db.execute<RowDataPacket[]>(
+    `SELECT unit, purchase_unit AS purchaseUnit,
+            purchase_to_stock_factor AS purchaseToStockFactor
+     FROM raw_materials WHERE id = ? LIMIT 1`,
+    [id]
+  );
+  const current = currentRows[0];
+  if (!current) {
+    throw new ApiError(404, "Không tìm thấy nguyên liệu");
+  }
+
+  // A legacy material may originally have stored stock and cost in its purchase
+  // unit. Convert both exactly once when its stock unit is first changed, e.g.
+  // from "lon" to "ml" with the factor 380.
+  const needsLegacyUnitConversion =
+    String(current.unit) === String(current.purchaseUnit) &&
+    Number(current.purchaseToStockFactor) === 1 &&
+    String(current.unit) !== unit &&
+    purchaseToStockFactor !== 1;
+  if (needsLegacyUnitConversion) {
+    await db.execute(
+      `UPDATE raw_materials
+       SET stock_quantity = stock_quantity * ?, import_price = import_price / ?
+       WHERE id = ?`,
+      [purchaseToStockFactor, purchaseToStockFactor, id]
+    );
+  }
 
   const [result] = await db.execute<ResultSetHeader>(
     `
     UPDATE raw_materials
-    SET name = ?, sku = ?, category = ?, unit = ?, supplier_id = ?, import_price = ?, is_active = ?
+    SET name = ?, sku = ?, category = ?, unit = ?, purchase_unit = ?, purchase_to_stock_factor = ?, supplier_id = ?, is_active = ?
     WHERE id = ?
     `,
     [
       data.name.trim(),
       sku,
       data.category?.trim() || "Khac",
-      data.unit.trim(),
+      unit,
+      purchaseUnit,
+      purchaseToStockFactor,
       supplierId,
-      Number(data.importPrice ?? 0),
       data.isActive ?? true,
       id,
     ]
@@ -359,6 +410,8 @@ export async function updateMaterial(
       raw_materials.sku,
       raw_materials.category,
       raw_materials.unit,
+      raw_materials.purchase_unit AS purchaseUnit,
+      raw_materials.purchase_to_stock_factor AS purchaseToStockFactor,
       raw_materials.supplier_id AS supplierId,
       suppliers.name AS supplierName,
       stock_quantity AS stockQuantity,
@@ -390,6 +443,8 @@ export async function deleteMaterial(id: string): Promise<Material> {
       raw_materials.sku,
       raw_materials.category,
       raw_materials.unit,
+      raw_materials.purchase_unit AS purchaseUnit,
+      raw_materials.purchase_to_stock_factor AS purchaseToStockFactor,
       raw_materials.supplier_id AS supplierId,
       suppliers.name AS supplierName,
       stock_quantity AS stockQuantity,
@@ -478,7 +533,10 @@ export async function findGoodsReceiptMaterialDetail(
       goods_receipt_material_details.material_id AS materialId,
       raw_materials.name AS materialName,
       raw_materials.unit,
+      goods_receipt_material_details.purchase_unit AS purchaseUnit,
       goods_receipt_material_details.quantity,
+      goods_receipt_material_details.conversion_factor AS conversionFactor,
+      goods_receipt_material_details.stock_quantity AS stockQuantity,
       goods_receipt_material_details.unit_price AS unitPrice,
       goods_receipt_material_details.line_total AS lineTotal
     FROM goods_receipt_material_details
@@ -532,12 +590,15 @@ export async function createGoodsReceiptTransaction(
       const quantity = Number(item.quantity);
       const unitPrice = Number(item.unitPrice);
 
-      if (!materialId || quantity <= 0 || unitPrice < 0) {
+      if (!materialId || quantity <= 0 || unitPrice <= 0) {
         throw new ApiError(400, "Thông tin nguyên liệu nhập kho không hợp lệ.");
       }
 
       const [materials] = await connection.execute<RowDataPacket[]>(
-        "SELECT id, name, unit FROM raw_materials WHERE id = ? AND is_active = TRUE LIMIT 1",
+        `SELECT id, name, unit, purchase_unit AS purchaseUnit,
+                purchase_to_stock_factor AS purchaseToStockFactor
+         FROM raw_materials
+         WHERE id = ? AND is_active = TRUE LIMIT 1`,
         [materialId]
       );
 
@@ -547,6 +608,8 @@ export async function createGoodsReceiptTransaction(
       }
 
       const lineTotal = quantity * unitPrice;
+      const conversionFactor = Number(material.purchaseToStockFactor);
+      const stockQuantity = quantity * conversionFactor;
       totalAmount += lineTotal;
       const detailId = randomUUID();
 
@@ -556,7 +619,10 @@ export async function createGoodsReceiptTransaction(
         materialId,
         materialName: material.name,
         unit: material.unit,
+        purchaseUnit: material.purchaseUnit,
         quantity,
+        conversionFactor,
+        stockQuantity,
         unitPrice,
         lineTotal,
       });
@@ -582,20 +648,24 @@ export async function createGoodsReceiptTransaction(
     for (const detail of materialDetailsList) {
       await connection.execute(
         `
-        INSERT INTO goods_receipt_material_details (id, receipt_id, material_id, quantity, unit_price, line_total)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO goods_receipt_material_details
+          (id, receipt_id, material_id, purchase_unit, conversion_factor, quantity, stock_quantity, unit_price, line_total)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           detail.id,
           detail.receiptId,
           detail.materialId,
+          detail.purchaseUnit,
+          detail.conversionFactor,
           detail.quantity,
+          detail.stockQuantity,
           detail.unitPrice,
           detail.lineTotal,
         ]
       );
 
-      // Cập nhật tồn kho và giá nhập mới cho nguyên liệu
+      // Cộng tồn theo đơn vị tồn/định mức; giá được quy về đơn vị tồn.
       await connection.execute(
         `
         UPDATE raw_materials
@@ -603,7 +673,7 @@ export async function createGoodsReceiptTransaction(
             import_price = ?
         WHERE id = ?
         `,
-        [detail.quantity, detail.unitPrice, detail.materialId]
+        [detail.stockQuantity, detail.unitPrice / detail.conversionFactor, detail.materialId]
       );
     }
 
@@ -667,117 +737,6 @@ export async function createGoodsReceiptTransaction(
       createdAt: new Date(),
       details: [],
       materialDetails: materialDetailsList,
-    };
-  } catch (error) {
-    await connection.rollback();
-    throw error;
-  } finally {
-    connection.release();
-  }
-}
-
-export async function createStockAdjustmentTransaction(
-  productId: string,
-  newQuantity: number,
-  note: string,
-  createdBy: string
-): Promise<any> {
-  const connection = await db.getConnection();
-
-  try {
-    await connection.beginTransaction();
-
-    const [products] = await connection.execute<RowDataPacket[]>(
-      "SELECT id, name, stock_quantity, status, is_tracked_stock FROM products WHERE id = ? LIMIT 1 FOR UPDATE",
-      [productId]
-    );
-
-    const product = products[0];
-    if (!product) {
-      throw new ApiError(404, "Không tìm thấy sản phẩm");
-    }
-
-    if (!product.is_tracked_stock) {
-      throw new ApiError(400, "Sản phẩm tự chế biến không quản lý kho, không thể điều chỉnh tồn kho.");
-    }
-
-    const oldQuantity = Number(product.stock_quantity);
-    const qtyDiff = newQuantity - oldQuantity;
-
-    // Update stock quantity and status
-    await connection.execute(
-      `
-      UPDATE products
-      SET
-        stock_quantity = ?,
-        status = CASE
-          WHEN ? <= 0 THEN 'out_of_stock'
-          WHEN status = 'out_of_stock' AND ? > 0 THEN 'active'
-          ELSE status
-        END
-      WHERE id = ?
-      `,
-      [newQuantity, newQuantity, newQuantity, productId]
-    );
-
-    // If there is a change, log it in stock_transactions
-    if (qtyDiff !== 0) {
-      const transactionId = randomUUID();
-      const direction = qtyDiff > 0 ? "tăng" : "giảm";
-      const displayDiff = Math.abs(qtyDiff);
-      const defaultNote = `Điều chỉnh ${direction} từ ${oldQuantity} thành ${newQuantity} (${note || "Kiểm kho"})`;
-
-      await connection.execute(
-        `
-        INSERT INTO stock_transactions (id, product_id, created_by, transaction_type, quantity, note)
-        VALUES (?, ?, ?, 'adjustment', ?, ?)
-        `,
-        [transactionId, productId, createdBy, displayDiff, defaultNote]
-      );
-    }
-
-    await connection.commit();
-
-    // Log stock adjustment
-    try {
-      const [userRows] = await connection.execute<RowDataPacket[]>(
-        `SELECT u.full_name, r.name AS role_name 
-         FROM users u 
-         JOIN roles r ON u.role_id = r.id 
-         WHERE u.id = ? 
-         LIMIT 1`,
-        [createdBy]
-      );
-
-      const userFullName = userRows[0]?.full_name || "Nhân viên";
-      const rawRole = userRows[0]?.role_name || "staff";
-      const userRole = rawRole.trim().toLowerCase() === "admin" || rawRole.trim().toLowerCase() === "manager" ? "QL" : "TN";
-      const direction = qtyDiff > 0 ? "tăng" : "giảm";
-
-      await connection.execute(
-        `
-        INSERT INTO audit_logs (id, user_id, user_name, role, action_type, target_object, description)
-        VALUES (?, ?, ?, ?, 'SUA_KHO', ?, ?)
-        `,
-        [
-          randomUUID(),
-          createdBy,
-          userFullName,
-          userRole,
-          `Sản phẩm: ${product.name}`,
-          `Điều chỉnh kho: ${direction} từ ${oldQuantity} thành ${newQuantity}. Lý do: ${note || "Kiểm kho"}.`
-        ]
-      );
-    } catch (logErr) {
-      console.error("Lỗi tạo nhật ký kiểm tra cho việc điều chỉnh tồn kho:", logErr);
-    }
-
-    return {
-      productId,
-      name: product.name,
-      oldQuantity,
-      newQuantity,
-      qtyDiff,
     };
   } catch (error) {
     await connection.rollback();
@@ -1310,5 +1269,3 @@ export async function payGoodsReceiptDebt(id: string, amount: number): Promise<v
     connection.release();
   }
 }
-
-

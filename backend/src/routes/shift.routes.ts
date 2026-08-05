@@ -16,21 +16,9 @@ shiftRouter.post(
   requireRoles(["ADMIN", "MANAGER"]),
   asyncHandler(shiftController.openShiftForEmployeeController)
 );
-shiftRouter.post("/", requireRoles(["ADMIN", "MANAGER"]), asyncHandler(shiftController.registerShiftController));
 shiftRouter.patch("/:id/request-close", asyncHandler(shiftController.requestCloseShiftController));
-shiftRouter.patch("/:id/request-open", asyncHandler(shiftController.requestOpenShiftController));
 shiftRouter.patch("/:id/opening-cash", asyncHandler(shiftController.setOpeningCashController));
 // Manager and Admin only
-shiftRouter.patch(
-  "/:id/approve",
-  requireRoles(["ADMIN", "MANAGER"]),
-  asyncHandler(shiftController.approveShiftController)
-);
-shiftRouter.patch(
-  "/:id/open",
-  requireRoles(["ADMIN", "MANAGER"]),
-  asyncHandler(shiftController.openShiftController)
-);
 shiftRouter.patch(
   "/:id/close",
   requireRoles(["ADMIN", "MANAGER"]),

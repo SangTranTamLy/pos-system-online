@@ -15,10 +15,7 @@ function formatCurrency(value: number) {
 }
 
 export default function ProductCard({ product, onAdd }: ProductCardProps) {
-  const isUnavailable =
-    product.status === "out_of_stock" ||
-    !product.isAvailable ||
-    (product.isTrackedStock && product.stockQuantity !== null && product.stockQuantity <= 0);
+  const isUnavailable = !product.isAvailable || product.status !== "active";
 
   return (
     <article
@@ -63,11 +60,7 @@ export default function ProductCard({ product, onAdd }: ProductCardProps) {
                 : "bg-orange-50 text-[#f97316]",
             ].join(" ")}
           >
-            {isUnavailable
-              ? "Hết hàng"
-              : product.isTrackedStock
-                ? `Còn ${product.stockQuantity}`
-                : "Đang bán"}
+            {isUnavailable ? "Ngừng bán" : "Đang bán"}
           </span>
         </div>
 

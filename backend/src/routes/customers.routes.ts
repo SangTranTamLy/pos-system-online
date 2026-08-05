@@ -8,7 +8,7 @@ import {
   getCustomerController,
   updateCustomerController,
 } from "../controllers/customers.controller";
-import { authMiddleware } from "../middleware/auth.middleware";
+import { authMiddleware, requireRoles } from "../middleware/auth.middleware";
 import { asyncHandler } from "../utils/asyncHandler";
 
 const customersRouter = Router();
@@ -20,6 +20,10 @@ customersRouter.post("/", asyncHandler(createCustomerController));
 customersRouter.get("/:id/orders", asyncHandler(getCustomerOrdersController));
 customersRouter.get("/:id", asyncHandler(getCustomerController));
 customersRouter.put("/:id", asyncHandler(updateCustomerController));
-customersRouter.delete("/:id", asyncHandler(deleteCustomerController));
+customersRouter.delete(
+  "/:id",
+  requireRoles(["ADMIN", "MANAGER"]),
+  asyncHandler(deleteCustomerController)
+);
 
 export default customersRouter;

@@ -41,6 +41,10 @@ type OrderItemRow = RowDataPacket & {
   quantity: number;
   unit_price: string;
   line_total: string;
+  variant_id: string | null;
+  variant_name: string | null;
+  item_note: string | null;
+  configuration_snapshot: Record<string, unknown> | string | null;
 };
 
 type PaymentRow = RowDataPacket & {
@@ -54,15 +58,11 @@ type PaymentRow = RowDataPacket & {
 type OrderStatusRow = RowDataPacket & {
   id: string;
   status: OrderStatus;
+  customer_id: string | null;
+  shift_id: string | null;
+  final_amount: string;
 };
 
-type CancelOrderItemRow = RowDataPacket & {
-  product_id: string;
-  product_name: string;
-  quantity: number;
-  is_tracked_stock: boolean | number | string;
-  is_stock_returnable: boolean | number | string;
-};
 
 function mapOrderListItem(row: OrderListRow): OrderListItem {
   return {
@@ -99,6 +99,20 @@ function mapOrderItem(row: OrderItemRow): OrderDetailItem {
     quantity: row.quantity,
     unitPrice: Number(row.unit_price),
     lineTotal: Number(row.line_total),
+    variantId: row.variant_id,
+    variantName: row.variant_name,
+    itemNote: row.item_note,
+    configurationSnapshot:
+      typeof row.configuration_snapshot === "string"
+        ? JSON.parse(row.configuration_snapshot)
+        : row.configuration_snapshot,
+    modifierOptions: (() => {
+      const snapshot =
+        typeof row.configuration_snapshot === "string"
+          ? JSON.parse(row.configuration_snapshot)
+          : row.configuration_snapshot;
+      return Array.isArray(snapshot?.modifiers) ? snapshot.modifiers : [];
+    })(),
   };
 }
 
@@ -217,7 +231,7 @@ export async function findOrders(query: OrderListQuery): Promise<OrderListItem[]
       SELECT
         o.id,
         o.customer_id,
-        COALESCE(c.full_name, 'KhÃ¡ch láº»') AS customer_name,
+        COALESCE(c.full_name, 'Khách lẻ') AS customer_name,
         o.created_by,
         u.full_name AS created_by_name,
         o.status,
@@ -289,11 +303,16 @@ export async function findOrderDetailsByOrderId(orderId: string): Promise<OrderD
       od.id,
       od.product_id,
       p.name AS product_name,
+      od.variant_id,
+      pv.name AS variant_name,
       od.quantity,
       od.unit_price,
-      od.line_total
+      od.line_total,
+      od.item_note,
+      od.configuration_snapshot
     FROM order_details od
     JOIN products p ON p.id = od.product_id
+    LEFT JOIN product_variants pv ON pv.id = od.variant_id
     WHERE od.order_id = ?
     ORDER BY p.name ASC
     `,
@@ -325,7 +344,7 @@ export async function findPaymentsByOrderId(orderId: string): Promise<OrderPayme
 async function findOrderStatusForUpdate(connection: PoolConnection, orderId: string) {
   const [rows] = await connection.execute<OrderStatusRow[]>(
     `
-    SELECT id, status
+    SELECT id, status, customer_id, shift_id, final_amount
     FROM orders
     WHERE id = ?
     LIMIT 1
@@ -335,37 +354,6 @@ async function findOrderStatusForUpdate(connection: PoolConnection, orderId: str
   );
 
   return rows[0] ?? null;
-}
-
-async function findOrderItemsForCancel(connection: PoolConnection, orderId: string) {
-  const [rows] = await connection.execute<CancelOrderItemRow[]>(
-    `
-    SELECT
-      od.product_id,
-      p.name AS product_name,
-      od.quantity,
-      COALESCE(p.is_tracked_stock, 0) AS is_tracked_stock,
-      COALESCE(p.is_stock_returnable, 0) AS is_stock_returnable
-    FROM order_details od
-    JOIN products p ON p.id = od.product_id
-    WHERE od.order_id = ?
-    `,
-    [orderId]
-  );
-
-  return rows;
-}
-
-function toBooleanFlag(value: boolean | number | string) {
-  return value === true || value === 1 || value === "1";
-}
-
-function shouldTrackStock(item: CancelOrderItemRow) {
-  return toBooleanFlag(item.is_tracked_stock);
-}
-
-function shouldRestoreStock(item: CancelOrderItemRow) {
-  return shouldTrackStock(item) && toBooleanFlag(item.is_stock_returnable);
 }
 
 export async function cancelOrderById(
@@ -390,84 +378,46 @@ export async function cancelOrderById(
       return null;
     }
 
-    const items = await findOrderItemsForCancel(connection, orderId);
-    const restoredItems: Array<{ productId: string; productName: string; quantity: number }> = [];
-    const wasteItems: Array<{ productId: string; productName: string; quantity: number }> = [];
-
-    for (const item of items) {
-      if (!shouldTrackStock(item) && toBooleanFlag(item.is_stock_returnable)) {
-        continue;
-      }
-
-      if (!shouldRestoreStock(item)) {
-        await connection.execute(
-          `
-          INSERT INTO waste_transactions (
-            id,
-            order_id,
-            product_id,
-            created_by,
-            quantity,
-            reason
-          )
-          VALUES (?, ?, ?, ?, ?, ?)
-          `,
-          [
-            randomUUID(),
-            orderId,
-            item.product_id,
-            cancelledBy,
-            item.quantity,
-            `Hao hụt khi hủy hóa đơn ${orderId}. Lý do: ${cancelReason}`,
-          ]
-        );
-
-        wasteItems.push({
-          productId: item.product_id,
-          productName: item.product_name,
-          quantity: item.quantity,
-        });
-        // Món tự làm/tự pha (không quản lý kho) thì không thực hiện hoàn kho hay ghi nhận hao hụt/waste
-        continue;
-      }
-
-      await connection.execute(
-        `
-        UPDATE products
-        SET
-          stock_quantity = stock_quantity + ?,
-          is_available = 1
-        WHERE id = ?
-        `,
-        [item.quantity, item.product_id]
+    const [materialConsumptions] = await connection.execute<
+      (RowDataPacket & {
+        raw_material_id: string;
+        order_detail_id: string;
+        quantity: string;
+      })[]
+    >(
+      `SELECT rmt.raw_material_id, rmt.order_detail_id,
+              SUM(rmt.quantity) AS quantity
+       FROM raw_material_transactions rmt
+       JOIN order_details od ON od.id = rmt.order_detail_id
+       WHERE od.order_id = ? AND rmt.transaction_type = 'sale_consumption'
+       GROUP BY rmt.raw_material_id, rmt.order_detail_id
+       ORDER BY rmt.raw_material_id`,
+      [orderId]
+    );
+    for (const consumption of materialConsumptions) {
+      const [materials] = await connection.execute<
+        (RowDataPacket & { stock_quantity: string })[]
+      >(
+        "SELECT stock_quantity FROM raw_materials WHERE id = ? FOR UPDATE",
+        [consumption.raw_material_id]
       );
-
+      const balance = Number(materials[0]?.stock_quantity ?? 0);
       await connection.execute(
-        `
-        INSERT INTO stock_transactions (
-          id,
-          product_id,
-          created_by,
-          transaction_type,
-          quantity,
-          note
-        )
-        VALUES (?, ?, ?, 'import', ?, ?)
-        `,
+        `INSERT INTO raw_material_transactions
+          (id, raw_material_id, order_detail_id, created_by, transaction_type,
+           quantity, stock_delta, stock_before, stock_after, note)
+         VALUES (?, ?, ?, ?, 'cancel_waste', ?, 0, ?, ?, ?)`,
         [
           randomUUID(),
-          item.product_id,
+          consumption.raw_material_id,
+          consumption.order_detail_id,
           cancelledBy,
-          item.quantity,
-          `Hoàn kho khi hủy hóa đơn ${orderId}. Lý do: ${cancelReason}`,
+          Number(consumption.quantity),
+          balance,
+          balance,
+          `Hao hụt nguyên liệu khi hủy hóa đơn ${orderId}. Lý do: ${cancelReason}`,
         ]
       );
-
-      restoredItems.push({
-        productId: item.product_id,
-        productName: item.product_name,
-        quantity: item.quantity,
-      });
     }
 
     await connection.execute(
@@ -487,10 +437,62 @@ export async function cancelOrderById(
       `
       UPDATE payments
       SET payment_status = 'refunded'
-      WHERE order_id = ?
+      WHERE order_id = ? AND payment_status = 'paid'
       `,
       [orderId]
     );
+
+    if (order.customer_id) {
+      await connection.execute(
+        `UPDATE customers c
+         SET total_spent = (
+               SELECT COALESCE(SUM(o.final_amount), 0)
+               FROM orders o
+               WHERE o.customer_id = c.id AND o.status = 'completed'
+             ),
+             order_count = (
+               SELECT COUNT(*)
+               FROM orders o
+               WHERE o.customer_id = c.id AND o.status = 'completed'
+             ),
+             last_order_at = (
+               SELECT MAX(o.created_at)
+               FROM orders o
+               WHERE o.customer_id = c.id AND o.status = 'completed'
+             )
+         WHERE c.id = ?`,
+        [order.customer_id]
+      );
+    }
+
+    if (order.shift_id) {
+      await connection.execute(
+        `UPDATE shifts s
+         LEFT JOIN (
+           SELECT
+             o.shift_id,
+             COALESCE(SUM(CASE WHEN p.payment_method = 'cash' THEN p.amount ELSE 0 END), 0) AS cash_total,
+             COALESCE(SUM(CASE WHEN p.payment_method = 'qr' THEN p.amount ELSE 0 END), 0) AS qr_total,
+             COALESCE(SUM(p.amount), 0) AS paid_total
+           FROM orders o
+           JOIN payments p ON p.order_id = o.id
+           WHERE o.shift_id = ?
+             AND o.status = 'completed'
+             AND p.payment_status = 'paid'
+           GROUP BY o.shift_id
+         ) totals ON totals.shift_id = s.id
+         SET s.total_sales_cash = COALESCE(totals.cash_total, 0),
+             s.total_sales_qr = COALESCE(totals.qr_total, 0),
+             s.total_sales = COALESCE(totals.paid_total, 0),
+             s.variance = CASE
+               WHEN s.status = 'CLOSED'
+                 THEN s.actual_closing_cash - s.opening_cash - COALESCE(totals.cash_total, 0)
+               ELSE s.variance
+             END
+         WHERE s.id = ?`,
+        [order.shift_id, order.shift_id]
+      );
+    }
 
     const [userRows] = await connection.execute<RowDataPacket[]>(
       `SELECT u.full_name, r.name AS role_name 
@@ -524,6 +526,29 @@ export async function cancelOrderById(
         userRole,
         `Đơn #${orderId}`,
         `Hủy hóa đơn. Lý do: ${cancelReason}.`
+      ]
+    );
+
+    await connection.execute(
+      `
+      INSERT INTO audit_logs (
+        id,
+        user_id,
+        user_name,
+        role,
+        action_type,
+        target_object,
+        description
+      )
+      VALUES (?, ?, ?, ?, 'HOAN_TIEN', ?, ?)
+      `,
+      [
+        randomUUID(),
+        cancelledBy,
+        userFullName,
+        userRole,
+        `Đơn #${orderId}`,
+        `Hoàn tiền hóa đơn ${Number(order.final_amount).toLocaleString("vi-VN")}đ. Lý do: ${cancelReason}.`
       ]
     );
 

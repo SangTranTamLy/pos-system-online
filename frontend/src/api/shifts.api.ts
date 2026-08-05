@@ -65,7 +65,6 @@ export async function openShiftForEmployee(payload: {
   userId: string;
   expectedStartTime: string;
   expectedEndTime: string;
-  openingCash?: number;
 }): Promise<Shift> {
   const response = await fetch(`${API_BASE_URL}/shifts/open-for-employee`, {
     method: "POST",

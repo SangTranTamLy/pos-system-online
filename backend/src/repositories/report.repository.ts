@@ -12,6 +12,26 @@ import type {
 
 type EmployeeRevenueRow = RowDataPacket & EmployeeRevenueReport;
 
+export type AiMaterialPurchaseSummary = {
+  totalPurchaseCost: number;
+  receiptsCount: number;
+  averageReceiptValue: number;
+  topMaterials: Array<{
+    materialId: string;
+    materialName: string;
+    unit: string;
+    quantity: number;
+    averageUnitPrice: number;
+    totalCost: number;
+  }>;
+  suppliers: Array<{
+    supplierId: string | null;
+    supplierName: string;
+    receiptsCount: number;
+    totalCost: number;
+  }>;
+};
+
 export async function getRevenueAllEmployees(
   startDate?: string,
   endDate?: string
@@ -150,8 +170,6 @@ export async function getAiSoldProducts(startDate: string, endDate: string) {
     SELECT
       p.id,
       p.name,
-      p.stock_quantity AS stockQuantity,
-      p.is_tracked_stock AS isTrackedStock,
       COALESCE(SUM(od.quantity), 0) AS soldQuantity,
       COALESCE(
         SUM(
@@ -169,7 +187,7 @@ export async function getAiSoldProducts(startDate: string, endDate: string) {
     WHERE o.status = 'completed'
       AND DATE(o.created_at) >= ?
       AND DATE(o.created_at) <= ?
-    GROUP BY p.id, p.name, p.stock_quantity, p.is_tracked_stock
+    GROUP BY p.id, p.name
     ORDER BY soldQuantity DESC
     `,
     [startDate, endDate]
@@ -180,8 +198,6 @@ export async function getAiSoldProducts(startDate: string, endDate: string) {
     name: row.name,
     soldQuantity: Number(row.soldQuantity),
     revenue: Number(row.revenue),
-    stockQuantity: row.stockQuantity === null ? null : Number(row.stockQuantity),
-    isTrackedStock: Boolean(row.isTrackedStock),
   }));
 }
 //Sản phẩm bán chậm
@@ -237,8 +253,7 @@ export async function getAiSlowProducts(startDate: string, endDate: string) {
     SELECT
       p.id,
       p.name,
-      COALESCE(sales.soldQuantity, 0) AS soldQuantity,
-      p.stock_quantity AS stockQuantity
+      COALESCE(sales.soldQuantity, 0) AS soldQuantity
     FROM products p
     LEFT JOIN (
       SELECT
@@ -262,7 +277,6 @@ export async function getAiSlowProducts(startDate: string, endDate: string) {
     productId: row.id,
     name: row.name,
     soldQuantity: Number(row.soldQuantity),
-    stockQuantity: row.stockQuantity === null ? null : Number(row.stockQuantity),
   }));
 }
 // Thanh toán theo phương thức
@@ -411,35 +425,6 @@ export async function getFinancialTrend(
 }
 
 // 2. Báo cáo tồn kho: Giá trị kho thành phẩm (Products)
-export async function getProductValuation(): Promise<ProductValuation[]> {
-  const [rows] = await db.execute<RowDataPacket[]>(
-    `
-    SELECT 
-      p.name,
-      p.sku,
-      c.name AS category,
-      'Món' AS unit,
-      p.stock_quantity AS stockQuantity,
-      p.import_price AS importPrice,
-      (p.stock_quantity * p.import_price) AS totalValue
-    FROM products p
-    JOIN categories c ON p.category_id = c.id
-    WHERE p.status = 'active' AND p.is_tracked_stock = 1
-    ORDER BY totalValue DESC
-    `
-  );
-
-  return rows.map((row) => ({
-    name: row.name,
-    sku: row.sku,
-    category: row.category,
-    unit: row.unit,
-    stockQuantity: Number(row.stockQuantity),
-    importPrice: Number(row.importPrice),
-    totalValue: Number(row.totalValue)
-  }));
-}
-
 // 2b. Báo cáo tồn kho: Giá trị kho nguyên liệu (Raw Materials)
 export async function getRawMaterialValuation(): Promise<ProductValuation[]> {
   const [rows] = await db.execute<RowDataPacket[]>(
@@ -469,7 +454,7 @@ export async function getRawMaterialValuation(): Promise<ProductValuation[]> {
   }));
 }
 
-// 2c. Báo cáo tồn kho: Phân bổ giá trị theo danh mục (Nguyên liệu + Sản phẩm)
+// 2c. Báo cáo tồn kho: Phân bổ giá trị theo nhóm nguyên liệu
 export async function getInventoryValuationByCategory(): Promise<CategoryValuation[]> {
   const [rows] = await db.execute<RowDataPacket[]>(
     `
@@ -477,13 +462,6 @@ export async function getInventoryValuationByCategory(): Promise<CategoryValuati
       categoryName,
       SUM(totalValue) as totalValue
     FROM (
-      SELECT c.name as categoryName, (p.stock_quantity * p.import_price) as totalValue
-      FROM products p
-      JOIN categories c ON p.category_id = c.id
-      WHERE p.status = 'active' AND p.is_tracked_stock = 1
-      
-      UNION ALL
-      
       SELECT COALESCE(category, 'Nguyên liệu') as categoryName, (stock_quantity * import_price) as totalValue
       FROM raw_materials
       WHERE is_active = TRUE
@@ -617,4 +595,92 @@ export async function getCustomerRetention(
       lastOrderAt: row.lastOrderAt ? new Date(row.lastOrderAt).toISOString() : null
     };
   });
+}
+
+export async function getAiMaterialPurchaseSummary(
+  startDate: string,
+  endDate: string
+): Promise<AiMaterialPurchaseSummary> {
+  const [summaryRows, materialRows, supplierRows] = await Promise.all([
+    db.execute<RowDataPacket[]>(
+      `
+      SELECT
+        COUNT(DISTINCT gr.id) AS receiptsCount,
+        COALESCE(SUM(grmd.line_total), 0) AS totalPurchaseCost
+      FROM goods_receipts gr
+      JOIN goods_receipt_material_details grmd ON grmd.receipt_id = gr.id
+      WHERE DATE(gr.created_at) BETWEEN ? AND ?
+        AND grmd.quantity > 0
+        AND grmd.unit_price > 0
+      `,
+      [startDate, endDate]
+    ),
+    db.execute<RowDataPacket[]>(
+      `
+      SELECT
+        rm.id AS materialId,
+        rm.name AS materialName,
+        grmd.purchase_unit AS unit,
+        COALESCE(SUM(grmd.quantity), 0) AS quantity,
+        CASE
+          WHEN SUM(grmd.quantity) > 0 THEN SUM(grmd.line_total) / SUM(grmd.quantity)
+          ELSE 0
+        END AS averageUnitPrice,
+        COALESCE(SUM(grmd.line_total), 0) AS totalCost
+      FROM goods_receipt_material_details grmd
+      JOIN goods_receipts gr ON gr.id = grmd.receipt_id
+      JOIN raw_materials rm ON rm.id = grmd.material_id
+      WHERE DATE(gr.created_at) BETWEEN ? AND ?
+        AND grmd.quantity > 0
+        AND grmd.unit_price > 0
+      GROUP BY rm.id, rm.name, grmd.purchase_unit
+      ORDER BY totalCost DESC
+      LIMIT 10
+      `,
+      [startDate, endDate]
+    ),
+    db.execute<RowDataPacket[]>(
+      `
+      SELECT
+        s.id AS supplierId,
+        COALESCE(s.name, 'Không xác định') AS supplierName,
+        COUNT(DISTINCT gr.id) AS receiptsCount,
+        COALESCE(SUM(grmd.line_total), 0) AS totalCost
+      FROM goods_receipts gr
+      JOIN goods_receipt_material_details grmd ON grmd.receipt_id = gr.id
+      LEFT JOIN suppliers s ON s.id = gr.supplier_id
+      WHERE DATE(gr.created_at) BETWEEN ? AND ?
+        AND grmd.quantity > 0
+        AND grmd.unit_price > 0
+      GROUP BY s.id, s.name
+      ORDER BY totalCost DESC
+      LIMIT 10
+      `,
+      [startDate, endDate]
+    ),
+  ]);
+
+  const summary = summaryRows[0][0] || {};
+  const receiptsCount = Number(summary.receiptsCount || 0);
+  const totalPurchaseCost = Number(summary.totalPurchaseCost || 0);
+
+  return {
+    totalPurchaseCost,
+    receiptsCount,
+    averageReceiptValue: receiptsCount > 0 ? totalPurchaseCost / receiptsCount : 0,
+    topMaterials: materialRows[0].map((row) => ({
+      materialId: String(row.materialId),
+      materialName: String(row.materialName),
+      unit: String(row.unit),
+      quantity: Number(row.quantity),
+      averageUnitPrice: Number(row.averageUnitPrice),
+      totalCost: Number(row.totalCost),
+    })),
+    suppliers: supplierRows[0].map((row) => ({
+      supplierId: row.supplierId ? String(row.supplierId) : null,
+      supplierName: String(row.supplierName),
+      receiptsCount: Number(row.receiptsCount),
+      totalCost: Number(row.totalCost),
+    })),
+  };
 }
