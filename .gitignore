@@ -3,6 +3,7 @@ backend/database/
 frontend/node_modules/
 backend/dist/
 backend/uploads/
+backend/database/
 frontend/dist/
 backend/.env
 backend/.env.*
