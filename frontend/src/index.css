@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800;900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700;800;900&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap");
 @import "tailwindcss";
 
@@ -85,7 +85,7 @@ body,
 
 body {
   background: #f8f9ff;
-  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 h1,
@@ -94,7 +94,23 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: "Outfit", "Inter", system-ui, sans-serif;
+  font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* Use one consistent typeface across every screen, including components that
+   still carry legacy Tailwind font utility classes. Material Symbols keeps its
+   own font so icon glyphs remain intact. */
+:root {
+  font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body,
+body *:not(.material-symbols-outlined) {
+  font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+}
+
+.material-symbols-outlined {
+  font-family: "Material Symbols Outlined" !important;
 }
 
 img,
@@ -147,4 +163,19 @@ video {
     size: A4 portrait;
     margin: 10mm;
   }
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes slideInTop {
+  from { transform: translateY(-100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.toast-animate-right {
+  animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.toast-animate-center {
+  animation: slideInTop 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

@@ -11,6 +11,7 @@ import {
   type User,
   type Role,
 } from "../../api/users.api";
+import Pagination from "../../components/common/Pagination";
 
 export default function EmployeePage() {
   const [users, setUsers] = useState<User[]>([]);
@@ -20,6 +21,8 @@ export default function EmployeePage() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -42,6 +45,7 @@ export default function EmployeePage() {
       const [usersData, rolesData] = await Promise.all([fetchUsers(), fetchRoles()]);
       setUsers(usersData);
       setRoles(rolesData);
+      setPage(1);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Không thể tải dữ liệu");
     } finally {
@@ -159,23 +163,32 @@ export default function EmployeePage() {
     }
   };
 
+  const totalPages = Math.max(1, Math.ceil(users.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedUsers = users.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
   return (
     <AdminLayout title="Quản lý nhân viên" subtitle="Thêm, sửa và phân quyền tài khoản">
       <div className="p-2 sm:p-4">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-xl font-bold text-gray-800 hidden sm:block">Danh sách nhân viên</h1>
-          <button
-            onClick={() => handleOpenModal()}
-            className="bg-[#f97316] hover:bg-orange-600 text-white px-4 py-2 rounded-lg shadow transition-colors text-sm font-semibold ml-auto"
-          >
-            + Thêm nhân viên
-          </button>
-        </div>
+
 
         {loading ? (
           <div className="text-center py-10">Đang tải...</div>
         ) : (
           <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-200 p-4">
+              <h2 className="text-lg font-bold text-gray-800">Danh sách nhân viên</h2>
+              <button
+                onClick={() => handleOpenModal()}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#f97316] px-4 text-sm font-bold text-white shadow transition-colors hover:bg-orange-600"
+              >
+                <Icon name="add" className="text-[20px]" />
+                Thêm nhân viên
+              </button>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse min-w-160">
                 <thead>
@@ -189,7 +202,7 @@ export default function EmployeePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
-                  {users.map((user) => (
+                  {paginatedUsers.map((user) => (
                     <tr key={user.id} className="hover:bg-slate-50 transition-colors">
                       <td className="p-4 font-bold text-[#0b1c30]">{user.fullName}</td>
                       <td className="px-6 py-4">
@@ -252,7 +265,7 @@ export default function EmployeePage() {
                       </td>
                     </tr>
                   ))}
-                  {users.length === 0 && (
+                  {paginatedUsers.length === 0 && (
                     <tr>
                       <td colSpan={6} className="p-8 text-center text-slate-500">
                         Chưa có nhân viên nào.
@@ -262,6 +275,15 @@ export default function EmployeePage() {
                 </tbody>
               </table>
             </div>
+
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            totalItems={users.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            itemName="nhân viên"
+          />
           </div>
         )}
 

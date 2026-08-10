@@ -1,4 +1,5 @@
 import { apiRequest } from "./api-client";
+import { API_BASE_URL } from "./api-base";
 
 export type PosPaymentMethod = "cash" | "qr";
 
@@ -18,6 +19,34 @@ export type CreatePosOrderPayload = {
   changeAmount?: number;
   shiftId?: string | null;
   discountAmount?: number;
+};
+
+export type PosOrderSyncStatus =
+  | "SYNCED"
+  | "ALREADY_SYNCED"
+  | "REJECTED"
+  | "CONFLICT_STOCK";
+
+export type SyncPosOrderPayload = Omit<
+  CreatePosOrderPayload,
+  "items" | "paymentMethod"
+> & {
+  operationId: string;
+  terminalId: string;
+  localOrderId: string;
+  clientCreatedAt: string;
+  paymentMethod: "cash";
+  totalAmount: number;
+  discountAmount: number;
+  finalAmount: number;
+  items: Array<{
+    productId: string;
+    variantId?: string | null;
+    modifierOptionIds?: string[];
+    quantity: number;
+    unitPrice: number;
+    note?: string | null;
+  }>;
 };
 
 export type CreateCartCancellationPayload = {
@@ -75,8 +104,41 @@ export type PosOrderResult = {
   appliedPromotion: PosAppliedPromotion | null;
   details: PosOrderDetail[];
   payment: PosPayment;
-  alerts?: { name: string; stockQuantity: number; minStock: number }[];
+  syncStatus?: "PENDING" | PosOrderSyncStatus;
+  localOrderId?: string;
+  operationId?: string;
+  createdAt?: string;
 };
+
+export type PosOrderSyncResponse = {
+  status: PosOrderSyncStatus;
+  operationId: string;
+  localOrderId: string;
+  order: PosOrderResult;
+};
+
+export class PosSyncRequestError extends Error {
+  statusCode: number | null;
+  syncStatus: PosOrderSyncStatus | null;
+  isRetryable: boolean;
+
+  constructor(
+    message: string,
+    statusCode: number | null,
+    syncStatus: PosOrderSyncStatus | null
+  ) {
+    super(message);
+    this.name = "PosSyncRequestError";
+    this.statusCode = statusCode;
+    this.syncStatus = syncStatus;
+    this.isRetryable =
+      statusCode == null ||
+      statusCode === 401 ||
+      statusCode === 408 ||
+      statusCode === 429 ||
+      statusCode >= 500;
+  }
+}
 
 export type ValidatePromotionItem = {
   productId: string;
@@ -107,6 +169,55 @@ export function createPosOrder(payload: CreatePosOrderPayload) {
     url: "/pos/orders",
     data: payload,
   });
+}
+
+export async function syncPosOrder(payload: SyncPosOrderPayload) {
+  const token =
+    localStorage.getItem("accessToken") || localStorage.getItem("auth_token");
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/pos/orders/sync`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(payload),
+    });
+    const body = (await response.json().catch(() => null)) as
+      | {
+          success?: boolean;
+          message?: string;
+          data?: PosOrderSyncResponse | { status?: PosOrderSyncStatus };
+        }
+      | null;
+
+    if (!response.ok) {
+      const status = body?.data?.status ?? null;
+      throw new PosSyncRequestError(
+        body?.message || "Đơn offline chưa đồng bộ được.",
+        response.status,
+        status
+      );
+    }
+
+    if (!body?.data || !("order" in body.data)) {
+      throw new PosSyncRequestError(
+        "Phản hồi đồng bộ đơn hàng không hợp lệ.",
+        response.status,
+        null
+      );
+    }
+
+    return body.data;
+  } catch (error) {
+    if (error instanceof PosSyncRequestError) throw error;
+    throw new PosSyncRequestError(
+      error instanceof Error ? error.message : "Không kết nối được API đồng bộ.",
+      null,
+      null
+    );
+  }
 }
 
 export function createCartCancellation(payload: CreateCartCancellationPayload) {

@@ -807,11 +807,10 @@ function SettingsOfficialPage() {
                   checked={formData.inventory_allow_expiry === "true"}
                   onChange={(val) => handleChange("inventory_allow_expiry", val ? "true" : "false")}
                 />
-                <SettingsCheckbox
-                  label="Tự động trừ kho khi bán"
-                  checked={formData.inventory_auto_deduct === "true"}
-                  onChange={(val) => handleChange("inventory_auto_deduct", val ? "true" : "false")}
-                />
+                <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs font-semibold leading-5 text-slate-500">
+                  Bán món không tự động trừ tồn nguyên liệu. Tồn kho chỉ thay đổi qua nhập kho,
+                  kiểm kê hoặc điều chỉnh kho hợp lệ.
+                </p>
               </div>
 
               <div className="mt-auto flex justify-end pt-4">

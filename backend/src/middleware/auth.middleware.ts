@@ -87,7 +87,7 @@ export function requireRoles(allowedRoles: string[]) {
     const normalizedAllowedRoles = allowedRoles.map((role) => role.trim().toUpperCase());
 
     if (!normalizedAllowedRoles.includes(userRole)) {
-      throw new ApiError(403, "Bạn không có quyền thực hiện thao tác này");
+      throw new ApiError(403, "Hãy yêu cầu quản lý mở ca");
     }
 
     next();

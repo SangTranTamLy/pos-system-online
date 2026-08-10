@@ -10,6 +10,7 @@ import {
 } from "../../api/category.api";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 import { useAppNotifications } from "../../components/common/AppNotificationsContext";
+import Pagination from "../../components/common/Pagination";
 
 type ProductFilter = "all" | "has_products" | "empty";
 
@@ -286,56 +287,54 @@ function CategoryPage() {
 
 
         <section className="border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 p-4">
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-              <div className="relative min-w-0 flex-1">
-                <Icon
-                  name="search"
-                  className="absolute left-3 top-1/2 text-[20px] text-slate-400 -translate-y-1/2"
-                />
-                <input
-                  type="search"
-                  value={search}
-                  onChange={(event) => {
-                    setSearch(event.target.value);
-                    setPage(1);
-                  }}
-                  placeholder="Tìm tên danh mục hoặc mô tả..."
-                  className="h-11 w-full border border-slate-200 bg-white pl-10 pr-4 text-sm font-medium text-[#0b1c30] outline-none transition focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
-                />
-              </div>
-
-              <select
-                value={productFilter}
+          <div className="grid gap-3 border-b border-slate-200 p-4 xl:grid-cols-[minmax(260px,1fr)_220px_auto_auto] xl:items-center">
+            <div className="relative min-w-0">
+              <Icon
+                name="search"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-[20px] text-slate-400"
+              />
+              <input
+                type="search"
+                value={search}
                 onChange={(event) => {
-                  setProductFilter(event.target.value as ProductFilter);
+                  setSearch(event.target.value);
                   setPage(1);
                 }}
-                className="h-11 border border-slate-200 bg-white px-3 text-sm font-semibold text-[#0b1c30] outline-none transition focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
-              >
-                <option value="all">Tất cả trạng thái sử dụng</option>
-                <option value="has_products">Đã có sản phẩm</option>
-                <option value="empty">Chưa có sản phẩm</option>
-              </select>
-
-              <button
-                type="button"
-                onClick={resetFilters}
-                className="inline-flex h-11 items-center justify-center gap-2 border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
-              >
-                <Icon name="filter_alt_off" className="text-[20px]" />
-                Xóa lọc
-              </button>
-
-              <button
-                type="button"
-                onClick={openCreateModal}
-                className="inline-flex h-11 items-center justify-center gap-2 bg-[#f97316] px-5 text-sm font-bold text-white transition hover:bg-[#ea580c]"
-              >
-                <Icon name="add" className="text-[20px]" />
-                Thêm danh mục
-              </button>
+                placeholder="Tìm tên danh mục hoặc mô tả..."
+                className="h-11 w-full border border-slate-200 bg-white pl-10 pr-4 text-sm font-semibold text-[#0b1c30] outline-none transition focus:border-[#f97316]"
+              />
             </div>
+
+            <select
+              value={productFilter}
+              onChange={(event) => {
+                setProductFilter(event.target.value as ProductFilter);
+                setPage(1);
+              }}
+              className="h-11 w-full border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-[#f97316]"
+            >
+              <option value="all">Tất cả trạng thái sử dụng</option>
+              <option value="has_products">Đã có sản phẩm</option>
+              <option value="empty">Chưa có sản phẩm</option>
+            </select>
+
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="inline-flex h-11 items-center justify-center gap-2 border border-slate-200 bg-white px-4 text-sm font-black text-slate-600 transition hover:bg-slate-50"
+            >
+              <Icon name="filter_alt_off" className="text-[20px]" />
+              Xóa lọc
+            </button>
+
+            <button
+              type="button"
+              onClick={openCreateModal}
+              className="inline-flex h-11 items-center justify-center gap-2 bg-[#f97316] px-4 text-sm font-black text-white transition hover:bg-[#ea580c]"
+            >
+              <Icon name="add" className="text-[20px]" />
+              Thêm danh mục
+            </button>
           </div>
 
           <div className="overflow-x-auto">
@@ -443,37 +442,14 @@ function CategoryPage() {
             </table>
           </div>
 
-          <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm font-semibold text-slate-500">
-              Hiển thị{" "}
-              <span className="text-[#0b1c30]">{paginatedCategories.length}</span>{" "}
-              trên <span className="text-[#0b1c30]">{filteredCategories.length}</span>{" "}
-              danh mục
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setPage((current) => Math.max(1, current - 1))}
-                disabled={page === 1}
-                className="inline-flex h-9 w-9 items-center justify-center border border-slate-200 text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                aria-label="Trang trước"
-              >
-                <Icon name="chevron_left" />
-              </button>
-              <span className="px-2 text-sm font-bold text-[#0b1c30]">
-                {page}/{totalPages}
-              </span>
-              <button
-                type="button"
-                onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-                disabled={page === totalPages}
-                className="inline-flex h-9 w-9 items-center justify-center border border-slate-200 text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                aria-label="Trang sau"
-              >
-                <Icon name="chevron_right" />
-              </button>
-            </div>
-          </div>
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            totalItems={filteredCategories.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            itemName="danh mục"
+          />
         </section>
       </div>
 

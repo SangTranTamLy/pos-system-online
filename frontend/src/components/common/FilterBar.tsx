@@ -7,6 +7,7 @@ interface FilterBarProps {
   searchPlaceholder?: string;
   children?: ReactNode;
   onClear?: () => void;
+  afterClear?: ReactNode;
   onSubmit?: (event: FormEvent) => void;
   className?: string;
 }
@@ -17,6 +18,7 @@ export function FilterBar({
   searchPlaceholder = "Tìm kiếm...",
   children,
   onClear,
+  afterClear,
   onSubmit,
   className,
 }: FilterBarProps) {
@@ -55,6 +57,8 @@ export function FilterBar({
           Xóa lọc
         </button>
       ) : null}
+
+      {afterClear}
     </>
   );
 

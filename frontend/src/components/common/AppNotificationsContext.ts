@@ -1,6 +1,15 @@
 import { createContext, useContext } from "react";
 
 export type NoticeType = "success" | "error" | "warning" | "info";
+export type NoticePlacement = "top-right" | "center";
+export type NoticeVariant = "default" | "network";
+
+export type NoticeOptions = {
+  placement?: NoticePlacement;
+  durationMs?: number;
+  variant?: NoticeVariant;
+  icon?: string;
+};
 
 export type ConfirmOptions = {
   title?: string;
@@ -11,7 +20,12 @@ export type ConfirmOptions = {
 };
 
 export type NotifyContextValue = {
-  notify: (message: string, type?: NoticeType, title?: string) => void;
+  notify: (
+    message: string,
+    type?: NoticeType,
+    title?: string,
+    options?: NoticeOptions
+  ) => void;
   confirm: (options: ConfirmOptions) => Promise<boolean>;
 };
 
@@ -20,6 +34,9 @@ export type Toast = {
   message: string;
   title: string;
   type: NoticeType;
+  placement: NoticePlacement;
+  variant: NoticeVariant;
+  icon?: string;
 };
 
 export type ConfirmState = ConfirmOptions & {

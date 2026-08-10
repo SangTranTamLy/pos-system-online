@@ -174,12 +174,21 @@ function AiBusinessReport({
   data,
   loading,
   onRefresh,
+  financialTrend,
 }: {
   data: AiReportInsightResponse | null;
   loading: boolean;
   onRefresh: () => void;
+  financialTrend: FinancialReport["trend"];
 }) {
-  return <AiPaperBusinessReport data={data} loading={loading} onRefresh={onRefresh} />;
+  return (
+    <AiPaperBusinessReport
+      data={data}
+      loading={loading}
+      onRefresh={onRefresh}
+      financialTrend={financialTrend}
+    />
+  );
 }
 
 const AI_REPORT_EMPTY_TEXT = "Chưa đủ dữ liệu để phân tích.";
@@ -409,9 +418,7 @@ function AiPaperReportHeader({
               <span className="rounded-full border border-slate-200 px-3 py-1 text-slate-600">
                 Trạng thái: {status}
               </span>
-              <span className="rounded-full border border-slate-200 px-3 py-1 text-slate-600">
-                Độ đầy đủ dữ liệu: {score}/100
-              </span>
+
               {evaluationAccepted ? (
                 <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-700">
                   Đã kiểm tra dựa trên dữ liệu hệ thống
@@ -431,7 +438,7 @@ function AiPaperReportHeader({
           disabled={loading}
           className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 text-sm font-extrabold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <Icon name={loading ? "sync" : "refresh"} className={`text-[18px] ${loading ? "animate-spin" : ""}`} />
+          <Icon name={loading ? "sync" : "insights"} className={`text-[18px] ${loading ? "animate-spin" : ""}`} />
           {loading ? "Đang phân tích..." : "Phân tích"}
         </button>
       </div>
@@ -646,7 +653,10 @@ function truncateChartLabel(value: unknown, maxLength = 14) {
   return `${text.slice(0, maxLength - 1)}…`;
 }
 
-function buildAiDailyRevenueData(response: AiReportInsightResponse | null) {
+function buildAiDailyRevenueData(
+  response: AiReportInsightResponse | null,
+  financialTrend: FinancialReport["trend"] = []
+) {
   const context = (response?.context || {}) as {
     trend?: Array<Record<string, unknown>>;
     financial?: { trend?: Array<Record<string, unknown>> };
@@ -665,6 +675,15 @@ function buildAiDailyRevenueData(response: AiReportInsightResponse | null) {
     .filter((item) => item.label && item.value > 0);
 
   if (contextData.length) return contextData;
+
+  const financialData = financialTrend
+    .map((item) => ({
+      label: String(item.label || ""),
+      value: parseAiPaperNumber(item.revenue),
+    }))
+    .filter((item) => item.label && item.value > 0);
+
+  if (financialData.length) return financialData;
 
   const ai = getAiPaperData(response);
   const dailyChart = ai.chart_suggestions.find((chart) => {
@@ -743,8 +762,14 @@ function AiPaperTopProductRevenueChart({
   );
 }
 
-function AiPaperDailyRevenueChart({ response }: { response: AiReportInsightResponse | null }) {
-  const chartData = buildAiDailyRevenueData(response).slice(-7);
+function AiPaperDailyRevenueChart({
+  response,
+  financialTrend,
+}: {
+  response: AiReportInsightResponse | null;
+  financialTrend?: FinancialReport["trend"];
+}) {
+  const chartData = buildAiDailyRevenueData(response, financialTrend).slice(-7);
 
   return (
     <article className="border border-slate-200 bg-white">
@@ -1164,7 +1189,13 @@ function AiPaperMaterialPurchaseDonutFromTable({
   );
 }
 
-function AiPaperDataTablesSection({ response }: { response: AiReportInsightResponse | null }) {
+function AiPaperDataTablesSection({
+  response,
+  financialTrend,
+}: {
+  response: AiReportInsightResponse | null;
+  financialTrend: FinancialReport["trend"];
+}) {
   const ai = getAiPaperData(response);
   const aiCharts = ai.chart_suggestions
     .filter((chart) => buildAiPaperChartData(chart).some((item) => item.value > 0))
@@ -1195,7 +1226,7 @@ function AiPaperDataTablesSection({ response }: { response: AiReportInsightRespo
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
             <AiPaperCategoryDonutFromTable table={categoriesTable} />
-            <AiPaperDailyRevenueChart response={response} />
+            <AiPaperDailyRevenueChart response={response} financialTrend={financialTrend} />
             <AiPaperMaterialPurchaseDonutFromTable table={materialPurchaseTable} />
           </div>
 
@@ -1319,10 +1350,12 @@ function AiPaperBusinessReport({
   data,
   loading,
   onRefresh,
+  financialTrend,
 }: {
   data: AiReportInsightResponse | null;
   loading: boolean;
   onRefresh: () => void;
+  financialTrend: FinancialReport["trend"];
 }) {
   if (loading) {
     return (
@@ -1367,7 +1400,7 @@ function AiPaperBusinessReport({
             onClick={onRefresh}
             className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md bg-slate-950 px-4 text-sm font-extrabold text-white transition hover:bg-slate-800"
           >
-            <Icon name="refresh" className="text-[18px]" />
+            <Icon name="insights" className="text-[18px]" />
             Phân tích
           </button>
         </div>
@@ -1380,7 +1413,7 @@ function AiPaperBusinessReport({
       <AiPaperReportHeader response={data} loading={loading} onRefresh={onRefresh} />
       <div className="divide-y divide-slate-200">
         <AiPaperExecutiveSummary response={data} />
-        <AiPaperDataTablesSection response={data} />
+        <AiPaperDataTablesSection response={data} financialTrend={financialTrend} />
         <AiPaperDeepAnalysisSection response={data} />
         <AiPaperWarningSection response={data} />
       </div>
@@ -1588,6 +1621,7 @@ export default function ReportsPage() {
               data={aiInsights}
               loading={aiLoading}
               onRefresh={() => void analyzeWithAi()}
+              financialTrend={financialData?.trend ?? []}
             />
           </>
         )}

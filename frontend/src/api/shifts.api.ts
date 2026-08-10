@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://localhost:5000/api";
+import { API_BASE_URL } from "./api-base";
 
 export type ShiftStatus = 'PENDING' | 'APPROVED' | 'OPENING_REQUEST' | 'OPEN' | 'CLOSING_REQUEST' | 'CLOSED' | 'CANCELLED';
 

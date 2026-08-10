@@ -1,11 +1,16 @@
 import { randomUUID } from "crypto";
-import type { PoolConnection, RowDataPacket } from "mysql2/promise";
+import type {
+  PoolConnection,
+  ResultSetHeader,
+  RowDataPacket,
+} from "mysql2/promise";
 import { db } from "../config/database";
 import type {
   NormalizedPosOrderItem,
   PosOrderDetail,
   PosOrderResult,
   PosPaymentMethod,
+  PosSyncMetadata,
 } from "../types/pos.types";
 import { ApiError } from "../utils/apiError";
 import {
@@ -52,28 +57,26 @@ type ModifierRow = RowDataPacket & {
   price_delta: string;
   is_active: number;
 };
-type RecipeRow = RowDataPacket & {
-  raw_material_id: string;
-  raw_material_name: string;
-  unit: string;
-  quantity: string;
-};
-type MaterialRow = RowDataPacket & {
+type OpenShiftRow = RowDataPacket & {
   id: string;
-  name: string;
-  unit: string;
-  stock_quantity: string;
-  min_stock: string;
-  is_active: number;
+  status: string;
+  user_id: string;
+  opening_cash: string;
 };
-type OpenShiftRow = RowDataPacket & { id: string; status: string; user_id: string };
+type SyncOperationRow = RowDataPacket & {
+  operation_id: string;
+  terminal_id: string;
+  local_order_id: string;
+  server_order_id: string | null;
+  status: "PROCESSING" | "SYNCED" | "REJECTED" | "CONFLICT_STOCK";
+  response_payload: unknown;
+};
 
 type PreparedLine = {
   input: NormalizedPosOrderItem;
   product: ProductRow;
   variant: VariantRow;
   modifiers: ModifierRow[];
-  recipe: Array<RecipeRow & { factor: number }>;
   comboComponents: ComboComponentRow[];
 };
 
@@ -87,7 +90,55 @@ type CreatePosOrderTransactionData = {
   changeAmount?: number;
   discountAmount?: number;
   shiftId: string | null;
+  sync: PosSyncMetadata | null;
 };
+
+function isSameMoney(left: number, right: number) {
+  return Math.abs(left - right) <= 0.01;
+}
+
+function parseJsonPayload(value: unknown): Record<string, unknown> | null {
+  if (value && typeof value === "object") {
+    return value as Record<string, unknown>;
+  }
+  if (typeof value !== "string") return null;
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return parsed && typeof parsed === "object"
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function getSyncFailureStatus(error: ApiError) {
+  const normalized = error.message.toLocaleLowerCase("vi-VN");
+  return normalized.includes("tồn kho") || normalized.includes("stock")
+    ? "CONFLICT_STOCK"
+    : "REJECTED";
+}
+
+async function persistRejectedSyncOperation(
+  sync: PosSyncMetadata,
+  error: ApiError
+) {
+  const status = getSyncFailureStatus(error);
+  await db.execute(
+    `INSERT IGNORE INTO pos_sync_operations
+      (operation_id, terminal_id, local_order_id, server_order_id, status,
+       response_payload)
+     VALUES (?, ?, ?, NULL, ?, ?)`,
+    [
+      sync.operationId,
+      sync.terminalId,
+      sync.localOrderId,
+      status,
+      JSON.stringify({ status, message: error.message }),
+    ]
+  );
+}
 
 async function loadProduct(connection: PoolConnection, productId: string) {
   const [rows] = await connection.execute<ProductRow[]>(
@@ -151,17 +202,6 @@ async function loadComboComponents(connection: PoolConnection, comboProductId: s
   }));
 }
 
-async function loadVariantRecipe(connection: PoolConnection, variantId: string) {
-  const [rows] = await connection.execute<RecipeRow[]>(
-    `SELECT vri.raw_material_id, rm.name AS raw_material_name, rm.unit, vri.quantity
-     FROM variant_recipe_items vri
-     JOIN raw_materials rm ON rm.id = vri.raw_material_id
-     WHERE vri.variant_id = ?`,
-    [variantId]
-  );
-  return rows;
-}
-
 async function loadModifiers(
   connection: PoolConnection,
   productId: string,
@@ -185,17 +225,6 @@ async function loadModifiers(
   return rows;
 }
 
-async function loadModifierRecipe(connection: PoolConnection, modifierId: string) {
-  const [rows] = await connection.execute<RecipeRow[]>(
-    `SELECT mri.raw_material_id, rm.name AS raw_material_name, rm.unit, mri.quantity
-     FROM modifier_recipe_items mri
-     JOIN raw_materials rm ON rm.id = mri.raw_material_id
-     WHERE mri.modifier_option_id = ?`,
-    [modifierId]
-  );
-  return rows;
-}
-
 async function prepareLine(
   connection: PoolConnection,
   input: NormalizedPosOrderItem
@@ -211,7 +240,6 @@ async function prepareLine(
     product.id,
     input.modifierOptionIds
   );
-  const recipe: Array<RecipeRow & { factor: number }> = [];
   let comboComponents: ComboComponentRow[] = [];
   if (product.product_type === "combo") {
     if (!variant.is_default) {
@@ -228,22 +256,10 @@ async function prepareLine(
       if (!component.product.is_available || component.product.status !== "active" || !component.variant.is_active) {
         throw new ApiError(409, `Món thành phần của combo "${product.name}" hiện không bán.`);
       }
-      const componentRecipe = await loadVariantRecipe(connection, component.variant.id);
-      recipe.push(...componentRecipe.map((item) => ({
-        ...item,
-        factor: input.quantity * component.quantity,
-      })));
     }
-  } else {
-    const variantRecipe = await loadVariantRecipe(connection, variant.id);
-    recipe.push(...variantRecipe.map((item) => ({ ...item, factor: input.quantity })));
   }
 
-  for (const modifier of modifiers) {
-    const modifierRecipe = await loadModifierRecipe(connection, modifier.id);
-    recipe.push(...modifierRecipe.map((item) => ({ ...item, factor: input.quantity })));
-  }
-  return { input, product, variant, modifiers, recipe, comboComponents };
+  return { input, product, variant, modifiers, comboComponents };
 }
 
 async function lockOpenShift(
@@ -252,7 +268,8 @@ async function lockOpenShift(
   employeeId: string
 ) {
   const [rows] = await connection.execute<OpenShiftRow[]>(
-    "SELECT id, status, user_id FROM shifts WHERE id = ? LIMIT 1 FOR UPDATE",
+    `SELECT id, status, user_id, opening_cash
+     FROM shifts WHERE id = ? LIMIT 1 FOR UPDATE`,
     [shiftId]
   );
   const shift = rows[0];
@@ -262,14 +279,88 @@ async function lockOpenShift(
   if (shift.user_id !== employeeId) {
     throw new ApiError(403, "Ca làm không thuộc nhân viên đang bán hàng.");
   }
+  if (Number(shift.opening_cash || 0) <= 0) {
+    throw new ApiError(409, "Ca làm chưa có tiền đầu ca.");
+  }
 }
 
 export async function createPosOrderTransaction(
   data: CreatePosOrderTransactionData
 ): Promise<PosOrderResult> {
   const connection = await db.getConnection();
+  let ownsSyncOperation = false;
   try {
     await connection.beginTransaction();
+
+    if (data.sync) {
+      const [insertResult] = await connection.execute<ResultSetHeader>(
+        `INSERT IGNORE INTO pos_sync_operations
+          (operation_id, terminal_id, local_order_id, status)
+         VALUES (?, ?, ?, 'PROCESSING')`,
+        [
+          data.sync.operationId,
+          data.sync.terminalId,
+          data.sync.localOrderId,
+        ]
+      );
+      ownsSyncOperation = insertResult.affectedRows === 1;
+
+      const [operationRows] = await connection.execute<SyncOperationRow[]>(
+        `SELECT operation_id, terminal_id, local_order_id, server_order_id,
+                status, response_payload
+         FROM pos_sync_operations
+         WHERE operation_id = ?
+         LIMIT 1 FOR UPDATE`,
+        [data.sync.operationId]
+      );
+      const operation = operationRows[0];
+
+      if (!operation) {
+        throw new ApiError(
+          409,
+          "localOrderId đã được ghi nhận với một operationId khác."
+        );
+      }
+      if (
+        operation.terminal_id !== data.sync.terminalId ||
+        operation.local_order_id !== data.sync.localOrderId
+      ) {
+        throw new ApiError(
+          409,
+          "operationId đã được dùng cho một đơn hoặc terminal khác."
+        );
+      }
+
+      if (!ownsSyncOperation) {
+        const payload = parseJsonPayload(operation.response_payload);
+        if (operation.status === "SYNCED") {
+          const storedOrder = payload?.order ?? payload;
+          if (!storedOrder || typeof storedOrder !== "object") {
+            throw new ApiError(500, "Kết quả đồng bộ cũ không đọc được.");
+          }
+          await connection.commit();
+          return {
+            ...(storedOrder as PosOrderResult),
+            syncStatus: "ALREADY_SYNCED",
+            operationId: data.sync.operationId,
+            localOrderId: data.sync.localOrderId,
+          };
+        }
+        if (
+          operation.status === "REJECTED" ||
+          operation.status === "CONFLICT_STOCK"
+        ) {
+          throw new ApiError(
+            409,
+            typeof payload?.message === "string"
+              ? payload.message
+              : "Đơn offline đã bị từ chối trước đó."
+          );
+        }
+        throw new ApiError(409, "Đơn offline đang được một tiến trình khác xử lý.");
+      }
+    }
+
     if (data.shiftId) await lockOpenShift(connection, data.shiftId, data.createdBy);
 
     const customer = data.customerId
@@ -279,7 +370,7 @@ export async function createPosOrderTransaction(
       throw new ApiError(404, "Không tìm thấy khách hàng.");
     }
 
-    const prepared = [];
+    const prepared: PreparedLine[] = [];
     for (const item of data.items) prepared.push(await prepareLine(connection, item));
 
     const productIds = Array.from(
@@ -335,52 +426,21 @@ export async function createPosOrderTransaction(
       );
     }
 
-    const materialNeeds = new Map<
-      string,
-      { name: string; unit: string; quantity: number }
-    >();
-    for (const line of prepared) {
-      for (const item of line.recipe) {
-        const quantity = Number(item.quantity) * item.factor;
-        const current = materialNeeds.get(item.raw_material_id);
-        materialNeeds.set(item.raw_material_id, {
-          name: item.raw_material_name,
-          unit: item.unit,
-          quantity: (current?.quantity ?? 0) + quantity,
-        });
-      }
-    }
-    const materialIds = [...materialNeeds.keys()].sort();
-    const materialBalances = new Map<string, MaterialRow>();
-    if (materialIds.length) {
-      const placeholders = materialIds.map(() => "?").join(",");
-      const [materials] = await connection.execute<MaterialRow[]>(
-        `SELECT id, name, unit, stock_quantity, min_stock, is_active
-         FROM raw_materials
-         WHERE id IN (${placeholders}) ORDER BY id FOR UPDATE`,
-        materialIds
-      );
-      for (const material of materials) materialBalances.set(material.id, material);
-      for (const [id, need] of materialNeeds) {
-        const material = materialBalances.get(id);
-        if (
-          !material ||
-          !material.is_active ||
-          Number(material.stock_quantity) < need.quantity
-        ) {
-          throw new ApiError(
-            409,
-            `Thiếu nguyên liệu "${need.name}": cần ${need.quantity} ${need.unit}, còn ${Number(material?.stock_quantity ?? 0)} ${need.unit}.`
-          );
-        }
-      }
-    }
-
     const orderId = randomUUID();
     const details: PosOrderDetail[] = prepared.map((line) => {
       const unitPrice =
         Number(line.variant.sale_price) +
         line.modifiers.reduce((sum, item) => sum + Number(item.price_delta), 0);
+      if (
+        data.sync &&
+        line.input.unitPrice != null &&
+        !isSameMoney(line.input.unitPrice, unitPrice)
+      ) {
+        throw new ApiError(
+          409,
+          `Giá của "${line.product.name}" đã thay đổi từ ${line.input.unitPrice} thành ${unitPrice}. Đơn offline được giữ lại để kiểm tra.`
+        );
+      }
       const snapshot = {
         variant: {
           id: line.variant.id,
@@ -442,11 +502,24 @@ export async function createPosOrderTransaction(
     const promotionId =
       appliedPromotion?.ruleType === "product_code" ? appliedPromotion.id : null;
 
+    if (
+      data.sync &&
+      (!isSameMoney(totalAmount, data.sync.expectedTotalAmount) ||
+        !isSameMoney(discountAmount, data.sync.expectedDiscountAmount) ||
+        !isSameMoney(finalAmount, data.sync.expectedFinalAmount))
+    ) {
+      throw new ApiError(
+        409,
+        "Giá hoặc khuyến mãi hiện tại khác với số tiền khách đã thanh toán. Đơn offline được giữ lại để kiểm tra."
+      );
+    }
+
     await connection.execute(
       `INSERT INTO orders
         (id, customer_id, shift_id, created_by, promotion_id, status,
-         total_amount, discount_amount, final_amount, note)
-       VALUES (?, ?, ?, ?, ?, 'completed', ?, ?, ?, ?)`,
+         total_amount, discount_amount, final_amount, note, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 'completed', ?, ?, ?, ?, COALESCE(?, NOW()),
+               COALESCE(?, NOW()))`,
       [
         orderId,
         data.customerId,
@@ -457,12 +530,13 @@ export async function createPosOrderTransaction(
         discountAmount,
         finalAmount,
         data.note,
+        data.sync?.clientCreatedAt ?? null,
+        data.sync?.clientCreatedAt ?? null,
       ]
     );
 
     for (let index = 0; index < details.length; index += 1) {
       const detail = details[index];
-      const line = prepared[index];
       await connection.execute(
         `INSERT INTO order_details
           (id, order_id, product_id, variant_id, quantity, unit_price,
@@ -480,37 +554,6 @@ export async function createPosOrderTransaction(
           JSON.stringify(detail.configurationSnapshot ?? {}),
         ]
       );
-      for (const recipe of line.recipe) {
-        const consumed = Number(recipe.quantity) * recipe.factor;
-        const material = materialBalances.get(recipe.raw_material_id)!;
-        const before = Number(material.stock_quantity);
-        const after = before - consumed;
-        material.stock_quantity = String(after);
-        await connection.execute(
-          `INSERT INTO raw_material_transactions
-            (id, raw_material_id, order_detail_id, created_by, transaction_type,
-             quantity, stock_delta, stock_before, stock_after, note)
-           VALUES (?, ?, ?, ?, 'sale_consumption', ?, ?, ?, ?, ?)`,
-          [
-            randomUUID(),
-            recipe.raw_material_id,
-            detail.id,
-            data.createdBy,
-            consumed,
-            -consumed,
-            before,
-            after,
-            `Tiêu hao theo công thức - đơn ${orderId}`,
-          ]
-        );
-      }
-    }
-
-    for (const [id, material] of materialBalances) {
-      await connection.execute(
-        "UPDATE raw_materials SET stock_quantity = ? WHERE id = ?",
-        [Number(material.stock_quantity), id]
-      );
     }
 
     if (customer) {
@@ -520,8 +563,14 @@ export async function createPosOrderTransaction(
     await connection.execute(
       `INSERT INTO payments
         (id, order_id, payment_method, amount, payment_status, paid_at)
-       VALUES (?, ?, ?, ?, 'paid', NOW())`,
-      [paymentId, orderId, data.paymentMethod, finalAmount]
+       VALUES (?, ?, ?, ?, 'paid', COALESCE(?, NOW()))`,
+      [
+        paymentId,
+        orderId,
+        data.paymentMethod,
+        finalAmount,
+        data.sync?.clientCreatedAt ?? null,
+      ]
     );
     await connection.execute(
       `INSERT INTO audit_logs
@@ -534,16 +583,7 @@ export async function createPosOrderTransaction(
         `Thanh toán đơn hàng ${finalAmount.toLocaleString("vi-VN")}đ.`,
       ]
     );
-    await connection.commit();
-
-    const alerts = [...materialBalances.values()]
-      .filter((item) => Number(item.stock_quantity) <= Number(item.min_stock))
-      .map((item) => ({
-        name: item.name,
-        stockQuantity: Number(item.stock_quantity),
-        minStock: Number(item.min_stock),
-      }));
-    return {
+    const result: PosOrderResult = {
       id: orderId,
       customerId: data.customerId,
       createdBy: data.createdBy,
@@ -569,10 +609,47 @@ export async function createPosOrderTransaction(
         amount: finalAmount,
         paymentStatus: "paid",
       },
-      alerts,
+      syncStatus: data.sync ? "SYNCED" : undefined,
+      operationId: data.sync?.operationId,
+      localOrderId: data.sync?.localOrderId,
+      createdAt: (data.sync?.clientCreatedAt ?? new Date()).toISOString(),
     };
+
+    if (data.sync) {
+      await connection.execute(
+        `UPDATE pos_sync_operations
+         SET server_order_id = ?, status = 'SYNCED', response_payload = ?
+         WHERE operation_id = ?`,
+        [
+          orderId,
+          JSON.stringify({ order: result }),
+          data.sync.operationId,
+        ]
+      );
+    }
+
+    await connection.commit();
+    return result;
   } catch (error) {
-    await connection.rollback();
+    try {
+      await connection.rollback();
+    } catch (rollbackError) {
+      console.error("POS transaction rollback failed:", rollbackError);
+    }
+
+    if (
+      data.sync &&
+      ownsSyncOperation &&
+      error instanceof ApiError &&
+      error.statusCode >= 400 &&
+      error.statusCode < 500
+    ) {
+      try {
+        await persistRejectedSyncOperation(data.sync, error);
+      } catch (persistError) {
+        console.error("Could not persist rejected POS sync operation:", persistError);
+      }
+    }
     throw error;
   } finally {
     connection.release();

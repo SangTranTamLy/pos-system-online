@@ -23,6 +23,7 @@ import {
 } from "../../api/inventory.api";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 import { useAppNotifications } from "../../components/common/AppNotificationsContext";
+import Pagination from "../../components/common/Pagination";
 
 type MaterialStatusFilter = "all" | "active" | "inactive" | "low_stock" | "out";
 type ReceiptItemDraft = {
@@ -185,6 +186,8 @@ export function StockPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<MaterialStatusFilter>("all");
+  const [materialPage, setMaterialPage] = useState(1);
+  const materialPageSize = 8;
   const [showMaterialModal, setShowMaterialModal] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
   const [showSupplierModal, setShowSupplierModal] = useState(false);
@@ -221,6 +224,7 @@ export function StockPage() {
         fetchInventoryAudits(),
       ]);
       setMaterials(materialResponse.data);
+      setMaterialPage(1);
       setSuppliers(supplierResponse.data);
       setReceipts(receiptResponse.data);
       setAudits(auditsResponse.data || []);
@@ -273,6 +277,13 @@ export function StockPage() {
       return matchesSearch && matchesCategory && matchesStatus;
     });
   }, [categoryFilter, materials, searchQuery, statusFilter]);
+
+  const totalMaterialPages = Math.max(1, Math.ceil(filteredMaterials.length / materialPageSize));
+  const currentMaterialPage = Math.min(materialPage, totalMaterialPages);
+  const paginatedMaterials = filteredMaterials.slice(
+    (currentMaterialPage - 1) * materialPageSize,
+    currentMaterialPage * materialPageSize
+  );
 
   const materialResults = useMemo(() => {
     const query = normalizeText(materialSearch);
@@ -740,9 +751,9 @@ export function StockPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3 backdrop-blur-[2px] sm:p-6">
           <form
             onSubmit={handleCreateReceiptSubmit}
-            className="grid max-h-[92vh] w-full max-w-6xl gap-5 overflow-y-auto rounded-lg bg-[#f8f9ff] p-4 shadow-2xl xl:grid-cols-[minmax(0,1fr)_340px] sm:p-5"
+            className="grid h-[92vh] w-full max-w-6xl grid-rows-[auto_minmax(0,1fr)_auto] gap-5 overflow-hidden rounded-lg bg-[#f8f9ff] p-4 shadow-2xl xl:grid-cols-[minmax(0,1fr)_340px] xl:grid-rows-[auto_minmax(0,1fr)] sm:p-5"
           >
-            <section className="rounded-lg border border-slate-200 bg-white p-5">
+            <section className="rounded-lg border border-slate-200 bg-white p-5 xl:col-start-1 xl:row-start-1">
               <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-4">
                 <div>
                   <p className="text-xs font-extrabold uppercase tracking-wide text-[#f97316]">
@@ -793,9 +804,12 @@ export function StockPage() {
                 ))}
               </div>
 
-              <div className="mt-6 overflow-x-auto rounded-lg border border-slate-200">
+            </section>
+
+            <section className="min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white xl:col-span-2 xl:row-start-2">
+              <div className="h-full overflow-auto overscroll-contain">
                 <table className="w-full min-w-180 text-left text-sm">
-                  <thead className="bg-slate-50 text-xs font-extrabold uppercase text-slate-500">
+                  <thead className="sticky top-0 z-10 bg-slate-50 text-xs font-extrabold uppercase text-slate-500">
                     <tr>
                       <th className="px-4 py-3">Hàng hóa</th>
                       <th className="w-32 px-4 py-3">SL nhập</th>
@@ -873,7 +887,7 @@ export function StockPage() {
               </div>
             </section>
 
-            <aside className="space-y-5">
+            <aside className="space-y-5 xl:col-start-2 xl:row-start-1">
               <section className="rounded-lg border border-slate-200 bg-white p-5">
                 <h2 className="mb-4 text-sm font-extrabold uppercase tracking-wide text-[#0b1c30]">
                   Thông tin phiếu
@@ -927,8 +941,8 @@ export function StockPage() {
 
         {isAuditCreateMode || showAuditModal ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3 backdrop-blur-[2px] sm:p-6">
-          <div className="grid max-h-[92vh] w-full max-w-6xl gap-5 overflow-y-auto rounded-lg bg-[#f8f9ff] p-4 shadow-2xl xl:grid-cols-[minmax(0,1fr)_340px] sm:p-5">
-            <section className="rounded-lg border border-slate-200 bg-white p-5">
+          <div className="grid h-[92vh] w-full max-w-6xl grid-rows-[auto_minmax(0,1fr)_auto] gap-5 overflow-hidden rounded-lg bg-[#f8f9ff] p-4 shadow-2xl xl:grid-cols-[minmax(0,1fr)_340px] xl:grid-rows-[auto_minmax(0,1fr)] sm:p-5">
+            <section className="rounded-lg border border-slate-200 bg-white p-5 xl:col-start-1 xl:row-start-1">
               <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-4">
                 <div>
                   <p className="text-xs font-extrabold uppercase tracking-wide text-purple-600">
@@ -988,9 +1002,12 @@ export function StockPage() {
                 ) : null}
               </div>
 
-              <div className="mt-6 overflow-x-auto rounded-lg border border-slate-200">
+            </section>
+
+            <section className="min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white xl:col-span-2 xl:row-start-2">
+              <div className="h-full overflow-auto overscroll-contain">
                 <table className="w-full min-w-180 text-left text-sm">
-                  <thead className="bg-slate-50 text-xs font-extrabold uppercase text-slate-500">
+                  <thead className="sticky top-0 z-10 bg-slate-50 text-xs font-extrabold uppercase text-slate-500">
                     <tr>
                       <th className="px-4 py-3">Nguyên liệu</th>
                       <th className="px-4 py-3 text-right">Tồn hệ thống</th>
@@ -1072,7 +1089,7 @@ export function StockPage() {
               </div>
             </section>
 
-            <aside className="space-y-5">
+            <aside className="space-y-5 xl:col-start-2 xl:row-start-1">
               <section className="rounded-lg border border-slate-200 bg-white p-5">
                 <h2 className="mb-4 text-sm font-extrabold uppercase tracking-wide text-[#0b1c30]">
                   Thông tin kiểm kê
@@ -1423,11 +1440,14 @@ export function StockPage() {
                 <div className="rounded-xl border border-slate-100 bg-white shadow-[0_14px_34px_rgba(15,23,42,0.06)]">
                 <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
                   <h2 className="font-['Outfit',sans-serif] text-xl font-extrabold text-[#0b1c30]">
-                    Cảnh báo tồn thấp
+                    Cảnh báo tồn kho
                   </h2>
                   <button
                     type="button"
-                    onClick={() => setStatusFilter("low_stock")}
+                    onClick={() => {
+                      setStatusFilter("low_stock");
+                      setMaterialPage(1);
+                    }}
                     className="text-xs font-bold text-[#f97316] hover:text-[#ea580c]"
                   >
                     Xem tất cả
@@ -1527,14 +1547,20 @@ export function StockPage() {
                       <Icon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                       <input
                         value={searchQuery}
-                        onChange={(event) => setSearchQuery(event.target.value)}
+                        onChange={(event) => {
+                          setSearchQuery(event.target.value);
+                          setMaterialPage(1);
+                        }}
                         placeholder="Tìm kiếm tên hàng, mã hàng, barcode..."
                         className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-10 pr-3 text-sm font-semibold text-[#0b1c30] outline-none focus:border-[#f97316]"
                       />
                     </div>
                     <select
                       value={categoryFilter}
-                      onChange={(event) => setCategoryFilter(event.target.value)}
+                      onChange={(event) => {
+                        setCategoryFilter(event.target.value);
+                        setMaterialPage(1);
+                      }}
                       className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 outline-none focus:border-[#f97316]"
                     >
                       <option value="all">Nhóm hàng</option>
@@ -1546,9 +1572,10 @@ export function StockPage() {
                     </select>
                     <select
                       value={statusFilter}
-                      onChange={(event) =>
-                        setStatusFilter(event.target.value as MaterialStatusFilter)
-                      }
+                      onChange={(event) => {
+                        setStatusFilter(event.target.value as MaterialStatusFilter);
+                        setMaterialPage(1);
+                      }}
                       className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 outline-none focus:border-[#f97316]"
                     >
                       <option value="all">Trạng thái</option>
@@ -1592,7 +1619,7 @@ export function StockPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {filteredMaterials.map((material) => (
+                      {paginatedMaterials.map((material) => (
                         <tr key={material.id} className="transition hover:bg-slate-50">
                           <td className="px-4 py-5 font-semibold text-slate-600">{material.sku}</td>
                           <td className="px-5 py-4">
@@ -1646,6 +1673,14 @@ export function StockPage() {
                     </tbody>
                   </table>
                 </div>
+                <Pagination
+                  currentPage={currentMaterialPage}
+                  totalPages={totalMaterialPages}
+                  totalItems={filteredMaterials.length}
+                  pageSize={materialPageSize}
+                  onPageChange={setMaterialPage}
+                  itemName="hàng hóa"
+                />
               </div>
           </div>
         </div>

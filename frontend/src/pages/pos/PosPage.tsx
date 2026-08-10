@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getProducts, type Product } from "../../api/product.api";
+import { API_BASE_URL } from "../../api/api-base";
 import { searchCustomers, type Customer } from "../../api/customers.api";
 import { createAuditLog } from "../../api/audit-log.api";
 import {
@@ -21,16 +22,31 @@ import QrPaymentModal from "../../components/pos/QrPaymentModal";
 import ReceiptModal from "../../components/pos/ReceiptModal";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 import { useAppNotifications } from "../../components/common/AppNotificationsContext";
+import Pagination from "../../components/common/Pagination";
+import {
+  deleteCartDraft,
+  getCartDraft,
+  listOutboxOrders,
+  loadPosSnapshot,
+  saveCartDraft,
+  savePosSnapshot,
+  saveProductsSnapshot,
+  subscribeOfflineChanges,
+} from "../../offline/db";
+import { submitOfflineCashOrder } from "../../offline/offlineOrderService";
+import { calculateOfflinePromotionPreview } from "../../offline/promotion";
+import { syncOutbox } from "../../offline/syncOutbox";
+import type { OutboxOrder } from "../../offline/types";
 
 type CartItem = {
   product: Product;
   quantity: number;
 };
 
-type PosStockFilter = "all" | "available" | "low_stock" | "out_of_stock";
 type PosSortMode = "default" | "name_asc" | "price_asc" | "price_desc";
 type PosViewMode = "grid" | "list";
-type PosQuickFilter = "all" | "best_seller";
+
+const productsPerPage = 20;
 
 function toPromotionPreviewItems(cartItems: CartItem[]) {
   return cartItems.map((item) => ({
@@ -75,6 +91,37 @@ function getStoredPosUser() {
   return { currentUserId, roleName };
 }
 
+function getActiveShiftFromSnapshot(shifts: Shift[]) {
+  const { currentUserId, roleName } = getStoredPosUser();
+  if (roleName === "admin" || roleName === "manager") {
+    return { id: "admin_bypass", status: "OPEN" } as unknown as Shift;
+  }
+
+  return (
+    shifts.find(
+      (shift) => shift.status === "OPEN" && shift.userId === currentUserId
+    ) ?? null
+  );
+}
+
+async function probeBackend() {
+  if (!navigator.onLine) return false;
+
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 5_000);
+  try {
+    const response = await fetch(`${API_BASE_URL}/health`, {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 function normalizeText(value: string) {
   return value.trim().toLowerCase();
 }
@@ -87,13 +134,12 @@ function isProductUnavailable(product: Product) {
   );
 }
 
-function isLowStockProduct(product: Product) {
-  return (
-    product.isTrackedStock &&
-    product.stockQuantity != null &&
-    product.stockQuantity > 0 &&
-    product.stockQuantity <= 5
-  );
+function hydrateCartProducts(items: CartItem[], products: Product[]) {
+  const productsById = new Map(products.map((product) => [product.id, product]));
+  return items.map((item) => ({
+    ...item,
+    product: productsById.get(item.product.id) ?? item.product,
+  }));
 }
 
 function getCartQuantity(
@@ -150,10 +196,9 @@ function PosPage() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
-  const [quickFilter, setQuickFilter] = useState<PosQuickFilter>("all");
-  const [stockFilter, setStockFilter] = useState<PosStockFilter>("all");
   const [sortMode, setSortMode] = useState<PosSortMode>("default");
   const [viewMode, setViewMode] = useState<PosViewMode>("grid");
+  const [productPage, setProductPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PosPaymentMethod>("cash");
   const [note, setNote] = useState("");
@@ -176,23 +221,100 @@ function PosPage() {
   const [activeShift, setActiveShift] = useState<Shift | null>(null);
   const [openingCashInput, setOpeningCashInput] = useState("");
   const [isSavingOpeningCash, setIsSavingOpeningCash] = useState(false);
-  const [lowStockAlerts, setLowStockAlerts] = useState<
-    Array<{ name: string; stockQuantity: number; minStock: number }>
-  >([]);
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+  const [outboxOrders, setOutboxOrders] = useState<OutboxOrder[]>([]);
+  const [offlineReady, setOfflineReady] = useState(false);
+  const [draftHydrated, setDraftHydrated] = useState(false);
 
   const loadProducts = useCallback(async () => {
     try {
-            const response = await getProducts();
+      const response = await getProducts();
       setProducts(response.data);
+      setProductPage(1);
+      try {
+        await saveProductsSnapshot(response.data);
+      } catch (snapshotError) {
+        console.error("Không cập nhật được snapshot sản phẩm:", snapshotError);
+      }
     } catch (error) {
       notify(
-error instanceof Error ? error.message : "Không tải được sản phẩm. Vui lòng thử lại.",
-"error"
-);
+        error instanceof Error
+          ? error.message
+          : "Không tải được sản phẩm. Vui lòng thử lại.",
+        "error"
+      );
     } finally {
       setIsLoading(false);
     }
+  }, [notify]);
+
+  const refreshOfflineState = useCallback(async () => {
+    const orders = await listOutboxOrders();
+    setOutboxOrders(orders);
   }, []);
+
+  const displayedCompletedOrder = useMemo(() => {
+    if (!completedOrder) return null;
+
+    const currentOutboxOrder = outboxOrders.find(
+      (order) =>
+        order.localOrderId === completedOrder.localOrderId ||
+        order.operationId === completedOrder.operationId
+    );
+
+    return currentOutboxOrder?.receipt ?? completedOrder;
+  }, [completedOrder, outboxOrders]);
+
+  const runOutboxSync = useCallback(async () => {
+    if (!navigator.onLine) {
+      setIsOnline(false);
+      return;
+    }
+
+    try {
+      setIsOnline(true);
+      const backendAvailable = await probeBackend();
+      if (!backendAvailable) {
+        return;
+      }
+      const summary = await syncOutbox();
+      await refreshOfflineState();
+      if (summary.networkUnavailable) {
+        return;
+      }
+      if (summary.synced > 0) {
+        await loadProducts();
+        notify(
+          `Đã đồng bộ ${summary.synced} đơn offline lên hệ thống.`,
+          "success"
+        );
+      }
+      if (summary.rejected > 0) {
+        notify(
+          `${summary.rejected} đơn offline cần kiểm tra trước khi ghi nhận.`,
+          "error"
+        );
+      }
+    } catch (error) {
+      console.error("Không chạy được POS outbox sync:", error);
+      notify("Không đọc hoặc cập nhật được hàng đợi offline.", "error");
+    }
+  }, [loadProducts, notify, refreshOfflineState]);
+
+  function handleProductSearchChange(value: string) {
+    setSearch(value);
+    setProductPage(1);
+  }
+
+  function handleProductCategoryFilterChange(value: string) {
+    setCategoryFilter(value);
+    setProductPage(1);
+  }
+
+  function handleProductSortModeChange(value: PosSortMode) {
+    setSortMode(value);
+    setProductPage(1);
+  }
 
   const validatePromotion = useCallback(async (code: string) => {
     const previewItems = toPromotionPreviewItems(cartItems);
@@ -206,6 +328,21 @@ error instanceof Error ? error.message : "Không tải được sản phẩm. Vu
     try {
       setIsValidatingPromo(true);
       setPromoMessage("");
+      if (!isOnline) {
+        const offlinePreview = calculateOfflinePromotionPreview(
+          cartItems,
+          promotions,
+          code
+        );
+        if (!offlinePreview.appliedPromotion) {
+          throw new Error("Mã khuyến mãi không có trong snapshot offline.");
+        }
+        setPromotionPreview(offlinePreview);
+        setIsPromotionError(false);
+        setPromoMessage("Đã áp dụng theo snapshot offline gần nhất.");
+        return;
+      }
+
       const response = await previewPosPromotion(previewItems, code);
       setPromotionPreview(response.data);
       setIsPromotionError(false);
@@ -219,7 +356,7 @@ error instanceof Error ? error.message : "Không tải được sản phẩm. Vu
     } finally {
       setIsValidatingPromo(false);
     }
-  }, [cartItems]);
+  }, [cartItems, isOnline, promotions]);
 
   useEffect(() => {
     let isMounted = true;
@@ -231,6 +368,39 @@ error instanceof Error ? error.message : "Không tải được sản phẩm. Vu
         setPromotionPreview(null);
         setIsPromotionError(false);
         if (!promotionCode.trim()) setPromoMessage("");
+      });
+
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    if (!isOnline) {
+      Promise.resolve().then(() => {
+        if (!isMounted) return;
+        try {
+          const preview = calculateOfflinePromotionPreview(
+            cartItems,
+            promotions,
+            promotionCode.trim() || null
+          );
+          if (promotionCode.trim() && !preview.appliedPromotion) {
+            throw new Error("Mã khuyến mãi không có trong snapshot offline.");
+          }
+          setPromotionPreview(preview);
+          setIsPromotionError(false);
+          setPromoMessage(
+            preview.appliedPromotion
+              ? "Đã áp dụng theo snapshot offline gần nhất."
+              : ""
+          );
+        } catch (error) {
+          setPromotionPreview(null);
+          setIsPromotionError(Boolean(promotionCode.trim()));
+          setPromoMessage(
+            error instanceof Error ? error.message : "Mã khuyến mãi không hợp lệ."
+          );
+        }
       });
 
       return () => {
@@ -257,47 +427,209 @@ error instanceof Error ? error.message : "Không tải được sản phẩm. Vu
     return () => {
       isMounted = false;
     };
-  }, [cartItems, promotionCode]);
+  }, [cartItems, isOnline, promotionCode, promotions]);
 
   useEffect(() => {
     let isMounted = true;
 
-    Promise.all([getProducts(), fetchPromotions(), fetchShifts()])
-      .then(([productResponse, promotionData, shiftData]) => {
-        if (!isMounted) return;
-                setProducts(productResponse.data);
-        setPromotions(promotionData);
-        setPromotionFilterTime(Date.now());
-        
-        const { currentUserId, roleName } = getStoredPosUser();
-        
-        const openShift = shiftData.find(
-          (s) => s.status === "OPEN" && s.userId === currentUserId
-        );
-        
-        if (roleName === "admin" || roleName === "manager") {
-          setActiveShift({ id: "admin_bypass", status: "OPEN" } as unknown as Shift);
-        } else {
-          setActiveShift(openShift || null);
-        }
-      })
-      .catch((error) => {
-        if (!isMounted) return;
-        setPromotions([]);
-        notify(
-error instanceof Error ? error.message : "Không tải được dữ liệu POS. Vui lòng thử lại.",
-"error"
-);
-      })
-      .finally(() => {
-        if (!isMounted) return;
-        setIsLoading(false);
-      });
+    async function initializePos() {
+      let cachedProducts: Product[] = [];
+      let cachedPromotions: Promotion[] = [];
+      let cachedShifts: Shift[] = [];
 
+      try {
+        const { currentUserId } = getStoredPosUser();
+        const [snapshot, draft, orders] = await Promise.all([
+          loadPosSnapshot(),
+          getCartDraft(currentUserId || "anonymous"),
+          listOutboxOrders(),
+        ]);
+        if (!isMounted) return;
+
+        cachedProducts = snapshot.products;
+        cachedPromotions = snapshot.promotions;
+        cachedShifts = snapshot.shifts;
+        setProducts(snapshot.products);
+        setPromotions(snapshot.promotions);
+        setActiveShift(getActiveShiftFromSnapshot(snapshot.shifts));
+        setOutboxOrders(orders);
+
+        if (draft && draft.userId === currentUserId) {
+          setCartItems(hydrateCartProducts(draft.items, snapshot.products));
+          setPaymentMethod(
+            navigator.onLine && draft.paymentMethod === "qr" ? "qr" : "cash"
+          );
+          setNote(draft.note);
+          setPromotionCode(draft.promotionCode);
+          setCashPaid(draft.cashPaid);
+          setCustomerPhone(draft.customerPhone);
+        }
+
+        setDraftHydrated(true);
+        setOfflineReady(true);
+        if (snapshot.products.length > 0) setIsLoading(false);
+      } catch (error) {
+        if (!isMounted) return;
+        setDraftHydrated(true);
+        setOfflineReady(true);
+        console.error("Không đọc được dữ liệu POS offline:", error);
+      }
+
+      if (!navigator.onLine) {
+        if (!isMounted) return;
+        setIsOnline(false);
+        setIsLoading(false);
+        return;
+      }
+      setIsOnline(true);
+
+      const backendAvailable = await probeBackend();
+      if (!isMounted) return;
+      if (!backendAvailable) {
+        setIsLoading(false);
+        notify(
+          "Wi-Fi đang kết nối nhưng máy chủ chưa truy cập được. POS sẽ không lưu đơn dự phòng trong trường hợp này.",
+          "error"
+        );
+        return;
+      }
+
+      const [productResult, promotionResult, shiftResult] =
+        await Promise.allSettled([
+          getProducts(),
+          fetchPromotions(),
+          fetchShifts(),
+        ]);
+      if (!isMounted) return;
+
+      const nextProducts =
+        productResult.status === "fulfilled"
+          ? productResult.value.data
+          : cachedProducts;
+      const nextPromotions =
+        promotionResult.status === "fulfilled"
+          ? promotionResult.value
+          : cachedPromotions;
+      const nextShifts =
+        shiftResult.status === "fulfilled" ? shiftResult.value : cachedShifts;
+      const hasRemoteData =
+        productResult.status === "fulfilled" ||
+        promotionResult.status === "fulfilled" ||
+        shiftResult.status === "fulfilled";
+
+      setProducts(nextProducts);
+      setCartItems((currentItems) =>
+        hydrateCartProducts(currentItems, nextProducts)
+      );
+      setPromotions(nextPromotions);
+      setPromotionFilterTime(Date.now());
+      setActiveShift(getActiveShiftFromSnapshot(nextShifts));
+      setIsOnline(true);
+
+      if (hasRemoteData) {
+        try {
+          await savePosSnapshot(nextProducts, nextPromotions, nextShifts);
+        } catch (error) {
+          console.error("Không lưu được snapshot POS:", error);
+        }
+      } else if (cachedProducts.length > 0) {
+        notify(
+          "Wi-Fi đang kết nối nhưng máy chủ chưa truy cập được. POS sẽ không lưu đơn dự phòng trong trường hợp này.",
+          "error"
+        );
+      }
+
+      if (isMounted) setIsLoading(false);
+    }
+
+    void initializePos();
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [notify]);
+
+  useEffect(() => {
+    if (!draftHydrated) return undefined;
+
+    const { currentUserId } = getStoredPosUser();
+    const draftId = currentUserId || "anonymous";
+    const timer = window.setTimeout(() => {
+      const hasDraft =
+        cartItems.length > 0 ||
+        note.trim().length > 0 ||
+        promotionCode.trim().length > 0 ||
+        cashPaid.length > 0 ||
+        customerPhone.length > 0;
+
+      const operation = hasDraft
+        ? saveCartDraft({
+            id: draftId,
+            userId: currentUserId,
+            items: cartItems,
+            paymentMethod,
+            note,
+            promotionCode,
+            cashPaid,
+            customerPhone,
+            savedAt: new Date().toISOString(),
+          })
+        : deleteCartDraft(draftId);
+      void operation.catch((error) => {
+        console.error("Không lưu được giỏ hàng offline:", error);
+      });
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    cartItems,
+    cashPaid,
+    customerPhone,
+    draftHydrated,
+    note,
+    paymentMethod,
+    promotionCode,
+  ]);
+
+  useEffect(() => subscribeOfflineChanges(() => void refreshOfflineState()), [
+    refreshOfflineState,
+  ]);
+
+  useEffect(() => {
+    const applyOfflineState = () => {
+      setIsOnline(false);
+      setPaymentMethod("cash");
+      setShowQrModal(false);
+    };
+    const handleOffline = applyOfflineState;
+    const handleOnline = () => {
+      setIsOnline(true);
+      void runOutboxSync();
+    };
+    if (!navigator.onLine) {
+      applyOfflineState();
+    }
+    const interval = window.setInterval(() => {
+      if (!navigator.onLine) {
+        applyOfflineState();
+        return;
+      }
+      void runOutboxSync();
+    }, 45_000);
+
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("online", handleOnline);
+    return () => {
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("online", handleOnline);
+      window.clearInterval(interval);
+    };
+  }, [runOutboxSync]);
+
+  useEffect(() => {
+    if (!offlineReady || !isOnline) return undefined;
+    const timer = window.setTimeout(() => void runOutboxSync(), 0);
+    return () => window.clearTimeout(timer);
+  }, [isOnline, offlineReady, runOutboxSync]);
 
   useEffect(() => {
     const phone = customerPhone.replace(/\D/g, "");
@@ -306,6 +638,16 @@ error instanceof Error ? error.message : "Không tải được dữ liệu POS.
       Promise.resolve().then(() => {
         setMatchedCustomer(null);
         setCustomerLookupMessage("");
+      });
+      return undefined;
+    }
+
+    if (!isOnline) {
+      Promise.resolve().then(() => {
+        setMatchedCustomer(null);
+        setCustomerLookupMessage(
+          "Đang offline: hóa đơn sẽ lưu số điện thoại và đối chiếu khi đồng bộ."
+        );
       });
       return undefined;
     }
@@ -335,7 +677,7 @@ error instanceof Error ? error.message : "Không tải được dữ liệu POS.
       isMounted = false;
       window.clearTimeout(timer);
     };
-  }, [customerPhone]);
+  }, [customerPhone, isOnline]);
 
   const categories = useMemo(() => {
     const names = products
@@ -356,22 +698,10 @@ error instanceof Error ? error.message : "Không tải được dữ liệu POS.
         normalizeText(product.id).includes(query);
       const matchesCategory =
         categoryFilter === "all" || product.categoryName === categoryFilter;
-      const matchesQuickFilter =
-        quickFilter === "all" || (quickFilter === "best_seller" && !isProductUnavailable(product));
-      const matchesStock =
-        stockFilter === "all" ||
-        (stockFilter === "available" && !isProductUnavailable(product)) ||
-        (stockFilter === "low_stock" && isLowStockProduct(product)) ||
-        (stockFilter === "out_of_stock" && isProductUnavailable(product));
-
-      return matchesSearch && matchesCategory && matchesQuickFilter && matchesStock;
+      return matchesSearch && matchesCategory;
     });
 
     return [...filtered].sort((left, right) => {
-      if (quickFilter === "best_seller" && sortMode === "default") {
-        return Number(right.salePrice || 0) - Number(left.salePrice || 0);
-      }
-
       if (sortMode === "name_asc") {
         return left.name.localeCompare(right.name, "vi");
       }
@@ -386,7 +716,14 @@ error instanceof Error ? error.message : "Không tải được dữ liệu POS.
 
       return 0;
     });
-  }, [categoryFilter, products, quickFilter, search, sortMode, stockFilter]);
+  }, [categoryFilter, products, search, sortMode]);
+
+  const totalProductPages = Math.max(1, Math.ceil(filteredProducts.length / productsPerPage));
+  const currentProductPage = Math.min(productPage, totalProductPages);
+  const paginatedProducts = filteredProducts.slice(
+    (currentProductPage - 1) * productsPerPage,
+    currentProductPage * productsPerPage
+  );
 
   const activePromotions = useMemo(() => {
     return promotions.filter((item) => {
@@ -534,7 +871,7 @@ error instanceof Error ? error.message : "Không tải được dữ liệu POS.
         ? (item.product.stockQuantity as number)
         : 9999;
       const newQty = Math.min(Math.max(quantity, 0), maxQty);
-      if (newQty < item.quantity) {
+      if (isOnline && newQty < item.quantity) {
         const diff = item.quantity - newQty;
         void createAuditLog({
           actionType: "HUY_MON",
@@ -563,7 +900,7 @@ error instanceof Error ? error.message : "Không tải được dữ liệu POS.
 
   const removeFromCart = (productId: string) => {
     const item = cartItems.find((i) => i.product.id === productId);
-    if (item) {
+    if (item && isOnline) {
       void createAuditLog({
         actionType: "HUY_MON",
         targetObject: `Món: ${item.product.name}`,
@@ -577,7 +914,7 @@ error instanceof Error ? error.message : "Không tải được dữ liệu POS.
   };
 
   const clearCart = () => {
-    if (cartItems.length > 0) {
+    if (cartItems.length > 0 && isOnline) {
       void createAuditLog({
         actionType: "HUY_MON",
         targetObject: `Giỏ hàng POS`,
@@ -585,9 +922,13 @@ error instanceof Error ? error.message : "Không tải được dữ liệu POS.
       }).catch(console.error);
     }
 
+    resetCartState();
+  };
+
+  const resetCartState = () => {
     setCartItems([]);
     setNote("");
-        setCashPaid("");
+    setCashPaid("");
     setPromotionCode("");
     setPromoMessage("");
     setCustomerPhone("");
@@ -598,7 +939,44 @@ error instanceof Error ? error.message : "Không tải được dữ liệu POS.
   const submitOrder = async () => {
     try {
       setIsProcessing(true);
-      
+
+      if (paymentMethod === "cash" && !navigator.onLine) {
+        const { currentUserId } = getStoredPosUser();
+        const result = await submitOfflineCashOrder({
+          items: cartItems,
+          userId: currentUserId,
+          shiftId:
+            activeShift?.id && activeShift.id !== "admin_bypass"
+              ? activeShift.id
+              : null,
+          customerId: matchedCustomer?.id ?? null,
+          customerPhone: customerPhone.replace(/\D/g, "") || null,
+          note: note.trim() || "Bán tại quầy",
+          promotionCode: promotionCode.trim() || null,
+          promotionPreview,
+          cashPaid: cashPaidAmount,
+        });
+
+        setShowPaymentConfirmModal(false);
+        setShowQrModal(false);
+        setCompletedOrder(result.order);
+        setProducts(result.products);
+        setPromotionPreview(null);
+        setIsPromotionError(false);
+        resetCartState();
+        await refreshOfflineState();
+
+        notify(
+          "Đã lưu hóa đơn trên máy POS do mất Wi-Fi. Đơn sẽ tự đồng bộ khi có kết nối lại.",
+          "success"
+        );
+        return;
+      }
+
+      if (!navigator.onLine) {
+        throw new Error("Thanh toán QR cần kết nối backend.");
+      }
+
       const response = await createPosOrder({
         customerId: matchedCustomer?.id ?? null,
         customerPhone: customerPhone.replace(/\D/g, "") || null,
@@ -619,21 +997,18 @@ error instanceof Error ? error.message : "Không tải được dữ liệu POS.
       setShowPaymentConfirmModal(false);
       setShowQrModal(false);
       setCompletedOrder(response.data);
-      if (response.data.alerts && response.data.alerts.length > 0) {
-        setLowStockAlerts(response.data.alerts);
-      } else {
-        setLowStockAlerts([]);
-      }
       setPromotionPreview(null);
       setIsPromotionError(false);
       setPromotionCode("");
-      clearCart();
+      resetCartState();
       await loadProducts();
     } catch (error) {
       notify(
-error instanceof Error ? error.message : "Chưa tạo được hóa đơn. Vui lòng thử lại.",
-"error"
-);
+        error instanceof Error
+          ? error.message
+          : "Chưa tạo được hóa đơn. Vui lòng thử lại.",
+        "error"
+      );
     } finally {
       setIsProcessing(false);
     }
@@ -656,6 +1031,12 @@ displayedPromoMessage,
       return;
     }
 
+    if (paymentMethod === "qr" && (!isOnline || !navigator.onLine)) {
+      notify("Thanh toán QR không khả dụng khi offline.", "error");
+      setPaymentMethod("cash");
+      return;
+    }
+
     if (paymentMethod === "cash" && finalAmount > 0 && cashPaidAmount < finalAmount) {
       notify(
 "Tiền khách đưa chưa đủ để thanh toán.",
@@ -669,6 +1050,12 @@ displayedPromoMessage,
 
   const handleConfirmPayment = async () => {
     if (paymentMethod === "qr" && finalAmount > 0) {
+      if (!isOnline || !navigator.onLine) {
+        notify("Thanh toán QR không khả dụng khi offline.", "error");
+        setPaymentMethod("cash");
+        setShowPaymentConfirmModal(false);
+        return;
+      }
       setShowPaymentConfirmModal(false);
       setShowQrModal(true);
       return;
@@ -803,7 +1190,7 @@ error instanceof Error ? error.message : "Không thể nhập tiền đầu ca."
                 />
                 <input
                   value={search}
-                  onChange={(event) => setSearch(event.target.value)}
+                  onChange={(event) => handleProductSearchChange(event.target.value)}
                   placeholder="Tìm món theo tên, SKU hoặc barcode..."
                   className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-sm font-semibold text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
                 />
@@ -815,7 +1202,7 @@ error instanceof Error ? error.message : "Không thể nhập tiền đầu ca."
                   onClick={() => setShowFilters((current) => !current)}
                   className={[
                     "flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-extrabold transition",
-                    showFilters || stockFilter !== "all"
+                    showFilters || categoryFilter !== "all"
                       ? "border-[#f97316] bg-orange-50 text-[#f97316]"
                       : "border-slate-200 bg-white text-slate-700 hover:border-orange-200 hover:bg-orange-50 hover:text-[#f97316]",
                   ].join(" ")}
@@ -826,29 +1213,31 @@ error instanceof Error ? error.message : "Không thể nhập tiền đầu ca."
                 </button>
 
                 {showFilters ? (
-                  <div className="absolute right-0 top-full z-20 mt-2 w-64 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
+                  <div className="absolute right-0 top-full z-20 mt-2 w-72 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_18px_45px_rgba(15,23,42,0.14)]">
                     <label className="block">
-                      <span className="mb-2 block text-xs font-extrabold uppercase tracking-wide text-slate-400">
-                        Tồn kho
+                      <span className="mb-2 block text-[11px] font-extrabold uppercase tracking-wide text-slate-400">
+                        Danh mục sản phẩm
                       </span>
                       <select
-                        value={stockFilter}
-                        onChange={(event) => setStockFilter(event.target.value as PosStockFilter)}
-                        className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                        value={categoryFilter}
+                        onChange={(event) => handleProductCategoryFilterChange(event.target.value)}
+                        className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-700 outline-none transition focus:border-[#f97316] focus:bg-white focus:ring-4 focus:ring-orange-100"
                       >
-                        <option value="all">Tất cả trạng thái</option>
-                        <option value="available">Đang bán</option>
-                        <option value="low_stock">Sắp hết hàng</option>
-                        <option value="out_of_stock">Hết hàng</option>
+                        <option value="all">Tất cả danh mục</option>
+                        {categories.map((category) => (
+                          <option key={category} value={category}>
+                            {category}
+                          </option>
+                        ))}
                       </select>
                     </label>
                     <button
                       type="button"
                       onClick={() => {
-                        setStockFilter("all");
+                        handleProductCategoryFilterChange("all");
                         setShowFilters(false);
                       }}
-                      className="mt-3 w-full rounded-xl bg-slate-50 px-3 py-2 text-sm font-extrabold text-slate-600 transition hover:bg-orange-50 hover:text-[#f97316]"
+                      className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-extrabold text-slate-600 transition hover:border-orange-200 hover:bg-orange-50 hover:text-[#f97316]"
                     >
                       Xóa bộ lọc
                     </button>
@@ -859,7 +1248,7 @@ error instanceof Error ? error.message : "Không thể nhập tiền đầu ca."
                   <span>Sắp xếp</span>
                   <select
                     value={sortMode}
-                    onChange={(event) => setSortMode(event.target.value as PosSortMode)}
+                    onChange={(event) => handleProductSortModeChange(event.target.value as PosSortMode)}
                     className="h-full min-w-[7.5rem] bg-transparent text-sm font-extrabold outline-none"
                     aria-label="Sắp xếp sản phẩm"
                   >
@@ -899,57 +1288,6 @@ error instanceof Error ? error.message : "Không thể nhập tiền đầu ca."
               </div>
             </div>
 
-            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setCategoryFilter("all");
-                  setQuickFilter("all");
-                }}
-                className={[
-                  "h-10 whitespace-nowrap rounded-full px-5 text-sm font-extrabold transition-colors",
-                  categoryFilter === "all" && quickFilter === "all"
-                    ? "bg-[#f97316] text-white shadow-sm shadow-orange-100"
-                    : "bg-slate-50 text-slate-700 hover:bg-orange-50 hover:text-[#f97316]",
-                ].join(" ")}
-              >
-                Tất cả
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setQuickFilter("best_seller");
-                  setCategoryFilter("all");
-                }}
-                className={[
-                  "flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full px-5 text-sm font-extrabold transition-colors",
-                  quickFilter === "best_seller"
-                    ? "bg-[#f97316] text-white shadow-sm shadow-orange-100"
-                    : "bg-slate-50 text-slate-700 hover:bg-orange-50 hover:text-[#f97316]",
-                ].join(" ")}
-              >
-                <Icon name="local_fire_department" className="text-[17px]" />
-                Bán chạy
-              </button>
-              {categories.map((category) => (
-                <button
-                  key={category}
-                  type="button"
-                  onClick={() => {
-                    setCategoryFilter(category);
-                    setQuickFilter("all");
-                  }}
-                  className={[
-                    "h-10 whitespace-nowrap rounded-full px-5 text-sm font-extrabold transition-colors",
-                    categoryFilter === category && quickFilter === "all"
-                      ? "bg-[#f97316] text-white shadow-sm shadow-orange-100"
-                      : "bg-slate-50 text-slate-700 hover:bg-orange-50 hover:text-[#f97316]",
-                  ].join(" ")}
-                >
-                  {category}
-                </button>
-              ))}
-            </div>
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -975,7 +1313,7 @@ error instanceof Error ? error.message : "Không thể nhập tiền đầu ca."
                   />
                   <input
                     value={search}
-                    onChange={(event) => setSearch(event.target.value)}
+                    onChange={(event) => handleProductSearchChange(event.target.value)}
                     placeholder="Tìm món theo tên, SKU hoặc barcode..."
                     className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-sm font-semibold text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
                   />
@@ -987,7 +1325,7 @@ error instanceof Error ? error.message : "Không thể nhập tiền đầu ca."
                     onClick={() => setShowFilters((current) => !current)}
                     className={[
                       "flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-extrabold transition",
-                      showFilters || stockFilter !== "all"
+                      showFilters || categoryFilter !== "all"
                         ? "border-[#f97316] bg-orange-50 text-[#f97316]"
                         : "border-slate-200 bg-white text-slate-700 hover:border-orange-200 hover:bg-orange-50 hover:text-[#f97316]",
                     ].join(" ")}
@@ -998,29 +1336,31 @@ error instanceof Error ? error.message : "Không thể nhập tiền đầu ca."
                   </button>
 
                   {showFilters ? (
-                    <div className="absolute right-0 top-full z-20 mt-2 w-64 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
+                    <div className="absolute right-0 top-full z-20 mt-2 w-72 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_18px_45px_rgba(15,23,42,0.14)]">
                       <label className="block">
-                        <span className="mb-2 block text-xs font-extrabold uppercase tracking-wide text-slate-400">
-                          Tồn kho
+                        <span className="mb-2 block text-[11px] font-extrabold uppercase tracking-wide text-slate-400">
+                          Danh mục sản phẩm
                         </span>
                         <select
-                          value={stockFilter}
-                          onChange={(event) => setStockFilter(event.target.value as PosStockFilter)}
-                          className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-[#f97316] focus:ring-2 focus:ring-orange-100"
+                          value={categoryFilter}
+                          onChange={(event) => handleProductCategoryFilterChange(event.target.value)}
+                          className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-700 outline-none transition focus:border-[#f97316] focus:bg-white focus:ring-4 focus:ring-orange-100"
                         >
-                          <option value="all">Tất cả trạng thái</option>
-                          <option value="available">Đang bán</option>
-                          <option value="low_stock">Sắp hết hàng</option>
-                          <option value="out_of_stock">Hết hàng</option>
+                          <option value="all">Tất cả danh mục</option>
+                          {categories.map((category) => (
+                            <option key={category} value={category}>
+                              {category}
+                            </option>
+                          ))}
                         </select>
                       </label>
                       <button
                         type="button"
                         onClick={() => {
-                          setStockFilter("all");
+                          handleProductCategoryFilterChange("all");
                           setShowFilters(false);
                         }}
-                        className="mt-3 w-full rounded-xl bg-slate-50 px-3 py-2 text-sm font-extrabold text-slate-600 transition hover:bg-orange-50 hover:text-[#f97316]"
+                        className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-extrabold text-slate-600 transition hover:border-orange-200 hover:bg-orange-50 hover:text-[#f97316]"
                       >
                         Xóa bộ lọc
                       </button>
@@ -1031,7 +1371,7 @@ error instanceof Error ? error.message : "Không thể nhập tiền đầu ca."
                     <span>Sắp xếp</span>
                     <select
                       value={sortMode}
-                      onChange={(event) => setSortMode(event.target.value as PosSortMode)}
+                      onChange={(event) => handleProductSortModeChange(event.target.value as PosSortMode)}
                       className="h-full min-w-[7.5rem] bg-transparent text-sm font-extrabold outline-none"
                       aria-label="Sắp xếp sản phẩm"
                     >
@@ -1044,69 +1384,18 @@ error instanceof Error ? error.message : "Không thể nhập tiền đầu ca."
                 </div>
               </div>
 
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCategoryFilter("all");
-                    setQuickFilter("all");
-                  }}
-                  className={[
-                    "h-10 whitespace-nowrap rounded-full px-5 text-sm font-extrabold transition-colors",
-                    categoryFilter === "all" && quickFilter === "all"
-                      ? "bg-[#f97316] text-white shadow-sm shadow-orange-100"
-                      : "bg-slate-50 text-slate-700 hover:bg-orange-50 hover:text-[#f97316]",
-                  ].join(" ")}
-                >
-                  Tất cả
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setQuickFilter("best_seller");
-                    setCategoryFilter("all");
-                  }}
-                  className={[
-                    "flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full px-5 text-sm font-extrabold transition-colors",
-                    quickFilter === "best_seller"
-                      ? "bg-[#f97316] text-white shadow-sm shadow-orange-100"
-                      : "bg-slate-50 text-slate-700 hover:bg-orange-50 hover:text-[#f97316]",
-                  ].join(" ")}
-                >
-                  <Icon name="local_fire_department" className="text-[17px]" />
-                  Bán chạy
-                </button>
-                {categories.map((category) => (
-                  <button
-                    key={category}
-                    type="button"
-                    onClick={() => {
-                      setCategoryFilter(category);
-                      setQuickFilter("all");
-                    }}
-                    className={[
-                      "h-10 whitespace-nowrap rounded-full px-5 text-sm font-extrabold transition-colors",
-                      categoryFilter === category && quickFilter === "all"
-                        ? "bg-[#f97316] text-white shadow-sm shadow-orange-100"
-                        : "bg-slate-50 text-slate-700 hover:bg-orange-50 hover:text-[#f97316]",
-                    ].join(" ")}
-                  >
-                    {category}
-                  </button>
-                ))}
-              </div>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto pb-36 pr-1 xl:pb-0">
               {viewMode === "grid" ? (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
-                  {filteredProducts.map((product) => (
+                  {paginatedProducts.map((product) => (
                     <ProductCard key={product.id} product={product} onAdd={addToCart} />
                   ))}
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {filteredProducts.map((product) => {
+                  {paginatedProducts.map((product) => {
                     const isUnavailable = isProductUnavailable(product);
 
                     return (
@@ -1134,7 +1423,7 @@ error instanceof Error ? error.message : "Không thể nhập tiền đầu ca."
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-extrabold text-[#0b1c30]">{product.name}</p>
                           <p className="mt-1 truncate text-xs font-semibold text-slate-400">
-                            SKU: {product.sku} {product.categoryName ? `- ${product.categoryName}` : ""}
+                            {product.sku} {product.categoryName ? `- ${product.categoryName}` : ""}
                           </p>
                         </div>
                         <span className="hidden rounded-full bg-slate-50 px-3 py-1 text-xs font-extrabold text-slate-500 sm:inline-flex">
@@ -1176,6 +1465,17 @@ error instanceof Error ? error.message : "Không thể nhập tiền đầu ca."
                 </div>
               ) : null}
             </div>
+
+            <div className="border-t border-slate-200 pt-3">
+              <Pagination
+                currentPage={currentProductPage}
+                totalPages={totalProductPages}
+                totalItems={filteredProducts.length}
+                pageSize={productsPerPage}
+                onPageChange={setProductPage}
+                itemName="món"
+              />
+            </div>
           </div>
         </section>
 
@@ -1210,43 +1510,50 @@ error instanceof Error ? error.message : "Không thể nhập tiền đầu ca."
               {cartItems.map((item) => (
                 <div
                   key={item.product.id}
-                  className="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-3 rounded-xl bg-slate-50 p-3"
+                  className="rounded-xl bg-slate-50 p-2.5"
                 >
                   <div className="min-w-0">
-                    <p className="truncate font-bold text-[#0b1c30]">{item.product.name}</p>
-                    <p className="text-xs text-slate-500">
-                      {formatCurrency(item.product.salePrice)}
+                    <p className="break-words text-sm font-bold leading-5 text-[#0b1c30]">
+                      {item.product.name}
                     </p>
+                    <div className="mt-0.5 flex items-center justify-between gap-3 text-xs text-slate-500">
+                      <span className="min-w-0 truncate">{item.product.sku}</span>
+                      <span className="shrink-0 font-semibold text-[#0b1c30]">
+                        {formatCurrency(item.product.salePrice)}
+                      </span>
+                    </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:text-[#f97316]"
-                  >
-                    -
-                  </button>
-                  <span className="min-w-5 text-center text-sm font-bold text-[#0b1c30]">
-                    {item.quantity}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:text-[#f97316]"
-                  >
-                    +
-                  </button>
+                  <div className="mt-2 flex items-center justify-between gap-2 border-t border-slate-200/70 pt-2">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-600 shadow-sm hover:text-[#f97316]"
+                        aria-label={`Giảm số lượng ${item.product.name}`}
+                      >
+                        −
+                      </button>
+                      <span className="min-w-6 text-center text-xs font-bold text-[#0b1c30]">
+                        {item.quantity}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-600 shadow-sm hover:text-[#f97316]"
+                        aria-label={`Tăng số lượng ${item.product.name}`}
+                      >
+                        +
+                      </button>
+                    </div>
 
-                  <div className="flex items-center gap-2">
-                    <p className="min-w-20 text-right text-sm font-extrabold text-[#0b1c30]">
-                      {formatCurrency(item.product.salePrice * item.quantity)}
-                    </p>
                     <button
                       type="button"
                       onClick={() => removeFromCart(item.product.id)}
                       className="rounded-lg p-1 text-red-500 hover:bg-red-50"
+                      aria-label={`Xóa ${item.product.name} khỏi giỏ hàng`}
                     >
-                      <Icon name="delete" className="text-lg" />
+                      <Icon name="delete" className="text-[18px]" />
                     </button>
                   </div>
                 </div>
@@ -1409,22 +1716,35 @@ error instanceof Error ? error.message : "Không thể nhập tiền đầu ca."
                 <div className="grid grid-cols-2 gap-2">
                   {paymentMethods.map((method) => {
                     const isSelected = paymentMethod === method.value;
+                    const isDisabled = method.value === "qr" && !isOnline;
 
                     return (
                       <button
                         key={method.value}
                         type="button"
-                        onClick={() => setPaymentMethod(method.value)}
+                        onClick={() => {
+                          if (!isDisabled) setPaymentMethod(method.value);
+                        }}
+                        disabled={isDisabled}
+                        title={
+                          isDisabled
+                            ? "Thanh toán QR cần kết nối backend"
+                            : undefined
+                        }
                         className={[
                           "flex h-20 flex-col items-center justify-center gap-1.5 rounded-xl border bg-white px-2 text-xs font-bold transition-all",
                           isSelected
                             ? "border-[#f97316] bg-orange-50 text-[#f97316] shadow-sm shadow-orange-100"
                             : "border-slate-200 text-slate-600 hover:bg-slate-50",
+                          isDisabled ? "cursor-not-allowed opacity-40" : "",
                         ].join(" ")}
                         aria-pressed={isSelected}
                       >
                         <Icon name={method.icon} className="text-[28px]" />
-                        <span>{method.label}</span>
+                        <span>
+                          {method.label}
+                          {isDisabled ? " (cần mạng)" : ""}
+                        </span>
                       </button>
                     );
                   })}
@@ -1582,56 +1902,13 @@ error instanceof Error ? error.message : "Không thể nhập tiền đầu ca."
         />
       ) : null}
 
-      {completedOrder ? (
+      {displayedCompletedOrder ? (
         <ReceiptModal
-          order={completedOrder}
+          order={displayedCompletedOrder}
           onClose={() => setCompletedOrder(null)}
         />
       ) : null}
 
-      {lowStockAlerts.length > 0 ? (
-        <div className="fixed top-6 right-6 z-[60] w-96 rounded-2xl border-2 border-red-500 bg-white/95 p-5 shadow-2xl shadow-red-100 backdrop-blur-md">
-          <div className="mb-3 flex items-start justify-between">
-            <div className="flex items-center gap-2 text-red-600">
-              {/* Chấm tròn hiệu ứng Ping nhấp nháy liên tục */}
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-              </span>
-              <Icon name="warning" className="text-xl" />
-              <h3 className="font-['Outfit',sans-serif] text-sm font-extrabold uppercase tracking-wide">
-                Cảnh báo hết nguyên liệu!
-              </h3>
-            </div>
-            <button
-              type="button"
-              onClick={() => setLowStockAlerts([])}
-              className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-            >
-              <Icon name="close" className="text-sm font-bold" />
-            </button>
-          </div>
-          <p className="mb-4 text-xs font-semibold text-slate-500">
-            Các nguyên liệu thô sau đây đã chạm hoặc dưới ngưỡng cảnh báo an toàn. Vui lòng bổ sung kho gấp:
-          </p>
-          <div className="max-h-60 overflow-y-auto space-y-2.5 pr-1">
-            {lowStockAlerts.map((alert, idx) => (
-              <div
-                key={idx}
-                className="flex items-center justify-between rounded-xl bg-red-50 border border-red-100 p-3 text-xs"
-              >
-                <div className="font-bold text-[#0b1c30]">{alert.name}</div>
-                <div className="text-right">
-                  <span className="font-extrabold text-red-600">
-                    {alert.stockQuantity}
-                  </span>
-                  <span className="text-slate-400 font-medium"> / {alert.minStock} (tối thiểu)</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
     </AdminLayout>
   );
 }

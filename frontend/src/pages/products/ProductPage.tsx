@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ChangeEvent,
 } from "react";
@@ -16,6 +17,7 @@ import {
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 import { useAppNotifications } from "../../components/common/AppNotificationsContext";
 import ProductConfigurationModal from "../../components/products/ProductConfigurationModal";
+import Pagination from "../../components/common/Pagination";
 
 
 
@@ -140,6 +142,8 @@ function ProductPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isConfiguring, setIsConfiguring] = useState(false);
   const [configuringProduct, setConfiguringProduct] = useState<Product | null>(null);
+  const [csvAction, setCsvAction] = useState("");
+  const csvInputRef = useRef<HTMLInputElement>(null);
   const showNotice = useCallback((message: string, type: "success" | "error" = "error") => {
     notify(message, type);
   }, [notify]);
@@ -154,6 +158,7 @@ function ProductPage() {
 
       setProducts(productsResponse.data);
       setCategories(loadedCategories);
+      setPage(1);
 
       if (categoryQuery) {
         const selectedCategory = loadedCategories.find(
@@ -236,9 +241,10 @@ function ProductPage() {
   }, [availabilityFilter, categoryFilter, products, search]);
 
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
   const paginatedProducts = filteredProducts.slice(
-    (page - 1) * pageSize,
-    page * pageSize
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
   );
 
   function openCreateModal() {
@@ -306,6 +312,20 @@ function ProductPage() {
     link.download = "danh-sach-san-pham.csv";
     link.click();
     URL.revokeObjectURL(url);
+  }
+
+  function handleCsvActionChange(event: ChangeEvent<HTMLSelectElement>) {
+    const action = event.target.value;
+    setCsvAction("");
+
+    if (action === "import") {
+      csvInputRef.current?.click();
+      return;
+    }
+
+    if (action === "export") {
+      handleExportProducts();
+    }
   }
 
   async function handleImportProducts(event: ChangeEvent<HTMLInputElement>) {
@@ -386,14 +406,14 @@ function ProductPage() {
     >
 
 
-      <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((stat) => (
           <StatCard key={stat.label} {...stat} />
         ))}
       </section>
 
       <section className="border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-3 border-b border-slate-200 p-4 xl:grid-cols-[minmax(260px,1fr)_220px_190px_auto_auto_auto_auto] xl:items-center">
+        <div className="grid gap-3 border-b border-slate-200 p-4 xl:grid-cols-[minmax(260px,1fr)_220px_190px_auto_auto_auto] xl:items-center">
           <div className="relative">
             <Icon
               name="search"
@@ -452,10 +472,27 @@ function ProductPage() {
           >
             Xóa lọc
           </button>
-          <label className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50">
-            <Icon name="upload_file" />
-            Nhập CSV
+          <div className="relative">
+            <Icon
+              name="description"
+              className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-[20px] text-slate-600"
+            />
+            <select
+              value={csvAction}
+              onChange={handleCsvActionChange}
+              aria-label="Thao tác CSV"
+              className="h-11 w-full appearance-none border border-slate-200 bg-white py-2 pl-10 pr-9 text-sm font-bold text-slate-700 outline-none transition hover:bg-slate-50 focus:border-[#f97316]"
+            >
+              <option value="">CSV</option>
+              <option value="import">Nhập CSV</option>
+              <option value="export">Xuất CSV</option>
+            </select>
+            <Icon
+              name="expand_more"
+              className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[20px] text-slate-500"
+            />
             <input
+              ref={csvInputRef}
               type="file"
               accept=".csv,text/csv"
               onChange={(event) => {
@@ -463,15 +500,7 @@ function ProductPage() {
               }}
               className="hidden"
             />
-          </label>
-          <button
-            type="button"
-            onClick={handleExportProducts}
-            className="inline-flex h-11 items-center justify-center gap-2 border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50"
-          >
-            <Icon name="download" />
-            Xuất CSV
-          </button>
+          </div>
           <button
             type="button"
             onClick={openCreateModal}
@@ -583,36 +612,14 @@ function ProductPage() {
           </div>
         ) : null}
 
-        <div className="flex flex-col items-start justify-between gap-4 border-t border-slate-200 p-4 sm:flex-row sm:items-center">
-          <p className="text-sm font-semibold text-slate-500">
-            Hiển thị{" "}
-            <span className="font-black text-[#0b1c30]">{paginatedProducts.length}</span>{" "}
-            trên{" "}
-            <span className="font-black text-[#0b1c30]">{filteredProducts.length}</span>{" "}
-            sản phẩm
-          </p>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
-              disabled={page === 1}
-              className="border border-slate-200 p-2 hover:bg-slate-50 disabled:opacity-30"
-            >
-              <Icon name="chevron_left" />
-            </button>
-            <span className="px-3 text-sm font-black text-[#0b1c30]">
-              {page}/{totalPages}
-            </span>
-            <button
-              type="button"
-              onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-              disabled={page === totalPages}
-              className="border border-slate-200 p-2 hover:bg-slate-50 disabled:opacity-30"
-            >
-              <Icon name="chevron_right" />
-            </button>
-          </div>
-        </div>
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={filteredProducts.length}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          itemName="sản phẩm"
+        />
       </section>
 
       {isConfiguring ? (

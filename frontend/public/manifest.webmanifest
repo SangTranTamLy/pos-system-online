@@ -1,0 +1,20 @@
+{
+  "name": "QuickServe POS",
+  "short_name": "QuickServe",
+  "description": "Ứng dụng bán hàng tại quầy có hỗ trợ đơn tiền mặt offline.",
+  "start_url": "./pos",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#f97316",
+  "lang": "vi",
+  "icons": [
+    {
+      "src": "logo-1.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
+

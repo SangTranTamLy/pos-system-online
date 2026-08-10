@@ -6,6 +6,7 @@ import { fetchShifts, type Shift } from "../../api/shifts.api";
 import type { AuditLog } from "../../types/audit-log";
 import { translateRole } from "../../utils/role";
 import { useAppNotifications } from "../../components/common/AppNotificationsContext";
+import Pagination from "../../components/common/Pagination";
 
 type ActionMeta = {
   label: string;
@@ -328,7 +329,7 @@ export default function AuditLogsPage() {
     void loadLogs(1, "", "");
   };
 
-  const handleExportExcel = () => {
+  const handleExportCsv = () => {
     const formattedData = logs.map((log) => ({
       timestamp: formatDateTime(log.timestamp),
       employee: `${log.userName || "Hệ thống"} (${translateRole(log.role)})`,
@@ -358,26 +359,6 @@ export default function AuditLogsPage() {
       subtitle="Theo dõi hoạt động đăng nhập, bán hàng, cập nhật dữ liệu và các thao tác quản trị."
     >
       <div className="min-h-full w-full space-y-6 font-['Inter',sans-serif]">
-        <section className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-          <div>
-            <p className="text-xs font-black uppercase tracking-wider text-[#f97316]">
-              Quản lý hoạt động
-            </p>
-            <h1 className="font-['Outfit',sans-serif] text-3xl font-black tracking-tight text-[#0b1c30]">
-              Nhật ký hoạt động hệ thống
-            </h1>
-          </div>
-          <button
-            type="button"
-            onClick={handleExportExcel}
-            disabled={loading || logs.length === 0}
-            className="flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-xs font-black text-white transition-all hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Icon name="file_download" className="text-base" />
-            Xuất báo cáo CSV
-          </button>
-        </section>
-
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <FilterBar
             search={search}
@@ -386,6 +367,17 @@ export default function AuditLogsPage() {
             onClear={handleClearFilters}
             onSubmit={handleSearchSubmit}
             className="flex flex-col gap-3 lg:flex-row lg:items-center"
+            afterClear={
+              <button
+                type="button"
+                onClick={handleExportCsv}
+                disabled={loading || logs.length === 0}
+                className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-xs font-black text-white transition-all hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Icon name="file_download" className="text-base" />
+                Xuất báo cáo CSV
+              </button>
+            }
           >
             <div className="flex flex-wrap items-center gap-2">
               <select
@@ -432,8 +424,6 @@ export default function AuditLogsPage() {
             </div>
           </FilterBar>
         </section>
-
-
 
         {loading ? (
           <div className="flex h-80 items-center justify-center rounded-3xl border border-slate-200 bg-white">
@@ -489,41 +479,18 @@ export default function AuditLogsPage() {
               </table>
             </div>
 
-            <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/50 px-6 py-4">
-              <span className="text-xs font-bold text-slate-500">
-                Hiển thị {logs.length} / {total} nhật ký
-              </span>
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  disabled={page <= 1}
-                  onClick={() => {
-                    const nextPage = page - 1;
-                    setPage(nextPage);
-                    void loadLogs(nextPage, actionType, shiftId);
-                  }}
-                  className="flex h-9 items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-3 text-xs text-slate-500 transition-colors hover:bg-slate-100 disabled:opacity-50 disabled:hover:bg-white"
-                >
-                  <Icon name="chevron_left" className="text-lg" />
-                  Trước
-                </button>
-                <span className="text-xs font-bold text-slate-600">
-                  Trang {page} / {totalPages}
-                </span>
-                <button
-                  type="button"
-                  disabled={page >= totalPages}
-                  onClick={() => {
-                    const nextPage = page + 1;
-                    setPage(nextPage);
-                    void loadLogs(nextPage, actionType, shiftId);
-                  }}
-                  className="flex h-9 items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-3 text-xs text-slate-500 transition-colors hover:bg-slate-100 disabled:opacity-50 disabled:hover:bg-white"
-                >
-                  Sau
-                  <Icon name="chevron_right" className="text-lg" />
-                </button>
-              </div>
+            <div className="border-t border-slate-100 bg-slate-50/50 px-6 py-4">
+              <Pagination
+                currentPage={page}
+                totalPages={totalPages}
+                totalItems={total}
+                pageSize={15}
+                onPageChange={(newPage) => {
+                  setPage(newPage);
+                  void loadLogs(newPage, actionType, shiftId);
+                }}
+                itemName="nhật ký"
+              />
             </div>
           </div>
         )}

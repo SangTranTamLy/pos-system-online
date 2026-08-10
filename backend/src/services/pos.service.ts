@@ -10,7 +10,9 @@ import type {
   CreateCartCancellationBody,
   CreatePosOrderBody,
   NormalizedPosOrderItem,
+  PosOrderSyncResult,
   PosPaymentMethod,
+  PosSyncMetadata,
 } from "../types/pos.types";
 import { ApiError } from "../utils/apiError";
 
@@ -114,6 +116,7 @@ function normalizeItems(items: CreatePosOrderBody["items"]) {
     ).sort();
     const note = item.note?.trim() || null;
     const quantity = Number(item.quantity);
+    const unitPrice = item.unitPrice == null ? null : Number(item.unitPrice);
 
     if (!productId) {
       throw new ApiError(400, "Thiáº¿u sáº£n pháº©m trong Ä‘Æ¡n hĂ ng");
@@ -121,6 +124,10 @@ function normalizeItems(items: CreatePosOrderBody["items"]) {
 
     if (!Number.isInteger(quantity) || quantity <= 0) {
       throw new ApiError(400, "Sá»‘ lÆ°á»£ng sáº£n pháº©m khĂ´ng há»£p lá»‡");
+    }
+
+    if (unitPrice != null && (!Number.isFinite(unitPrice) || unitPrice < 0)) {
+      throw new ApiError(400, "Giá bán lưu trên máy POS không hợp lệ.");
     }
 
     if (note && note.length > 500) {
@@ -135,10 +142,114 @@ function normalizeItems(items: CreatePosOrderBody["items"]) {
       modifierOptionIds,
       note,
       quantity: (current?.quantity ?? 0) + quantity,
+      unitPrice: current?.unitPrice ?? unitPrice,
     });
   }
 
   return Array.from(itemMap.values());
+}
+
+function normalizeRequiredSyncId(
+  value: unknown,
+  label: string,
+  maxLength = 120
+) {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  if (!normalized || normalized.length > maxLength) {
+    throw new ApiError(400, `${label} không hợp lệ.`);
+  }
+  return normalized;
+}
+
+function normalizeExpectedMoney(value: unknown, label: string) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount < 0) {
+    throw new ApiError(400, `${label} không hợp lệ.`);
+  }
+  return amount;
+}
+
+function normalizeSyncMetadata(body: CreatePosOrderBody): PosSyncMetadata {
+  const clientCreatedAt = new Date(body.clientCreatedAt ?? "");
+  if (
+    Number.isNaN(clientCreatedAt.getTime()) ||
+    clientCreatedAt.getTime() > Date.now() + 5 * 60 * 1000
+  ) {
+    throw new ApiError(400, "Thời điểm tạo đơn offline không hợp lệ.");
+  }
+
+  const expectedTotalAmount = normalizeExpectedMoney(
+    body.totalAmount,
+    "Tạm tính trên máy POS"
+  );
+  const expectedDiscountAmount = normalizeExpectedMoney(
+    body.discountAmount,
+    "Giảm giá trên máy POS"
+  );
+  const expectedFinalAmount = normalizeExpectedMoney(
+    body.finalAmount,
+    "Tổng thanh toán trên máy POS"
+  );
+
+  if (
+    Math.abs(
+      expectedTotalAmount - expectedDiscountAmount - expectedFinalAmount
+    ) > 0.01
+  ) {
+    throw new ApiError(400, "Các tổng tiền của đơn offline không khớp nhau.");
+  }
+
+  return {
+    operationId: normalizeRequiredSyncId(body.operationId, "operationId", 80),
+    terminalId: normalizeRequiredSyncId(body.terminalId, "terminalId", 80),
+    localOrderId: normalizeRequiredSyncId(
+      body.localOrderId,
+      "localOrderId",
+      160
+    ),
+    clientCreatedAt,
+    expectedTotalAmount,
+    expectedDiscountAmount,
+    expectedFinalAmount,
+  };
+}
+
+async function resolveShiftId(
+  body: CreatePosOrderBody,
+  createdBy: string,
+  allowNoShift: boolean,
+  isOfflineSync: boolean
+) {
+  if (allowNoShift) return null;
+
+  const { db } = await import("../config/database");
+  const requestedShiftId = body.shiftId?.trim() || null;
+  const [shifts] = requestedShiftId && isOfflineSync
+    ? await db.execute<any[]>(
+        `SELECT id, opening_cash, status, user_id
+         FROM shifts WHERE id = ? LIMIT 1`,
+        [requestedShiftId]
+      )
+    : await db.execute<any[]>(
+        `SELECT id, opening_cash, status, user_id
+         FROM shifts
+         WHERE user_id = ? AND status = 'OPEN'
+         LIMIT 1`,
+        [createdBy]
+      );
+  const shift = shifts[0];
+
+  if (!shift || shift.status !== "OPEN") {
+    throw new ApiError(409, "Ca làm đã đóng hoặc không còn khả dụng.");
+  }
+  if (shift.user_id !== createdBy) {
+    throw new ApiError(403, "Ca làm không thuộc nhân viên đang bán hàng.");
+  }
+  if (Number(shift.opening_cash || 0) <= 0) {
+    throw new ApiError(409, "Bạn cần nhập tiền đầu ca trước khi bán hàng.");
+  }
+
+  return String(shift.id);
 }
 
 export async function createPosOrderService(
@@ -162,24 +273,7 @@ export async function createPosOrderService(
 
   const user = await findUserById(createdBy);
   const allowNoShift = canSellWithoutShift(user?.roleName);
-  let shiftId: string | null = null;
-
-  if (!allowNoShift) {
-    const { db } = await import("../config/database");
-    const [shifts] = await db.execute<any[]>(
-      "SELECT id, opening_cash FROM shifts WHERE user_id = ? AND status = 'OPEN' LIMIT 1",
-      [createdBy]
-    );
-    shiftId = shifts[0]?.id || null;
-
-    if (!shiftId) {
-      throw new ApiError(409, "B?n c?n m? ca làm tru?c khi bán hàng.");
-    }
-
-    if (Number(shifts[0]?.opening_cash || 0) <= 0) {
-      throw new ApiError(409, "B?n c?n nh?p ti?n d?u ca tru?c khi bán hàng.");
-    }
-  }
+  const shiftId = await resolveShiftId(body, createdBy, allowNoShift, false);
 
   return createPosOrderTransaction({
     customerId,
@@ -191,5 +285,55 @@ export async function createPosOrderService(
     changeAmount: body.changeAmount ?? 0,
     discountAmount: Number(body.discountAmount) || 0,
     shiftId,
+    sync: null,
   });
+}
+
+export async function createPosOrderSyncService(
+  body: CreatePosOrderBody,
+  createdBy: string
+): Promise<PosOrderSyncResult> {
+  if ((body.paymentMethod ?? "cash") !== "cash") {
+    throw new ApiError(400, "MVP offline chỉ đồng bộ đơn thanh toán tiền mặt.");
+  }
+
+  const sync = normalizeSyncMetadata(body);
+  const items = normalizeItems(body.items);
+  if (items.some((item) => item.unitPrice == null)) {
+    throw new ApiError(400, "Đơn offline thiếu giá bán snapshot của sản phẩm.");
+  }
+
+  let customerId = body.customerId?.trim() || null;
+  const customerPhone = body.customerPhone?.replace(/\s+/g, "").trim();
+  if (!customerId && customerPhone) {
+    const customer = await findCustomerByPhone(customerPhone);
+    customerId = customer?.id ?? null;
+  }
+
+  const user = await findUserById(createdBy);
+  const allowNoShift = canSellWithoutShift(user?.roleName);
+  const shiftId = allowNoShift ? null : body.shiftId?.trim() || null;
+  if (!allowNoShift && !shiftId) {
+    throw new ApiError(409, "Đơn offline không có thông tin ca làm việc.");
+  }
+  const order = await createPosOrderTransaction({
+    customerId,
+    createdBy,
+    paymentMethod: "cash",
+    note: body.note?.trim() || null,
+    items,
+    promotionCode: body.promotionCode?.trim() || null,
+    changeAmount: body.changeAmount ?? 0,
+    discountAmount: sync.expectedDiscountAmount,
+    shiftId,
+    sync,
+  });
+
+  return {
+    status:
+      order.syncStatus === "ALREADY_SYNCED" ? "ALREADY_SYNCED" : "SYNCED",
+    operationId: sync.operationId,
+    localOrderId: sync.localOrderId,
+    order,
+  };
 }

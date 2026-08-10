@@ -7,6 +7,7 @@ import {
 import { fetchUsers, type User } from "../../api/users.api";
 import { getOrders, type OrderListItem } from "../../api/order.api";
 import { useAppNotifications } from "../../components/common/AppNotificationsContext";
+import Pagination from "../../components/common/Pagination";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("vi-VN", {
@@ -175,6 +176,8 @@ export default function ShiftsPage() {
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
   const [detailTab, setDetailTab] = useState<"overview" | "orders" | "cash">("overview");
   const [shiftOrders, setShiftOrders] = useState<OrderListItem[]>([]);
+  const [page, setPage] = useState(1);
+  const pageSize = 6;
 
   const loadShifts = useCallback(async () => {
     try {
@@ -184,6 +187,7 @@ export default function ShiftsPage() {
         ? data
         : data.filter((shift) => !currentUserId || shift.userId === currentUserId);
       setShifts(visibleShifts);
+      setPage(1);
 
       if (isManager) {
         const usersData = await fetchUsers();
@@ -299,6 +303,13 @@ export default function ShiftsPage() {
     });
   }, [filterDate, shifts, statusFilter]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredShifts.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedShifts = filteredShifts.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
   const activeShiftToClose = useMemo(() => shifts.find(s => s.id === showCloseModal), [shifts, showCloseModal]);
   const completedShiftOrders = useMemo(
     () => shiftOrders.filter((order) => order.status === "completed"),
@@ -330,7 +341,7 @@ export default function ShiftsPage() {
 
   return (
     <AdminLayout
-      title="Quản lý Ca làm"
+      title="Quản lý ca làm"
       subtitle={isManager ? "Phân ca, giao tiền và đối soát cuối ca" : "Đăng ký ca và theo dõi lịch làm việc"}
     >
       <div className="min-h-full w-full space-y-7 overflow-x-hidden bg-[#f8fafc] font-['Inter',sans-serif]">
@@ -454,12 +465,18 @@ export default function ShiftsPage() {
                   <input
                     type="date"
                     value={filterDate}
-                    onChange={(event) => setFilterDate(event.target.value)}
+                    onChange={(event) => {
+                      setFilterDate(event.target.value);
+                      setPage(1);
+                    }}
                     className="h-12 w-44 border border-slate-300 px-4 text-sm font-semibold text-slate-700 outline-none focus:border-[#f97316] focus:ring-4 focus:ring-orange-100"
                   />
                   <select
                     value={statusFilter}
-                    onChange={(event) => setStatusFilter(event.target.value as ShiftDisplayStatus)}
+                    onChange={(event) => {
+                      setStatusFilter(event.target.value as ShiftDisplayStatus);
+                      setPage(1);
+                    }}
                     className="h-12 border border-slate-300 px-4 pr-10 text-sm font-semibold text-slate-700 outline-none focus:border-[#f97316] focus:ring-4 focus:ring-orange-100"
                   >
                     <option value="all">Tất cả trạng thái</option>
@@ -498,9 +515,9 @@ export default function ShiftsPage() {
                         </td>
                       </tr>
                     ) : (
-                      filteredShifts.map((shift, index) => (
+                      paginatedShifts.map((shift, index) => (
                         <tr key={shift.id} className="border-b border-slate-50 transition hover:bg-slate-50">
-                          <td className="px-5 py-5 font-bold">{getShiftCode(shift, index)}</td>
+                          <td className="px-5 py-5 font-bold">{getShiftCode(shift, (currentPage - 1) * pageSize + index)}</td>
                           <td className="px-5 py-5 font-semibold">{getShiftName(shift)}</td>
                           <td className="px-5 py-5 text-slate-500">{formatTimeRange(shift)}</td>
                           <td className="px-5 py-5">
@@ -544,23 +561,14 @@ export default function ShiftsPage() {
                 </table>
               </div>
 
-              <div className="mt-8 flex flex-col gap-3 border-t border-slate-50 pt-7 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm font-semibold text-slate-400">
-                  Hiển thị 1 - {Math.min(filteredShifts.length, 5)} của {filteredShifts.length} ca làm
-                </p>
-                <div className="flex items-center gap-2">
-                  <button className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400">
-                    <Icon name="chevron_left" className="text-[16px]" />
-                  </button>
-                  <button className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f97316] text-[13px] font-bold text-white">1</button>
-                  <button className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-[13px] font-semibold text-slate-600">2</button>
-                  <button className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-[13px] font-semibold text-slate-600">3</button>
-                  <span className="text-slate-400">...</span>
-                  <select className="ml-2 h-8 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-600">
-                    <option>5 / trang</option>
-                  </select>
-                </div>
-              </div>
+              <Pagination
+                currentPage={page}
+                totalPages={totalPages}
+                totalItems={filteredShifts.length}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                itemName="ca làm"
+              />
             </div>
 
           </div>

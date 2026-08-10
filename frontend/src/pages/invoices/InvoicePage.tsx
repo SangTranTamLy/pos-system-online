@@ -13,6 +13,7 @@ import { useAppNotifications } from "../../components/common/AppNotificationsCon
 import { fetchUsers, type User } from "../../api/users.api";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 import { FilterBar } from "../../components/common/FilterBar";
+import Pagination from "../../components/common/Pagination";
 import { createAuditLog } from "../../api/audit-log.api";
 
 type StatusFilter = OrderStatus | "all";
@@ -167,6 +168,8 @@ function buildInvoiceReceiptHtml(order: OrderDetail) {
         <meta charset="utf-8" />
         <title>${escapeHtml(orderCode)}</title>
         <style>
+          @import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700;800;900&display=swap");
+
           @page { size: A5 portrait; margin: 8mm; }
           * { box-sizing: border-box; }
           html, body {
@@ -174,7 +177,7 @@ function buildInvoiceReceiptHtml(order: OrderDetail) {
             padding: 0;
             background: #ffffff;
             color: #0b1c30;
-            font-family: Arial, sans-serif;
+            font-family: "Roboto", Arial, sans-serif;
           }
           .receipt {
             width: 96mm;
@@ -538,12 +541,20 @@ function InvoicePage() {
   const [isCancelling, setIsCancelling] = useState(false);
   const [cancelModal, setCancelModal] = useState<CancelModalState>("closed");
   const [cancelReason, setCancelReason] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   const [users, setUsers] = useState<User[]>([]);
   const [createdBy, setCreatedBy] = useState<string>("all");
   const currentUser = getCurrentUser();
   const canManageInvoiceActions = canManageInvoices(currentUser);
   const canCancelSelectedOrder = canManageInvoiceActions && selectedOrder?.status === "completed";
+  const totalPages = Math.max(1, Math.ceil(orders.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedOrders = orders.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -566,6 +577,7 @@ function InvoicePage() {
         }
 
         setOrders(response.data);
+        setPage(1);
         setSelectedOrderId((currentId) => {
           if (currentId && response.data.some((order) => order.id === currentId)) {
             return currentId;
@@ -580,6 +592,7 @@ function InvoicePage() {
 
         notify(requestError instanceof Error ? requestError.message : "Không tải được danh sách hóa đơn", "error");
         setOrders([]);
+        setPage(1);
         setSelectedOrder(null);
         setSelectedOrderId(null);
       } finally {
@@ -805,7 +818,7 @@ function InvoicePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {orders.map((order) => (
+                {paginatedOrders.map((order) => (
                   <tr
                     key={order.id}
                     onClick={() => setSelectedOrderId(order.id)}
@@ -868,6 +881,17 @@ function InvoicePage() {
 
           {isLoading ? (
             <div className="p-10 text-center text-sm font-semibold text-slate-400">Đang tải danh sách hóa đơn...</div>
+          ) : null}
+
+          {!isLoading ? (
+            <Pagination
+              currentPage={page}
+              totalPages={totalPages}
+              totalItems={orders.length}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              itemName="hóa đơn"
+            />
           ) : null}
         </div>
 

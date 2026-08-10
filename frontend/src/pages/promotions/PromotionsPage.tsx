@@ -11,6 +11,7 @@ import {
 } from "../../api/promotions.api";
 import { getProducts, type Product } from "../../api/product.api";
 import { useAppNotifications } from "../../components/common/AppNotificationsContext";
+import Pagination from "../../components/common/Pagination";
 
 function formatDate(iso: string | null) {
   if (!iso) return "—";
@@ -640,7 +641,8 @@ export default function PromotionsPage() {
   const [deletingPromotion, setDeletingPromotion] = useState<Promotion | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
-
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
 
 
   const [now] = useState(() => Date.now());
@@ -666,6 +668,13 @@ export default function PromotionsPage() {
         p.productName.toLowerCase().includes(q)
     );
   }, [promotions, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedPromotions = filtered.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
 
   // Stats
   const stats = useMemo(() => {
@@ -703,6 +712,7 @@ export default function PromotionsPage() {
       return [saved, ...prev];
     });
     setShowModal(false);
+    setPage(1);
     refreshLayoutNotifications();
   }
 
@@ -731,14 +741,6 @@ export default function PromotionsPage() {
     <AdminLayout title="Khuyến mãi" subtitle="Quản lý mã giảm giá và chương trình ưu đãi tại quầy">
       {/* â”€â”€ Header â”€â”€ */}
       <div className="mb-6">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-[#f97316]">
-            Ưu đãi bán hàng
-          </p>
-          <h1 className="text-2xl font-extrabold text-[#0b1c30]">
-            Danh sách khuyến mãi
-          </h1>
-        </div>
         <button
           type="button"
           id="btn-add-promotion"
@@ -789,7 +791,10 @@ export default function PromotionsPage() {
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
               placeholder="Tìm mã hoặc tên khuyến mãi..."
               className="w-full border border-slate-200 bg-slate-50 py-2 pl-9 pr-4 text-sm text-[#0b1c30] outline-none transition-colors focus:border-[#f97316] focus:bg-white"
             />
@@ -866,7 +871,7 @@ export default function PromotionsPage() {
                     </td>
                   </tr>
                 ) : (
-                  filtered.map((p) => (
+                  paginatedPromotions.map((p) => (
                     <tr
                       key={p.id}
                       className="transition-colors hover:bg-slate-50"
@@ -973,6 +978,17 @@ export default function PromotionsPage() {
             </table>
           </div>
         )}
+
+        {!loading ? (
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            totalItems={filtered.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            itemName="khuyến mãi"
+          />
+        ) : null}
       </div>
 
       {/* â”€â”€ Modals â”€â”€ */}

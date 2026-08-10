@@ -1,10 +1,18 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { fetchShifts } from "../api/shifts.api";
 import { createAuditLog, getAuditLogs } from "../api/audit-log.api";
 import { fetchMaterials, type Material } from "../api/inventory.api";
 import { getOrders, type OrderListItem } from "../api/order.api";
 import { fetchPromotions, type Promotion } from "../api/promotions.api";
+import { useAppNotifications } from "../components/common/AppNotificationsContext";
+import {
+  clearOfflineNetworkNotification,
+  readNetworkStatusNotification,
+  saveOfflineNetworkNotification,
+  subscribeNetworkStatusNotification,
+  type NetworkStatusNotification,
+} from "../notifications/networkStatusNotification";
 import type { AuditLog } from "../types/audit-log";
 import { translateRole } from "../utils/role";
 import systemLogo from "../assets/logo-1.png";
@@ -40,7 +48,7 @@ type AdminLayoutProps = {
 
 const menuItems: MenuItem[] = [
   { label: "Tổng quan", icon: "dashboard", path: "/dashboard", group: "main", allowedRoles: ["admin", "manager"] },
-  { label: "Bán hàng (POS)", icon: "point_of_sale", path: "/pos", group: "main", allowedRoles: ["admin", "manager", "staff", "cashier"] },
+  { label: "Bán hàng (POS)", icon: "point_of_sale", path: "/pos", group: "main", allowedRoles: ["admin", "staff", "cashier"] },
   { label: "Sản phẩm", icon: "package_2", path: "/products", group: "main", allowedRoles: ["admin", "manager"] },
   { label: "Danh mục", icon: "sell", path: "/categories", group: "main", allowedRoles: ["admin", "manager"] },
   { label: "Kho hàng", icon: "inventory_2", path: "/stock", group: "main", allowedRoles: ["admin", "manager"] },
@@ -203,6 +211,7 @@ type NotificationItem = {
 
 const DISMISSED_NOTIFICATION_IDS_KEY = "quickserve:dismissed-notification-ids";
 const READ_NOTIFICATION_IDS_KEY = "quickserve:read-notification-ids";
+let lastObservedNetworkState: boolean | null = null;
 
 function getNotificationStorageKey(baseKey: string, scopeKey: string) {
   return `${baseKey}:${scopeKey}`;
@@ -528,6 +537,7 @@ function SidebarItem({
 
 function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutProps) {
   const navigate = useNavigate();
+  const { notify } = useAppNotifications();
   const currentDateTime = useCurrentDateTime();
   const [user] = useState<AuthUser>(() => getStoredAuthUser());
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -538,7 +548,91 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
   const [todayOrders, setTodayOrders] = useState<OrderListItem[]>([]);
   const [cancelledOrders, setCancelledOrders] = useState<OrderListItem[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [networkNotification, setNetworkNotification] =
+    useState<NetworkStatusNotification | null>(() =>
+      navigator.onLine ? null : readNetworkStatusNotification()
+    );
   const [notificationRefreshKey, setNotificationRefreshKey] = useState(0);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const syncNetworkNotification = () => {
+      setNetworkNotification(readNetworkStatusNotification());
+    };
+
+    const showOfflineToast = () => {
+      saveOfflineNetworkNotification();
+      syncNetworkNotification();
+      notify(
+        "POS đang lưu đơn tiền mặt trên máy. Đơn sẽ tự đồng bộ khi Wi-Fi kết nối lại.",
+        "warning",
+        "Mất kết nối Wi-Fi",
+        {
+          placement: "center",
+          durationMs: 6800,
+          variant: "network",
+          icon: "wifi_off",
+        }
+      );
+    };
+
+    const showOnlineToast = () => {
+      clearOfflineNetworkNotification();
+      setNetworkNotification(null);
+      notify(
+        "Wi-Fi đã kết nối lại. Hệ thống đang tự động đồng bộ dữ liệu.",
+        "success",
+        "Đã kết nối Wi-Fi",
+        {
+          placement: "center",
+          durationMs: 6800,
+          variant: "network",
+          icon: "wifi",
+        }
+      );
+    };
+
+    const handleOffline = () => {
+      if (lastObservedNetworkState === false) return;
+      lastObservedNetworkState = false;
+      showOfflineToast();
+    };
+
+    const handleOnline = () => {
+      if (lastObservedNetworkState === true) return;
+      lastObservedNetworkState = true;
+      showOnlineToast();
+    };
+
+    const currentNetworkState = navigator.onLine;
+    if (lastObservedNetworkState === null) {
+      lastObservedNetworkState = currentNetworkState;
+      if (currentNetworkState) {
+        clearOfflineNetworkNotification();
+      } else {
+        showOfflineToast();
+      }
+    } else if (lastObservedNetworkState !== currentNetworkState) {
+      if (currentNetworkState) {
+        handleOnline();
+      } else {
+        handleOffline();
+      }
+    } else {
+      syncNetworkNotification();
+    }
+
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("online", handleOnline);
+    const unsubscribe = subscribeNetworkStatusNotification(syncNetworkNotification);
+
+    return () => {
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("online", handleOnline);
+      unsubscribe();
+    };
+  }, [notify]);
 
   useEffect(() => {
     const roleName = user.roleName?.toLowerCase() || "";
@@ -620,6 +714,31 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
     };
   }, []);
 
+  useEffect(() => {
+    if (!isProfileMenuOpen) {
+      return;
+    }
+
+    const closeProfileMenuOnOutsideClick = (event: PointerEvent) => {
+      if (!profileMenuRef.current?.contains(event.target as Node)) {
+        setIsProfileMenuOpen(false);
+      }
+    };
+    const closeProfileMenuOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsProfileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", closeProfileMenuOnOutsideClick);
+    document.addEventListener("keydown", closeProfileMenuOnEscape);
+
+    return () => {
+      document.removeEventListener("pointerdown", closeProfileMenuOnOutsideClick);
+      document.removeEventListener("keydown", closeProfileMenuOnEscape);
+    };
+  }, [isProfileMenuOpen]);
+
   const mainMenuItems = useMemo(
     () =>
       menuItems.filter(
@@ -662,6 +781,10 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
     const roleName = user.roleName?.toLowerCase() || "";
     const canManageBackOffice = ["admin", "manager"].includes(roleName);
     const items: NotificationItem[] = [];
+
+    if (networkNotification) {
+      items.push(networkNotification);
+    }
 
     const lowMaterials = materials.filter((material) =>
       material.isActive && Number(material.stockQuantity) > 0 && Number(material.stockQuantity) <= 5
@@ -794,8 +917,18 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
     }
 
     return items;
-  }, [auditLogs, cancelledOrders, materials, promotions, todayOrders, user.roleName]);
+  }, [
+    auditLogs,
+    cancelledOrders,
+    materials,
+    networkNotification,
+    promotions,
+    todayOrders,
+    user.roleName,
+  ]);
   const handleLogout = async () => {
+    setIsProfileMenuOpen(false);
+
     try {
       await createAuditLog({
         actionType: "DANG_XUAT",
@@ -949,36 +1082,62 @@ function AdminLayout({ children, title, subtitle, headerContent }: AdminLayoutPr
                 {currentDateTime.metaLabel}
               </p>
             </div>
-            <div className="flex shrink-0 items-center gap-3 border-slate-200 sm:border-l sm:pl-5">
-              <div className="text-right">
-                <p className="text-sm font-bold text-[#0b1c30]">{displayName}</p>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-[#f97316]">
-                  {translateRole(displayRole)}
-                </p>
-              </div>
-              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-100">
-                {user.avatarUrl ? (
-                  <img
-                    src={user.avatarUrl}
-                    alt={displayName}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <span className="text-sm font-bold text-[#f97316]">
-                    {getInitials(displayName)}
+            <div ref={profileMenuRef} className="relative shrink-0 border-slate-200 sm:border-l sm:pl-5">
+              <button
+                type="button"
+                onClick={() => setIsProfileMenuOpen((current) => !current)}
+                className="group flex items-center gap-3 rounded-xl p-1 text-left transition-colors hover:bg-orange-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]/40"
+                aria-label="Mở menu tài khoản"
+                aria-haspopup="menu"
+                aria-expanded={isProfileMenuOpen}
+              >
+                <span className="text-right">
+                  <span className="block text-sm font-bold text-[#0b1c30]">{displayName}</span>
+                  <span className="block text-[11px] font-semibold uppercase tracking-wider text-[#f97316]">
+                    {translateRole(displayRole)}
                   </span>
-                )}
-              </div>
-            </div>
+                </span>
+                <span className="relative block h-10 w-10 shrink-0">
+                  <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-100 transition-colors group-hover:border-orange-200">
+                    {user.avatarUrl ? (
+                      <img
+                        src={user.avatarUrl}
+                        alt={displayName}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-sm font-bold text-[#f97316]">
+                        {getInitials(displayName)}
+                      </span>
+                    )}
+                  </span>
+                  <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full border-2 border-white bg-slate-600 text-white shadow-sm">
+                    <Icon
+                      name="expand_more"
+                      className={`text-[12px] transition-transform duration-200 ${isProfileMenuOpen ? "rotate-180" : ""}`}
+                    />
+                  </span>
+                </span>
+              </button>
 
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-slate-600 transition-colors hover:bg-red-50 hover:text-red-600"
-            >
-              <Icon name="logout" />
-              <span className="hidden text-sm font-semibold xl:inline">Đăng xuất</span>
-            </button>
+              {isProfileMenuOpen ? (
+                <div
+                  className="absolute right-0 top-full z-50 mt-2 w-56 origin-top-right overflow-hidden rounded-xl border border-slate-200 bg-white py-1.5 shadow-xl"
+                  role="menu"
+                  aria-label="Menu tài khoản"
+                >
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-red-50 hover:text-red-600 focus:bg-red-50 focus:text-red-600 focus:outline-none"
+                    role="menuitem"
+                  >
+                    <Icon name="logout" className="text-[20px]" />
+                    <span>Đăng xuất</span>
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </div>
         </header>
 

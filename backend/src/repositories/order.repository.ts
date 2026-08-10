@@ -378,48 +378,6 @@ export async function cancelOrderById(
       return null;
     }
 
-    const [materialConsumptions] = await connection.execute<
-      (RowDataPacket & {
-        raw_material_id: string;
-        order_detail_id: string;
-        quantity: string;
-      })[]
-    >(
-      `SELECT rmt.raw_material_id, rmt.order_detail_id,
-              SUM(rmt.quantity) AS quantity
-       FROM raw_material_transactions rmt
-       JOIN order_details od ON od.id = rmt.order_detail_id
-       WHERE od.order_id = ? AND rmt.transaction_type = 'sale_consumption'
-       GROUP BY rmt.raw_material_id, rmt.order_detail_id
-       ORDER BY rmt.raw_material_id`,
-      [orderId]
-    );
-    for (const consumption of materialConsumptions) {
-      const [materials] = await connection.execute<
-        (RowDataPacket & { stock_quantity: string })[]
-      >(
-        "SELECT stock_quantity FROM raw_materials WHERE id = ? FOR UPDATE",
-        [consumption.raw_material_id]
-      );
-      const balance = Number(materials[0]?.stock_quantity ?? 0);
-      await connection.execute(
-        `INSERT INTO raw_material_transactions
-          (id, raw_material_id, order_detail_id, created_by, transaction_type,
-           quantity, stock_delta, stock_before, stock_after, note)
-         VALUES (?, ?, ?, ?, 'cancel_waste', ?, 0, ?, ?, ?)`,
-        [
-          randomUUID(),
-          consumption.raw_material_id,
-          consumption.order_detail_id,
-          cancelledBy,
-          Number(consumption.quantity),
-          balance,
-          balance,
-          `Hao hụt nguyên liệu khi hủy hóa đơn ${orderId}. Lý do: ${cancelReason}`,
-        ]
-      );
-    }
-
     await connection.execute(
       `
       UPDATE orders

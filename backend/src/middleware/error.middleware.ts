@@ -19,7 +19,7 @@ function mapDatabaseError(error: MysqlError): ApiError | null {
         500,
         `Cấu trúc database chưa khớp với code: ${
           error.sqlMessage ?? error.message
-        }. Hãy chạy lại backend/src/database/schema.sql và backend/src/database/migration-sync-orders.sql`
+        }. Hãy kiểm tra backend/src/database/quickserve_pos_system.sql và chạy backend/src/database/migration-sync-orders.sql`
       );
     case "ER_DUP_ENTRY":
       return new ApiError(

@@ -10,6 +10,7 @@ import {
 } from "../../api/customers.api";
 import AdminLayout, { Icon } from "../../layouts/AdminLayout";
 import { useAppNotifications } from "../../components/common/AppNotificationsContext";
+import Pagination from "../../components/common/Pagination";
 
 type CustomerFormState = {
   fullName: string;
@@ -25,8 +26,6 @@ const defaultFormState: CustomerFormState = {
   phone: "",
   address: "",
 };
-
-const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("vi-VN", {
@@ -89,41 +88,6 @@ function getAvatarColor() {
   return "bg-slate-100 text-[#f97316] border border-slate-200";
 }
 
-/* ─── Stat Card ───────────────────────────────────────────────── */
-function StatCard({
-  icon,
-  label,
-  value,
-  note,
-  iconBg,
-  iconColor,
-}: {
-  icon: string;
-  label: string;
-  value: string;
-  note: string;
-  iconBg: string;
-  iconColor: string;
-}) {
-  return (
-    <article className="group border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
-      <div className="flex items-center gap-4">
-        <span
-          className={`flex h-14 w-14 shrink-0 items-center justify-center ${iconBg}`}
-        >
-          <Icon name={icon} filled className={`text-3xl ${iconColor}`} />
-        </span>
-        <div className="min-w-0">
-          <p className="text-[13px] font-semibold text-slate-500">{label}</p>
-          <p className="mt-1 text-[22px] font-extrabold tracking-tight text-[#0b1c30]">
-            {value}
-          </p>
-          <p className="mt-1 text-xs font-semibold text-slate-500">{note}</p>
-        </div>
-      </div>
-    </article>
-  );
-}
 
 /* ─── Donut segment (SVG) ─────────────────────────────────────── */
 function DonutChart({
@@ -198,7 +162,7 @@ function CustomerPage() {
 
   /* pagination */
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
+  const pageSize = 8;
 
   const loadCustomers = useCallback(async (query = "") => {
     try {
@@ -228,29 +192,6 @@ function CustomerPage() {
 
 
 
-  /* ── Stats ────────────────────────────────────────────────── */
-  const stats = useMemo(() => {
-    const totalSpent = customers.reduce(
-      (sum, customer) => sum + Number(customer.totalSpent || 0),
-      0
-    );
-    const newThisMonth = customers.filter((customer) => {
-      const createdAt = new Date(customer.createdAt);
-      const now = new Date();
-      return (
-        createdAt.getMonth() === now.getMonth() &&
-        createdAt.getFullYear() === now.getFullYear()
-      );
-    }).length;
-    const loyalCount = customers.filter((customer) => getSegment(customer) === "loyal")
-      .length;
-
-    return {
-      totalSpent,
-      newThisMonth,
-      loyalCount,
-    };
-  }, [customers]);
 
   /* ── Filtered + paginated ──────────────────────────────────── */
   const filteredCustomers = useMemo(() => {
@@ -419,76 +360,7 @@ function CustomerPage() {
   };
 
   /* ── Pagination helpers ────────────────────────────────────── */
-  function renderPageButtons() {
-    const buttons: React.ReactNode[] = [];
-    const maxVisible = 5;
 
-    let startPage = Math.max(1, safePage - Math.floor(maxVisible / 2));
-    const endPage = Math.min(totalPages, startPage + maxVisible - 1);
-    if (endPage - startPage < maxVisible - 1) {
-      startPage = Math.max(1, endPage - maxVisible + 1);
-    }
-
-    if (startPage > 1) {
-      buttons.push(
-        <button
-          key={1}
-          type="button"
-          onClick={() => setCurrentPage(1)}
-          className="flex h-9 w-9 items-center justify-center text-sm font-semibold text-slate-600 hover:bg-slate-100"
-        >
-          1
-        </button>
-      );
-      if (startPage > 2) {
-        buttons.push(
-          <span key="ellipsis-start" className="flex h-9 w-9 items-center justify-center text-slate-400">
-            …
-          </span>
-        );
-      }
-    }
-
-    for (let i = startPage; i <= endPage; i++) {
-      buttons.push(
-        <button
-          key={i}
-          type="button"
-          onClick={() => setCurrentPage(i)}
-          className={[
-            "flex h-9 w-9 items-center justify-center text-sm font-bold transition-colors",
-            i === safePage
-              ? "bg-[#f97316] text-white shadow-sm"
-              : "text-slate-600 hover:bg-slate-100",
-          ].join(" ")}
-        >
-          {i}
-        </button>
-      );
-    }
-
-    if (endPage < totalPages) {
-      if (endPage < totalPages - 1) {
-        buttons.push(
-          <span key="ellipsis-end" className="flex h-9 w-9 items-center justify-center text-slate-400">
-            …
-          </span>
-        );
-      }
-      buttons.push(
-        <button
-          key={totalPages}
-          type="button"
-          onClick={() => setCurrentPage(totalPages)}
-          className="flex h-9 w-9 items-center justify-center text-sm font-semibold text-slate-600 hover:bg-slate-100"
-        >
-          {totalPages}
-        </button>
-      );
-    }
-
-    return buttons;
-  }
 
   /* ── Render ─────────────────────────────────────────────────── */
   return (
@@ -498,41 +370,6 @@ function CustomerPage() {
     >
       <div className="space-y-6 font-['Inter',sans-serif]">
 
-        {/* ─ Stat Cards ─ */}
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <StatCard
-            icon="groups"
-            label="Tổng khách hàng"
-            value={customers.length.toLocaleString("vi-VN")}
-            note={`↑ Theo dữ liệu hiện tại`}
-            iconBg="bg-orange-50"
-            iconColor="text-[#f97316]"
-          />
-          <StatCard
-            icon="person_add"
-            label="Khách hàng mới (tháng này)"
-            value={String(stats.newThisMonth)}
-            note={`↑ Trong tháng này`}
-            iconBg="bg-orange-50"
-            iconColor="text-[#f97316]"
-          />
-          <StatCard
-            icon="loyalty"
-            label="Khách hàng thân thiết"
-            value={String(stats.loyalCount)}
-            note={`${customers.length ? Math.round((stats.loyalCount / customers.length) * 1000) / 10 : 0}% tổng khách hàng`}
-            iconBg="bg-orange-50"
-            iconColor="text-[#f97316]"
-          />
-          <StatCard
-            icon="payments"
-            label="Doanh thu từ KH"
-            value={formatCurrency(stats.totalSpent)}
-            note={`↑ Tổng chi tiêu đã ghi nhận`}
-            iconBg="bg-orange-50"
-            iconColor="text-[#f97316]"
-          />
-        </section>
 
 
 
@@ -709,53 +546,14 @@ function CustomerPage() {
             </div>
 
             {/* pagination */}
-            <div className="mt-4 flex flex-col items-center justify-between gap-3 sm:flex-row">
-              <p className="text-sm font-medium text-slate-500">
-                Hiển thị {(safePage - 1) * pageSize + 1}–
-                {Math.min(safePage * pageSize, filteredCustomers.length)} của{" "}
-                <span className="font-bold text-[#0b1c30]">
-                  {filteredCustomers.length.toLocaleString("vi-VN")}
-                </span>{" "}
-                khách hàng
-              </p>
-
-              <div className="flex items-center gap-2">
-                {/* prev */}
-                <button
-                  type="button"
-                  disabled={safePage <= 1}
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  className="flex h-9 w-9 items-center justify-center border border-slate-200 text-slate-500 transition-colors hover:bg-slate-100 disabled:opacity-40"
-                >
-                  <Icon name="chevron_left" className="text-[18px]" />
-                </button>
-
-                {renderPageButtons()}
-
-                {/* next */}
-                <button
-                  type="button"
-                  disabled={safePage >= totalPages}
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  className="flex h-9 w-9 items-center justify-center border border-slate-200 text-slate-500 transition-colors hover:bg-slate-100 disabled:opacity-40"
-                >
-                  <Icon name="chevron_right" className="text-[18px]" />
-                </button>
-
-                {/* page size */}
-                <select
-                  value={pageSize}
-                  onChange={(e) => setPageSize(Number(e.target.value))}
-                  className="ml-2 h-9 border border-slate-200 bg-white px-2 text-sm font-semibold text-slate-600 outline-none"
-                >
-                  {PAGE_SIZE_OPTIONS.map((size) => (
-                    <option key={size} value={size}>
-                      {size} / trang
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
+            <Pagination
+              currentPage={safePage}
+              totalPages={totalPages}
+              totalItems={filteredCustomers.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              itemName="khách hàng"
+            />
           </div>
 
           {/* ── Sidebar ──────────────────────────────────────── */}

@@ -1,4 +1,6 @@
+import React from "react";
 import type { PosOrderResult, PosPaymentMethod } from "../../api/pos.api";
+import { getSettings } from "../../api/settings.api";
 import { Icon } from "../../layouts/AdminLayout";
 import cashImage from "../../assets/tien.jpg";
 import qrImage from "../../assets/qr.png";
@@ -30,6 +32,31 @@ function getPaymentMethodImage(method: PosPaymentMethod) {
   }
 
   return cashImage;
+}
+
+function getSyncStatus(order: PosOrderResult) {
+  if (order.syncStatus === "PENDING") {
+    return {
+      label: "Chờ đồng bộ",
+      header: "Đã lưu an toàn trên máy POS",
+      className: "bg-amber-50 text-amber-700",
+    };
+  }
+  if (
+    order.syncStatus === "REJECTED" ||
+    order.syncStatus === "CONFLICT_STOCK"
+  ) {
+    return {
+      label: "Cần kiểm tra",
+      header: "Hóa đơn đang cần kiểm tra đồng bộ",
+      className: "bg-red-50 text-red-700",
+    };
+  }
+  return {
+    label: "Đã đồng bộ",
+    header: "Thanh toán thành công",
+    className: "bg-green-50 text-green-600",
+  };
 }
 
 function getCurrentEmployeeName() {
@@ -90,10 +117,14 @@ function getDetailConfigurationLines(detail: PosOrderResult["details"][number]) 
   return lines;
 }
 
-function buildReceiptHtml(order: PosOrderResult, employeeName: string) {
+function buildReceiptHtml(order: PosOrderResult, employeeName: string, settings: Record<string, string>) {
   const orderCode = `#HD${order.id.slice(0, 10)}`;
-  const createdAt = new Date().toLocaleString("vi-VN", { hour12: false });
+  const createdAt = new Date(order.createdAt ?? Date.now()).toLocaleString(
+    "vi-VN",
+    { hour12: false }
+  );
   const paymentLabel = getPaymentMethodLabel(order.payment.paymentMethod);
+  const syncStatus = getSyncStatus(order);
   const promotionDisplayName = getPromotionDisplayName(order);
   const detailRows = order.details
     .map((detail) => {
@@ -113,6 +144,14 @@ function buildReceiptHtml(order: PosOrderResult, employeeName: string) {
     })
     .join("");
 
+  const storeName = settings.store_name || "POS STORE";
+  const storePhone = settings.store_phone || "1900 8888";
+  const storeAddress = settings.store_address || "";
+
+  const logoHtml = settings.store_logo && settings.invoice_show_logo !== "false"
+    ? `<img src="${settings.store_logo}" style="width: 42px; height: 42px; object-fit: contain; margin: 0 auto 10px; display: block;" />`
+    : `<div class="logo">⚡</div>`;
+
   return `
     <!doctype html>
     <html lang="vi">
@@ -120,6 +159,8 @@ function buildReceiptHtml(order: PosOrderResult, employeeName: string) {
         <meta charset="utf-8" />
         <title>${orderCode}</title>
         <style>
+          @import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700;800;900&display=swap");
+
           @page {
             size: A5 portrait;
             margin: 8mm;
@@ -135,7 +176,7 @@ function buildReceiptHtml(order: PosOrderResult, employeeName: string) {
             padding: 0;
             background: #ffffff;
             color: #0b1c30;
-            font-family: Inter, Arial, sans-serif;
+            font-family: "Roboto", Arial, sans-serif;
           }
 
           .receipt {
@@ -273,9 +314,10 @@ function buildReceiptHtml(order: PosOrderResult, employeeName: string) {
       <body>
         <main class="receipt">
           <section class="brand">
-            <div class="logo">⚡</div>
-            <h1>POS STORE</h1>
-            <p class="muted">Hotline: 1900 8888</p>
+            ${logoHtml}
+            <h1>${escapeHtml(storeName)}</h1>
+            <p class="muted">Hotline: ${escapeHtml(storePhone)}</p>
+            ${storeAddress && settings.invoice_show_address === "true" ? `<p class="muted">${escapeHtml(storeAddress)}</p>` : ""}
           </section>
 
           <section class="section">
@@ -294,6 +336,10 @@ function buildReceiptHtml(order: PosOrderResult, employeeName: string) {
             <div class="row">
               <span class="label">Khách hàng:</span>
               <span class="value">Khách lẻ</span>
+            </div>
+            <div class="row">
+              <span class="label">Đồng bộ:</span>
+              <span class="value">${escapeHtml(syncStatus.label)}</span>
             </div>
           </section>
 
@@ -336,18 +382,20 @@ function buildReceiptHtml(order: PosOrderResult, employeeName: string) {
             </div>
           </section>
 
+          ${settings.invoice_show_thank_you !== "false" ? `
           <section class="thanks">
             <p>Cảm ơn Quý khách!</p>
             <p class="footer">Hẹn gặp lại quý khách lần sau</p>
             <p class="footer">Powered by POS System</p>
           </section>
+          ` : ""}
         </main>
       </body>
     </html>
   `;
 }
 
-function printReceipt(order: PosOrderResult, employeeName: string) {
+function printReceipt(order: PosOrderResult, employeeName: string, settings: Record<string, string>) {
   const iframe = document.createElement("iframe");
   iframe.style.position = "fixed";
   iframe.style.right = "0";
@@ -366,7 +414,7 @@ function printReceipt(order: PosOrderResult, employeeName: string) {
   }
 
   iframeDocument.open();
-  iframeDocument.write(buildReceiptHtml(order, employeeName));
+  iframeDocument.write(buildReceiptHtml(order, employeeName, settings));
   iframeDocument.close();
 
   iframe.onload = () => {
@@ -379,19 +427,30 @@ function printReceipt(order: PosOrderResult, employeeName: string) {
   };
 }
 
-function ReceiptPreview({ order, employeeName }: { order: PosOrderResult; employeeName: string }) {
+function ReceiptPreview({ order, employeeName, settings }: { order: PosOrderResult; employeeName: string; settings: Record<string, string> }) {
   const promotionDisplayName = getPromotionDisplayName(order);
+  const syncStatus = getSyncStatus(order);
+
+  const storeName = settings.store_name || "QuickServe POS";
+  const storePhone = settings.store_phone || "1900 8888";
 
   return (
     <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
       <div className="mb-8 text-center">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#f97316] text-white">
-          <Icon name="bolt" filled className="text-3xl" />
-        </div>
+        {settings.store_logo && settings.invoice_show_logo !== "false" ? (
+          <img src={settings.store_logo} alt="Store Logo" className="mx-auto mb-4 h-14 w-14 object-contain" />
+        ) : (
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#f97316] text-white">
+            <Icon name="bolt" filled className="text-3xl" />
+          </div>
+        )}
         <p className="font-['Outfit',sans-serif] text-lg font-extrabold tracking-wide text-[#0b1c30]">
-          QuickServe POS  
+          {storeName}
         </p>
-        <p className="mt-1 text-sm text-slate-500">Hotline: 1900 8888</p>
+        <p className="mt-1 text-sm text-slate-500">Hotline: {storePhone}</p>
+        {settings.store_address && settings.invoice_show_address === "true" && (
+          <p className="mt-1 text-sm text-slate-500">{settings.store_address}</p>
+        )}
       </div>
 
       <div className="space-y-3 border-t border-dashed border-slate-300 pt-5 text-sm">
@@ -402,7 +461,11 @@ function ReceiptPreview({ order, employeeName }: { order: PosOrderResult; employ
         <div className="flex justify-between gap-4">
           <span className="font-semibold text-slate-500">Ngày:</span>
           <span className="font-semibold text-[#0b1c30]">
-            {new Date().toLocaleString("vi-VN", { hour12: false })}
+            {order.createdAt
+              ? new Date(order.createdAt).toLocaleString("vi-VN", {
+                  hour12: false,
+                })
+              : "Vừa tạo"}
           </span>
         </div>
         <div className="flex justify-between gap-4">
@@ -412,6 +475,12 @@ function ReceiptPreview({ order, employeeName }: { order: PosOrderResult; employ
         <div className="flex justify-between gap-4">
           <span className="font-semibold text-slate-500">Khách hàng:</span>
           <span className="font-semibold text-[#0b1c30]">Khách lẻ</span>
+        </div>
+        <div className="flex justify-between gap-4">
+          <span className="font-semibold text-slate-500">Đồng bộ:</span>
+          <span className={`rounded-full px-2.5 py-1 text-xs font-extrabold ${syncStatus.className}`}>
+            {syncStatus.label}
+          </span>
         </div>
       </div>
 
@@ -481,19 +550,31 @@ function ReceiptPreview({ order, employeeName }: { order: PosOrderResult; employ
         </span>
       </div>
 
-      <div className="mt-6 text-center">
-        <p className="font-['Outfit',sans-serif] font-extrabold text-[#0b1c30]">
-          Cảm ơn Quý khách!
-        </p>
-        <p className="mt-2 text-sm text-slate-500">Hẹn gặp lại quý khách lần sau</p>
-        <p className="mt-5 text-xs text-slate-300">Powered by POS System</p>
-      </div>
+      {settings.invoice_show_thank_you !== "false" && (
+        <div className="mt-6 text-center">
+          <p className="font-['Outfit',sans-serif] font-extrabold text-[#0b1c30]">
+            Cảm ơn Quý khách!
+          </p>
+          <p className="mt-2 text-sm text-slate-500">Hẹn gặp lại quý khách lần sau</p>
+          <p className="mt-5 text-xs text-slate-300">Powered by POS System</p>
+        </div>
+      )}
     </div>
   );
 }
 
 function ReceiptModal({ order, onClose }: ReceiptModalProps) {
   const employeeName = getCurrentEmployeeName();
+  const syncStatus = getSyncStatus(order);
+  const [settings, setSettings] = React.useState<Record<string, string>>({});
+
+  React.useEffect(() => {
+    getSettings().then((res) => {
+      if (res.data) setSettings(res.data);
+    }).catch((err) => {
+      console.error("Lỗi lấy cài đặt cho hóa đơn:", err);
+    });
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
@@ -505,16 +586,16 @@ function ReceiptModal({ order, onClose }: ReceiptModalProps) {
             </button>
             <div>
               <p className="text-xs font-black uppercase text-green-600">
-                Thành công
+                {order.syncStatus === "PENDING" ? "Đã lưu trên máy" : "Thành công"}
               </p>
               <h3 className="text-xl font-black text-[#0b1c30]">
-                Thanh toán thành công
+                {syncStatus.header}
               </h3>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-extrabold text-green-600">
-              Bill đã tạo
+            <span className={`rounded-full px-3 py-1 text-xs font-extrabold ${syncStatus.className}`}>
+              {syncStatus.label}
             </span>
             <button type="button" onClick={onClose}>
               <Icon name="close" />
@@ -523,41 +604,47 @@ function ReceiptModal({ order, onClose }: ReceiptModalProps) {
         </div>
 
         <div className="flex-1 overflow-y-auto bg-[#f8f9ff]">
-          <div className="grid lg:grid-cols-[1fr_260px] min-h-full">
-          <section className="flex justify-center p-6 lg:p-8">
-            <ReceiptPreview order={order} employeeName={employeeName} />
-          </section>
+          <div className="grid min-h-full lg:grid-cols-[1fr_260px]">
+            <section className="flex justify-center p-6 lg:p-8">
+              <ReceiptPreview
+                order={order}
+                employeeName={employeeName}
+                settings={settings}
+              />
+            </section>
 
-          <aside className="flex flex-col justify-between border-t border-slate-200 bg-white p-6 lg:border-t-0 lg:border-l">
-            <div>
-              <p className="mb-4 text-xs font-extrabold uppercase tracking-widest text-slate-500">
-                Thao tác
-              </p>
-              <div className="space-y-3">
-                <button
-                  type="button"
-                  onClick={() => printReceipt(order, employeeName)}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#f97316] px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-orange-100 transition-colors hover:bg-orange-600"
-                >
-                  <Icon name="print" className="text-lg" />
-                  In hóa đơn
-                </button>
-                <button
-                  type="button"
-                  onClick={() => printReceipt(order, employeeName)}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-[#0b1c30] shadow-sm transition-colors hover:bg-slate-50"
-                >
-                  <Icon name="picture_as_pdf" className="text-lg" />
-                  Tải PDF
-                </button>
+            <aside className="flex flex-col justify-between border-t border-slate-200 bg-white p-6 lg:border-l lg:border-t-0">
+              <div>
+                <p className="mb-4 text-xs font-extrabold uppercase tracking-widest text-slate-500">
+                  Thao tác
+                </p>
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => printReceipt(order, employeeName, settings)}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#f97316] px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-orange-100 transition-colors hover:bg-orange-600"
+                  >
+                    <Icon name="print" className="text-lg" />
+                    In hóa đơn
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => printReceipt(order, employeeName, settings)}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-[#0b1c30] shadow-sm transition-colors hover:bg-slate-50"
+                  >
+                    <Icon name="picture_as_pdf" className="text-lg" />
+                    Tải PDF
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
-              <p className="text-xs font-semibold text-slate-500">Mã đơn</p>
-              <p className="mt-1 font-extrabold text-[#0b1c30]">#HD{order.id.slice(0, 10)}</p>
-            </div>
-          </aside>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
+                <p className="text-xs font-semibold text-slate-500">Mã đơn</p>
+                <p className="mt-1 font-extrabold text-[#0b1c30]">
+                  #HD{order.id.slice(0, 10)}
+                </p>
+              </div>
+            </aside>
           </div>
         </div>
       </div>

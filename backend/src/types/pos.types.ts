@@ -5,6 +5,7 @@ export type CreatePosOrderItemBody = {
   variantId?: string | null;
   modifierOptionIds?: string[];
   quantity?: number;
+  unitPrice?: number;
   note?: string | null;
 };
 
@@ -17,6 +18,13 @@ export type CreatePosOrderBody = {
   promotionCode?: string | null;
   changeAmount?: number;
   discountAmount?: number;
+  totalAmount?: number;
+  finalAmount?: number;
+  shiftId?: string | null;
+  operationId?: string;
+  terminalId?: string;
+  localOrderId?: string;
+  clientCreatedAt?: string;
 };
 
 export type NormalizedPosOrderItem = {
@@ -24,7 +32,24 @@ export type NormalizedPosOrderItem = {
   variantId: string | null;
   modifierOptionIds: string[];
   quantity: number;
+  unitPrice: number | null;
   note: string | null;
+};
+
+export type PosOrderSyncStatus =
+  | "SYNCED"
+  | "ALREADY_SYNCED"
+  | "REJECTED"
+  | "CONFLICT_STOCK";
+
+export type PosSyncMetadata = {
+  operationId: string;
+  terminalId: string;
+  localOrderId: string;
+  clientCreatedAt: Date;
+  expectedTotalAmount: number;
+  expectedDiscountAmount: number;
+  expectedFinalAmount: number;
 };
 
 export type CartCancellationScope = "item" | "cart";
@@ -84,5 +109,15 @@ export type PosOrderResult = {
   appliedPromotion: PosAppliedPromotion | null;
   details: PosOrderDetail[];
   payment: PosPayment;
-  alerts?: { name: string; stockQuantity: number; minStock: number }[];
+  syncStatus?: "PENDING" | PosOrderSyncStatus;
+  operationId?: string;
+  localOrderId?: string;
+  createdAt?: string;
+};
+
+export type PosOrderSyncResult = {
+  status: PosOrderSyncStatus;
+  operationId: string;
+  localOrderId: string;
+  order: PosOrderResult;
 };

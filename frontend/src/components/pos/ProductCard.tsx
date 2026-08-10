@@ -48,7 +48,7 @@ export default function ProductCard({ product, onAdd }: ProductCardProps) {
               {product.name}
             </h3>
             <p className="mt-1 text-xs font-semibold text-slate-400">
-              SKU: {product.sku}
+              {product.sku}
             </p>
           </div>
 

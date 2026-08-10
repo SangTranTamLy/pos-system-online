@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   createCartCancellationController,
   createPosOrderController,
+  createPosOrderSyncController,
   getPosProductConfigurationController,
 } from "../controllers/pos.controller";
 import {
@@ -19,6 +20,7 @@ posRouter.get(
   asyncHandler(getPosProductConfigurationController)
 );
 posRouter.post("/orders", asyncHandler(createPosOrderController));
+posRouter.post("/orders/sync", asyncHandler(createPosOrderSyncController));
 posRouter.post(
   "/cart-cancellations",
   requireRoles(["ADMIN", "MANAGER", "STAFF", "CASHIER"]),
